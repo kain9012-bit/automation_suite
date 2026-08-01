@@ -1,0 +1,13 @@
+{
+  "id": "multi_format_pdf_combiner",
+  "name": "다형식 PDF 통합",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "multi_format_pdf_combiner_entry.py",
+  "icon": "",
+  "description": "PDF, 이미지, DOCX, PPT, HWP 파일을 하나의 PDF로 통합합니다.",
+  "order": 20,
+  "enabled": true,
+  "version": "2.2.0",
+  "keywords": []
+}

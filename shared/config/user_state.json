@@ -1,0 +1,80 @@
+{
+  "favorites": [],
+  "recent_tools": [
+    "파일명 정리",
+    "게시글 추출",
+    "학교간 거리·시간 추출",
+    "학사일정 추출",
+    "파일명 일괄 변경",
+    "파일 꺼내기",
+    "파일 현황표",
+    "ZIP 일괄 풀기",
+    "K-에듀파인 수신그룹",
+    "교데통 수신그룹",
+    "엑셀 병합",
+    "엑셀 분할",
+    "학교명 표준화",
+    "데이터 품질 점검",
+    "연도별 데이터 비교",
+    "데이터 매칭",
+    "형태 변환·언피벗",
+    "데이터 요약",
+    "계산기",
+    "추첨기",
+    "텍스트 비교",
+    "워드클라우드",
+    "QR코드",
+    "다형식 PDF 통합",
+    "한글 파일 취합",
+    "한글→PDF 변환",
+    "HWP→HWPX 변환",
+    "PDF 용량 압축",
+    "PDF 페이지번호 추가",
+    "이수증 PDF 취합",
+    "PDF 파일 취합",
+    "PDF 페이지 정리"
+  ],
+  "settings": {
+    "auto_start_windows": true,
+    "start_fullscreen": true,
+    "reopen_last_tool": false,
+    "show_home_favorites": true,
+    "show_home_recent": true,
+    "recent_tools_limit": 8,
+    "confirm_on_exit": false,
+    "last_tool_id": "pdf_page_organizer",
+    "home_quick_links": [
+      {
+        "id": "351fc960-124c-4514-9a1e-27abce5e6079",
+        "name": "전북교육청 홈페이지",
+        "type": "site",
+        "target": "https://www.jbe.go.kr/index.jbe"
+      },
+      {
+        "id": "d916178d-f252-4036-9c33-1668c9585efd",
+        "name": "교육데이터 허브",
+        "type": "site",
+        "target": "https://www.jbe.go.kr/office/index.jbe?menuCd=DOM_000000704005007000"
+      },
+      {
+        "id": "726227e6-36dc-43d1-9d74-ee711b3a245d",
+        "name": "전북교육포털",
+        "type": "site",
+        "target": "https://www.jbedu.kr/index.jbedu"
+      },
+      {
+        "id": "0abdddde-a7ac-4c9c-b5ac-d5819d0040d6",
+        "name": "전북교육연수포털",
+        "type": "site",
+        "target": "https://www.jbstudy.kr/"
+      }
+    ],
+    "_home_edit_mode": true,
+    "home_quick_link_section_order": [
+      "site",
+      "program",
+      "folder",
+      "file"
+    ]
+  }
+}

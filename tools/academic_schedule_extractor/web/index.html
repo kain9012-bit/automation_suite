@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>전북 학사일정 데이터 추출 도구(v1.0)</title>
+
+  <!-- Pretendard -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+
+  <!-- SheetJS (xlsx export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+    }
+
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      line-height:1.6;
+      font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .top-right{ position:fixed; top:10px; right:10px; z-index:9999; }
+    #usageGuideBtn{
+      padding:6px 14px; font-size:12px; cursor:pointer;
+      border-radius:6px; border:none;
+      background:#0054a6; color:#ffffff;
+      box-shadow:0 2px 4px rgba(0,0,0,0.18);
+      font-weight:500;
+    }
+    #usageGuideModal{
+      display:none; position:fixed; z-index:10000;
+      left:50%; top:50%; transform:translate(-50%, -50%);
+      max-width:820px; width:92%; max-height:82%;
+      background:#ffffff; border-radius:6px;
+      box-shadow:0 18px 45px rgba(15,23,42,0.25);
+      padding:18px 22px; overflow:auto; font-size:13px; line-height:1.6;
+      border:1px solid #e5e7eb;
+    }
+    .usage-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+    .usage-head h2{ margin:0; font-size:16px; }
+    .usage-close{
+      padding:4px 12px; font-size:12px; cursor:pointer;
+      border-radius:6px; border:1px solid #cbd5e1;
+      background:#f9fafb; color:#334155;
+    }
+
+    .app{ width:100%; margin:0 auto 40px; padding:0 16px 40px; }
+    .app-header{ padding:20px 0 8px; margin:0 auto 8px; text-align:center; background:#ffffff; }
+    .app-header h1{
+      margin:0; font-size:24px; font-weight:600; letter-spacing:-0.02em; color:#111827;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+    }
+    .logo-badge{
+      width:32px; height:32px; border-radius:6px;
+      background:var(--brand); display:flex; align-items:center; justify-content:center;
+      color:#fff;
+    }
+    .logo-badge svg{ display:block; }
+    .app-header p{
+      margin-top:4px; font-size:13px; line-height:1.5; color:var(--muted);
+      max-width:820px; margin-left:auto; margin-right:auto;
+    }
+
+    .tabs{
+      max-width:1120px; margin:10px auto 14px;
+      display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+    }
+    .tab-btn{
+      font-family:inherit; font-size:12px; padding:8px 14px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#f9fafb;
+      cursor:pointer;
+      color:#334155;
+      font-weight:600;
+    }
+    .tab-btn.active{
+      background:var(--brand); border-color:var(--brand); color:#fff;
+    }
+
+    .layout{
+      display:grid;
+      grid-template-columns:minmax(0, 360px) minmax(0, 1fr);
+      gap:16px;
+      margin:0 auto 16px;
+      max-width:1120px;
+      align-items:start;
+    }
+    @media(max-width:900px){
+      .layout{ grid-template-columns:1fr; }
+      .table-header-row{ flex-direction:column; align-items:flex-start; gap:8px; }
+    }
+
+    .card{
+      background:var(--card);
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      box-shadow:none;
+      padding:18px 20px 18px;
+    }
+    .card-title{ margin:0 0 8px; font-size:18px; font-weight:600; color:#111827; }
+    .card-desc{ margin:0 0 10px; font-size:13px; color:var(--muted); }
+
+    .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .row + .row{ margin-top:8px; }
+    .input{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:8px 10px;
+      font-size:12px;
+      font-family:inherit;
+      outline:none;
+      background:#fff;
+      color:#111827;
+    }
+    .input:focus{ border-color:#9db7e6; box-shadow:0 0 0 3px rgba(0,86,184,.08); }
+
+    button.primary-btn, button.secondary-btn{
+      font-family:inherit; font-size:12px; padding:7px 12px;
+      border-radius:6px; border:1px solid transparent; cursor:pointer; white-space:nowrap;
+    }
+    button.primary-btn{ background:var(--brand); color:#fff; border-color:var(--brand); }
+    button.primary-btn:hover:not(:disabled){ background:#00479a; }
+    button.primary-btn:disabled{ opacity:.5; cursor:not-allowed; }
+    button.secondary-btn{ background:#fff; color:var(--text); border-color:var(--border); }
+    button.secondary-btn:hover{ background:#f3f4f6; }
+
+    .hint{ font-size:12px; color:var(--muted); line-height:1.7; }
+    .pill{
+      display:inline-flex; gap:8px; align-items:center;
+      padding:6px 10px; border:1px solid var(--border);
+      border-radius:999px; background:#f9fafb;
+      font-size:12px; color:var(--muted);
+    }
+    .dot{ width:9px; height:9px; border-radius:999px; background:#9ca3af; }
+    .dot.good{ background:#10b981; }
+    .dot.bad{ background:#ef4444; }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); white-space:pre-line; }
+
+    .list{
+      list-style:none; margin:8px 0 0; padding:0;
+      display:flex; flex-direction:column; gap:8px;
+      max-height:360px; overflow:auto;
+    }
+    .list-item{
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:10px 10px;
+      background:#fff;
+    }
+    .li-top{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .li-title{ font-weight:600; font-size:13px; color:#111827; line-height:1.35; }
+    .li-meta{ margin-top:4px; font-size:12px; color:var(--muted); line-height:1.45; }
+    .mini-actions{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:center; }
+    .mini-btn{
+      font-size:12px; padding:6px 10px; border-radius:6px;
+      border:1px solid var(--border); background:#f9fafb; cursor:pointer;
+    }
+    .mini-btn:hover{ background:#f3f4f6; }
+
+    .evt-chip{
+      display:inline-flex; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      font-size:11px; padding:2px 6px; border-radius:999px;
+      border:1px solid #cfe0fb; background:var(--brand-soft); color:#1d4ed8; margin:2px 0;
+    }
+
+    /* Calendar */
+    .cal-head{
+      display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;
+    }
+    .month-title{ font-size:16px; font-weight:700; color:#111827; letter-spacing:-0.01em; }
+    .week{
+      display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; margin-bottom:8px;
+      color:var(--muted); font-size:12px;
+    }
+    .week div{
+      padding:6px 8px; border-radius:6px; background:#f3f4f6; border:1px solid #e5e7eb;
+      text-align:center; font-weight:600;
+    }
+    .cal{ display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; }
+    .cell{
+      min-height:92px; border:1px solid var(--border); border-radius:6px;
+      padding:8px; background:#fff; cursor:pointer; position:relative; overflow:hidden;
+    }
+    .cell:hover{ background:#f9fafb; }
+    .cell.muted{ opacity:.45; cursor:default; }
+    .cell.today{ border-color:#93b4e9; box-shadow:0 0 0 3px rgba(0,86,184,.08); }
+    .day-num{
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:12px; color:var(--muted); margin-bottom:6px;
+      font-variant-numeric:tabular-nums;
+    }
+    .evt-more{ font-size:11px; color:var(--muted); margin-top:2px; }
+
+    .detail{ margin-top:12px; border-top:1px solid #e5e7eb; padding-top:12px; }
+    .detail h3{ margin:0 0 8px; font-size:14px; font-weight:700; color:#111827; }
+    .detail-list{
+      list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;
+      max-height:240px; overflow:auto;
+    }
+    .detail-item{
+      border:1px solid var(--border); border-radius:6px; padding:10px; background:#fff;
+    }
+    .detail-item .t{ font-weight:700; font-size:13px; color:#111827; }
+    .detail-item .c{ margin-top:4px; font-size:12px; color:var(--muted); line-height:1.5; white-space:pre-wrap; }
+
+    /* Export tab */
+    .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media(max-width:900px){ .grid2{ grid-template-columns:1fr; } }
+    .progress{
+      width:100%; height:10px; border-radius:999px;
+      border:1px solid var(--border); background:#f3f4f6; overflow:hidden; margin-top:8px;
+    }
+    .progress > div{ height:100%; width:0%; background:var(--brand); transition:width .2s ease; }
+
+    select.input{ appearance:none; background-image:linear-gradient(45deg, transparent 50%, #6b7280 50%), linear-gradient(135deg, #6b7280 50%, transparent 50%); background-position:calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size:5px 5px, 5px 5px; background-repeat:no-repeat; padding-right:28px; }
+
+    .tool-footer{ max-width:1120px; margin:24px auto 32px; font-size:12px; color:#555; text-align:center; }
+    code{ background:#f3f4f6; border:1px solid #e5e7eb; padding:2px 6px; border-radius:6px; }
+    hr.sep{ border:none; border-top:1px solid #e5e7eb; margin:14px 0; }
+  </style>
+</head>
+<body>
+
+<div class="top-right">
+  <button id="usageGuideBtn" type="button">사용가이드</button>
+</div>
+
+<div id="usageGuideModal" role="dialog" aria-modal="true" aria-labelledby="usageTitle">
+  <div class="usage-head">
+    <h2 id="usageTitle">전북 학사일정 데이터 추출기 사용 가이드</h2>
+    <button class="usage-close" type="button">닫기</button>
+  </div>
+
+  <div>
+    <p><strong>탭1(달력 조회)</strong>는 학교명을 검색해 <strong>해당 학교의 월별 학사일정</strong>을 달력으로 확인하는 기능입니다.</p>
+    <p><strong>탭2(데이터 추출)</strong>은 전북 전체 학교를 불러와 <strong>지역/학교급/키워드/기간</strong> 조건으로 학사일정 데이터를 <strong>엑셀(.xlsx)</strong>로 추출하는 기능입니다.</p>
+
+    <ol style="margin-top:10px; padding-left:18px;">
+      </li>
+      <li><strong>달력 조회(기본 기능)</strong><br/>
+        - 탭1에서 학교 검색 → <em>달력으로 보기</em> → 날짜 클릭으로 상세 확인
+      </li>
+      <li><strong>데이터 추출(두 번째 기능)</strong><br/>
+        - 탭2로 전환하면 전북 학교 목록이 자동으로 불러와집니다(캐시 우선). → 필터(시·군/학교급) → 기간/키워드 설정 → <em>엑셀로 추출</em>
+      </li>
+    </ol>
+
+    <div class="hint" style="margin-top:10px;">
+      <strong>주의</strong><br/>
+      - 이 도구는 브라우저에서 NEIS OpenAPI를 호출합니다. 네트워크 정책에 따라 외부 호출이 제한되면 동작하지 않을 수 있습니다.<br/>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <header class="app-header">
+    <h1><span class="logo-badge" aria-label="달력 아이콘" title="학사일정"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+  <path fill="currentColor" d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm12 6H5v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8ZM6 6h12V7H6V6Z"/>
+</svg></span> 전북 학사일정 데이터 추출 도구(v1.0)</h1>
+    <p>탭1에서 <strong>달력 조회</strong>, 탭2에서 <strong>전북 전체 학교</strong>를 대상으로 학사일정을 <strong>엑셀(.xlsx)</strong>로 추출할 수 있습니다.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="기능 탭">
+    <button class="tab-btn active" id="tabBtn1" type="button" role="tab" aria-selected="true">탭1 · 학사일정 달력 조회</button>
+    <button class="tab-btn" id="tabBtn2" type="button" role="tab" aria-selected="false">탭2 · 학사일정 데이터 추출</button>
+  </div>
+
+  <!-- TAB 1 -->
+  <main id="tab1" class="layout">
+    <section class="card">
+      <div class="card-title">1. 학교 검색</div>
+      <p class="card-desc">학교명을 검색해 달력 조회를 실행합니다.</p>
+
+      
+      <hr class="sep" />
+
+      <div class="row">
+        <input id="schoolQuery" class="input" placeholder="학교명 검색 (예: 전주, 군산여고, 고창초)" />
+      </div>
+      <div class="row">
+        <button id="searchBtn" class="primary-btn" type="button">학교 검색</button>
+        <button id="resetTab1Btn" class="secondary-btn" type="button">초기화</button>
+      </div>
+
+      <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+        <span class="pill"><span class="dot good"></span>검색 결과 <b id="resultCount" style="color:#111827">0</b>개</span>
+      </div>
+
+      <div class="status" id="leftStatus">학교를 검색해 주세요.</div>
+
+      <div style="margin-top:12px;">
+        <div class="card-title" style="font-size:16px; margin-bottom:6px;">학교 검색 결과</div>
+        <ul class="list" id="schoolList"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">2. 학사일정 달력 조회 (기본 기능)</div>
+      <p class="card-desc">왼쪽에서 학교를 선택하면, 해당 학교의 선택 월 학사일정이 달력으로 표시됩니다.</p>
+
+      <div class="row" style="justify-content:space-between;">
+        <span class="pill"><span class="dot good"></span>선택 학교 <b id="selectedSchool" style="color:#111827">없음</b></span>
+        <span class="pill"><span class="dot good"></span>일정 건수 <b id="monthCount" style="color:#111827">0</b>건</span>
+      </div>
+
+      <div class="cal-head" style="margin-top:12px;">
+        <div class="row">
+          <button id="prevMonthBtn" class="secondary-btn" type="button">이전달</button>
+          <button id="todayMonthBtn" class="secondary-btn" type="button">이번달</button>
+          <button id="nextMonthBtn" class="secondary-btn" type="button">다음달</button>
+        </div>
+        <div class="month-title" id="monthTitle">-</div>
+      </div>
+
+      <div class="week">
+        <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+      </div>
+      <div class="cal" id="calendar"></div>
+
+      <div class="detail">
+        <h3 id="detailTitle">날짜를 클릭하면 상세가 표시됩니다</h3>
+        <ul class="detail-list" id="detailList"></ul>
+      </div>
+
+      <div class="status" id="rightStatus">학교를 선택하면 달력이 갱신됩니다.</div>
+    </section>
+  </main>
+
+  <!-- TAB 2 -->
+  <main id="tab2" class="layout" style="display:none;">
+    <section class="card">
+      <div class="card-title">1. 전북 학교 필터/선택</div>
+      <hr class="sep" />
+
+      <div class="card-title" style="font-size:16px; margin-bottom:6px;">필터(학교 선택)</div>
+      <div class="grid2">
+        <div>
+          <label class="hint">학교급</label>
+          <select id="kindFilter" class="input">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div>
+          <label class="hint">시·군</label>
+          <select id="locFilter" class="input">
+            <option value="">전체</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <input id="nameFilter" class="input" placeholder="학교명 추가 검색(선택) 예: 전주, 군산, 고창" />
+      </div>
+
+      <div class="row" style="justify-content:space-between;">
+        <div class="row" style="gap:6px;">
+          <button id="selectAllBtn" class="secondary-btn" type="button">전체 선택</button>
+          <button id="clearAllBtn" class="secondary-btn" type="button">전체 해제</button>
+          <button id="selectFilteredBtn" class="secondary-btn" type="button">필터된 학교 선택</button>
+        </div>
+        <span class="pill"><span class="dot good"></span>전북 학교 <b id="jbTotal" style="color:#111827">0</b>개</span>
+        <span class="pill"><span class="dot good"></span>선택됨 <b id="jbPicked" style="color:#111827">0</b>개</span>
+      </div>
+
+      <div class="status" id="jbStatus">전북 학교 목록을 불러오는 중입니다...</div>
+
+      <div style="margin-top:12px;">
+        <div class="card-title" style="font-size:16px; margin-bottom:6px;">학교 목록(전북)</div>
+        <ul class="list" id="jbSchoolList"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">2. 학사일정 데이터 추출 (엑셀 다운로드)</div>
+      <p class="card-desc">선택된 전북 학교의 학사일정을 기간/키워드 조건으로 조회해 <strong>엑셀(.xlsx)</strong>로 다운로드합니다.</p>
+
+      <div class="grid2">
+        <div>
+          <label class="hint">조회 시작일 (YYYYMMDD)</label>
+          <input id="fromYmd" class="input" value="20250301" placeholder="예: 20250301" />
+        </div>
+        <div>
+          <label class="hint">조회 종료일 (YYYYMMDD)</label>
+          <input id="toYmd" class="input" value="20260228" placeholder="예: 20260228" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <input id="keywords" class="input" placeholder="키워드(쉼표로 구분) 예: 졸업, 방학, 중간고사, 기말고사, 현장체험" />
+      </div>
+
+      <div class="row" style="justify-content:space-between;">
+        <div class="row" style="gap:10px;">
+          <label class="hint" style="display:flex; gap:6px; align-items:center;">
+            <input type="checkbox" id="includeAll" />
+            키워드 없이 전체 추출
+          </label>
+          <label class="hint" style="display:flex; gap:6px; align-items:center;">
+            <input type="checkbox" id="dedupe" checked />
+            (학교/일자/행사명) 중복 제거
+          </label>
+        </div>
+        <div class="row">
+          <button id="exportBtn" class="primary-btn" type="button">엑셀로 추출</button>
+          <button id="cancelBtn" class="secondary-btn" type="button" disabled>중지</button>
+        </div>
+      </div>
+
+      <div class="progress"><div id="progressBar"></div></div>
+      <div class="status" id="exportStatus">전북 학교를 선택한 뒤 추출할 수 있습니다.</div>
+
+      <hr class="sep" />
+      <div class="hint">
+        * 다운로드 파일은 <code>.xlsx</code>로 생성되며, 한글 깨짐 문제가 없습니다.<br/>
+        * 추출량이 많을 경우 시간이 오래 걸릴 수 있으니, 기간을 좁히거나 키워드를 활용하세요.
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const $ = (sel) => document.querySelector(sel);
+
+  // =========================
+  // Key storage
+  // =========================
+  const FIXED_API_KEY = "801120ee8a8f4a45b2f6db0a936682ab"; // 내부 고정(사용자 입력 불필요)
+  const JEONBUK_ATPT_CODE = "P10"; // 전북특별자치도교육청(시도교육청코드)
+  const ALLOWED_SCHOOL_KINDS = ["초등학교","중학교","고등학교"]; // 탭2 추출 대상(고정)
+
+  function getKey(){
+    return FIXED_API_KEY;
+  }
+  function setKey(_v){
+    // no-op (키를 내부에 고정)
+  }
+function updateKeyUI(){
+    // 키 입력 UI가 없을 수 있으므로 존재 여부 확인
+    const dot = document.querySelector("#keyDot");
+    const st = document.querySelector("#keyState");
+    const apiInput = document.querySelector("#apiKey");
+    if(apiInput) apiInput.value = "";
+    if(dot && st){
+      dot.className = "dot good";
+      st.textContent = "키 고정(내부)";
+    }
+  }
+
+  // =========================
+  // Tabs
+  // =========================
+  function setTab(n){
+    const b1 = $("#tabBtn1"), b2 = $("#tabBtn2");
+    const t1 = $("#tab1"), t2 = $("#tab2");
+    if(n === 1){
+      b1.classList.add("active"); b2.classList.remove("active");
+      b1.setAttribute("aria-selected","true"); b2.setAttribute("aria-selected","false");
+      t1.style.display = ""; t2.style.display = "none";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }else{
+      b2.classList.add("active"); b1.classList.remove("active");
+      b2.setAttribute("aria-selected","true"); b1.setAttribute("aria-selected","false");
+      t2.style.display = ""; t1.style.display = "none";
+      // 탭2 전환 시 전북 학교 목록 자동 로딩(캐시 우선)
+      if(!jbSchools || jbSchools.length === 0){
+        loadJeonbukSchools();
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  // =========================
+  // NEIS helpers
+  // =========================
+  const BASE = "https://open.neis.go.kr/hub";
+
+  function buildUrl(path, params){
+    const u = new URL(BASE + path);
+    Object.entries(params).forEach(([k,v]) => {
+      if(v !== undefined && v !== null && v !== "") u.searchParams.set(k, v);
+    });
+    return u.toString();
+  }
+
+  async function fetchJson(url, signal){
+    const r = await fetch(url, { signal });
+    const text = await r.text();
+    if(!r.ok){
+      const snippet = (text || "").trim().slice(0, 300);
+      throw new Error(`HTTP ${r.status} ${r.statusText || ""}`.trim() + (snippet ? ` | 응답: ${snippet}` : ""));
+    }
+    try{
+      return JSON.parse(text);
+    }catch(e){
+      const snippet = (text || "").trim().slice(0, 300);
+      throw new Error("JSON 파싱 실패: 응답이 JSON이 아닙니다." + (snippet ? ` | 응답: ${snippet}` : ""));
+    }
+  }
+
+  function parseRows(data, serviceName){
+    if(!data) return { rows: [], result: { CODE:"EMPTY", MESSAGE:"응답이 비어 있습니다." }, error: "EMPTY: 응답이 비어 있습니다." };
+
+    // 어떤 경우에는 RESULT만 오는 형태가 존재함
+    if(data.RESULT && typeof data.RESULT === "object"){
+      const r = data.RESULT;
+      const err = (r.CODE && r.CODE !== "INFO-000") ? `${r.CODE}: ${r.MESSAGE || "조회 실패"}` : null;
+      return { rows: [], result: r, error: err };
+    }
+
+    const key = (serviceName && data[serviceName]) ? serviceName : (data ? Object.keys(data)[0] : null);
+    if(!key) return { rows: [], result: { CODE:"EMPTY", MESSAGE:"응답이 비어 있습니다." }, error: "EMPTY: 응답이 비어 있습니다." };
+
+    const arr = data[key];
+    if(!Array.isArray(arr)){
+      // 중첩된 RESULT 탐색(최대한 실제 오류를 보여주기)
+      let r = null;
+      try{
+        const vals = Object.values(data || {});
+        for(const v of vals){
+          if(v && typeof v === "object" && v.RESULT){
+            r = v.RESULT; break;
+          }
+        }
+      }catch(e){}
+      if(r && typeof r === "object"){
+        const err = (r.CODE && r.CODE !== "INFO-000") ? `${r.CODE}: ${r.MESSAGE || "조회 실패"}` : null;
+        return { rows: [], result: r, error: err };
+      }
+      return { rows: [], result: { CODE:"UNEXPECTED", MESSAGE:"예상치 못한 응답 구조입니다." }, error: "UNEXPECTED: 예상치 못한 응답 구조입니다." };
+    }
+
+    let result = null;
+    try{
+      const headBlock = arr.find(x => x && x.head)?.head || arr[0]?.head;
+      if(Array.isArray(headBlock)){
+        const rr = headBlock.find(x => x.RESULT)?.RESULT;
+        if(rr) result = rr;
+      }
+    }catch(e){}
+
+    const rowBlock = arr.find(x => x && x.row);
+    const rows = rowBlock?.row || [];
+
+    const err = (result && result.CODE && result.CODE !== "INFO-000") ? `${result.CODE}: ${result.MESSAGE || "조회 실패"}` : null;
+    return { rows, result, error: err };
+  }
+function assertKey(){
+    const k = getKey();
+    if(!k) throw new Error("인증키가 설정되어 있지 않습니다. (내부 고정 키가 비어 있습니다)");
+    return k;
+  }
+
+  function ymd(date){
+    const y = date.getFullYear();
+    const m = String(date.getMonth()+1).padStart(2,"0");
+    const d = String(date.getDate()).padStart(2,"0");
+    return `${y}${m}${d}`;
+  }
+  function monthTitle(date){
+    return `${date.getFullYear()}년 ${date.getMonth()+1}월`;
+  }
+  function monthRange(date){
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth()+1, 0);
+    return { start, end };
+  }
+  function gradeLabel(e){
+    // NEIS 학사일정 데이터에서 학년별 행사 여부(…_GRADE_EVENT_YN)를 읽어 표기
+    const map = [
+      ["ONE_GRADE_EVENT_YN","1"],["TW_GRADE_EVENT_YN","2"],["THREE_GRADE_EVENT_YN","3"],
+      ["FR_GRADE_EVENT_YN","4"],["FIV_GRADE_EVENT_YN","5"],["SIX_GRADE_EVENT_YN","6"]
+    ];
+    const picked = map
+      .filter(([k]) => String((e||{})[k] || "").toUpperCase() === "Y")
+      .map(([,v]) => v);
+
+    if(picked.length){
+      return picked.join(",") + "학년";
+    }
+
+    // 전학년 여부 필드가 있는 경우(환경에 따라 존재)
+    const keys = Object.keys(e||{}).filter(k => /ALL.*GRADE.*_YN/i.test(k));
+    if(keys.some(k => String(e[k]||"").toUpperCase() === "Y")){
+      return "전학년";
+    }
+    return "";
+  }
+
+  function escapeHtml(s){
+    return String(s ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  // =========================
+  // State - Tab1
+  // =========================
+  let schools = [];
+  let selectedSchool = null;
+  let currentMonth = new Date();
+  let monthEvents = [];
+  let eventsByDay = new Map();
+
+  // =========================
+  // State - Tab2 (Jeonbuk)
+  // =========================
+  const JB_CACHE_KEY = "jb_school_list_cache_v2";
+  const JB_CACHE_TS_KEY = "jb_school_list_cache_ts_v2";
+  let jbSchools = []; // all Jeonbuk schools
+  let jbPickedSet = new Set(); // key = atpt|code
+  let exportAbort = null;
+
+  function setLeftStatus(msg){ $("#leftStatus").textContent = msg || ""; }
+  function setRightStatus(msg){ $("#rightStatus").textContent = msg || ""; }
+  function setJbStatus(msg){ $("#jbStatus").textContent = msg || ""; }
+  function setExportStatus(msg){ $("#exportStatus").textContent = msg || ""; }
+
+  // =========================
+  // API calls
+  // =========================
+  async function searchSchools(q){
+    const key = assertKey();
+    const url = buildUrl("/schoolInfo", {
+      KEY: key, Type: "json", pIndex: 1, pSize: 80,
+      ATPT_OFCDC_SC_CODE: JEONBUK_ATPT_CODE,
+      SCHUL_NM: q
+    });
+    const data = await fetchJson(url);
+    const { rows, error } = parseRows(data, "schoolInfo");
+    if(error) throw new Error(error);
+    return rows;
+  }
+
+  async function fetchSchoolsByOffice(atptCode, signal){
+    const key = assertKey();
+    const pSize = 1000;
+    let pIndex = 1;
+    let all = [];
+    while(true){
+      const url = buildUrl("/schoolInfo", {
+        KEY: key, Type: "json",
+        pIndex, pSize,
+        ATPT_OFCDC_SC_CODE: atptCode
+      });
+      const data = await fetchJson(url, signal);
+      const { rows, error } = parseRows(data, "schoolInfo");
+      if(error) throw new Error(error);
+      all = all.concat(rows || []);
+      if(!rows || rows.length < pSize) break;
+      pIndex += 1;
+      await sleep(120, signal);
+    }
+    return all;
+  }
+
+  async function fetchSchedule(atptCode, schoolCode, fromYmd, toYmd, signal){
+    const key = assertKey();
+    const url = buildUrl("/SchoolSchedule", {
+      KEY: key, Type: "json", pIndex: 1, pSize: 1000,
+      ATPT_OFCDC_SC_CODE: atptCode,
+      SD_SCHUL_CODE: schoolCode,
+      AA_FROM_YMD: fromYmd,
+      AA_TO_YMD: toYmd
+    });
+    const data = await fetchJson(url, signal);
+    const parsed = parseRows(data, "SchoolSchedule");
+    return parsed; // {rows, result, error}
+  }
+
+  async function fetchSchedulePaged(atptCode, schoolCode, fromYmd, toYmd, signal){
+    const key = assertKey();
+    const pSize = 1000;
+    let pIndex = 1;
+    let all = [];
+    let lastResult = null;
+    let lastError = null;
+
+    while(true){
+      const url = buildUrl("/SchoolSchedule", {
+        KEY: key, Type: "json",
+        pIndex, pSize,
+        ATPT_OFCDC_SC_CODE: atptCode,
+        SD_SCHUL_CODE: schoolCode,
+        AA_FROM_YMD: fromYmd,
+        AA_TO_YMD: toYmd
+      });
+      const data = await fetchJson(url, signal);
+      const parsed = parseRows(data, "SchoolSchedule");
+      lastResult = parsed.result || lastResult;
+      lastError = parsed.error || lastError;
+
+      // INFO-200(데이터 없음) 또는 기타 오류는 페이징을 진행하지 않음
+      if(parsed.result && parsed.result.CODE && parsed.result.CODE !== "INFO-000"){
+        // 데이터는 없거나(0건) 오류이므로 여기서 종료
+        return { rows: [], result: parsed.result, error: parsed.error };
+      }
+
+      const rows = parsed.rows || [];
+      all = all.concat(rows);
+
+      if(rows.length < pSize) break;
+      pIndex += 1;
+      if(pIndex > 50) break; // 안전장치(비정상 루프 방지)
+    }
+
+    return { rows: all, result: lastResult, error: lastError };
+  }
+  // =========================
+  // Rendering: Tab1 school list
+  // =========================
+  function renderSchoolList(){
+    const ul = $("#schoolList");
+    ul.innerHTML = "";
+
+    if(!schools.length){
+      ul.innerHTML = `<li class="hint">검색 결과가 없습니다.</li>`;
+      return;
+    }
+
+    for(const s of schools){
+      const li = document.createElement("li");
+      li.className = "list-item";
+
+      const nm = s.SCHUL_NM || "-";
+      const edu = s.ATPT_OFCDC_SC_NM || s.ATPT_OFCDC_SC_CODE || "-";
+      const kind = s.SCHUL_KND_SC_NM || "-";
+      const addr = s.ORG_RDNMA || s.ORG_RDNDA || "";
+
+      const isJeonbuk = (edu.includes("전북") || edu.includes("전라북도"));
+      const tag = isJeonbuk ? `<span class="evt-chip" style="border-color:#bbf7d0;background:#ecfdf5;color:#15803d;">전북</span>` : "";
+
+      li.innerHTML = `
+        <div class="li-top">
+          <div style="min-width:0;">
+            <div class="li-title">${escapeHtml(nm)} ${tag}</div>
+            <div class="li-meta">${escapeHtml(edu)} · ${escapeHtml(kind)}<br/>${escapeHtml(addr)}</div>
+          </div>
+          <div class="mini-actions">
+            <button class="mini-btn" data-act="view">달력으로 보기</button>
+          </div>
+        </div>
+      `;
+
+      li.querySelector('[data-act="view"]').addEventListener("click", async () => {
+        selectedSchool = s;
+        $("#selectedSchool").textContent = s.SCHUL_NM || "선택됨";
+        setRightStatus("달력 데이터를 불러오는 중입니다...");
+        currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        await loadMonth();
+      });
+
+      ul.appendChild(li);
+    }
+  }
+
+  // =========================
+  // Calendar rendering
+  // =========================
+  function indexEvents(rows){
+    eventsByDay = new Map();
+    for(const r of (rows || [])){
+      const day = r.AA_YMD;
+      if(!day) continue;
+      if(!eventsByDay.has(day)) eventsByDay.set(day, []);
+      eventsByDay.get(day).push(r);
+    }
+  }
+
+  function renderCalendar(){
+    $("#monthTitle").textContent = monthTitle(currentMonth);
+
+    const cal = $("#calendar");
+    cal.innerHTML = "";
+
+    const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const startDow = first.getDay();
+    const start = new Date(first);
+    start.setDate(first.getDate() - startDow);
+
+    const today = new Date();
+
+    for(let i=0;i<42;i++){
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+
+      const inMonth = d.getMonth() === currentMonth.getMonth();
+      const key = ymd(d);
+      const evts = eventsByDay.get(key) || [];
+
+      const cell = document.createElement("div");
+      cell.className = "cell" + (inMonth ? "" : " muted") + (isSameDay(d, today) ? " today" : "");
+
+      let chips = "";
+      for(const e of evts.slice(0,2)){
+        const nm = e.EVENT_NM || e.SCHUL_EVENT_NM || "일정";
+        const g = gradeLabel(e);
+        const tip = g ? `${nm} (대상: ${g})` : nm;
+        chips += `<div class="evt-chip" title="${escapeHtml(tip)}">${escapeHtml(nm)}</div>`;
+      }
+      if(evts.length > 2){
+        chips += `<div class="evt-more">+${evts.length-2}건 더</div>`;
+      }
+
+      cell.innerHTML = `
+        <div class="day-num"><span>${d.getDate()}</span><span>${evts.length ? evts.length + "건" : ""}</span></div>
+        ${chips}
+      `;
+
+      if(inMonth){
+        cell.addEventListener("click", () => renderDetail(d));
+      }
+
+      cal.appendChild(cell);
+    }
+  }
+
+  function isSameDay(a,b){
+    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  }
+
+  function renderDetail(date){
+    const key = ymd(date);
+    const evts = eventsByDay.get(key) || [];
+    const title = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")} · ${evts.length}건`;
+    $("#detailTitle").textContent = title;
+
+    const ul = $("#detailList");
+    ul.innerHTML = "";
+
+    if(!selectedSchool){
+      ul.innerHTML = `<li class="hint">먼저 학교를 선택해 주세요.</li>`;
+      return;
+    }
+    if(!evts.length){
+      ul.innerHTML = `<li class="hint">해당 날짜의 학사일정이 없습니다.</li>`;
+      return;
+    }
+
+    for(const e of evts){
+      const li = document.createElement("li");
+      li.className = "detail-item";
+      const nm = e.EVENT_NM || e.SCHUL_EVENT_NM || "일정";
+      const g = gradeLabel(e);
+      const cnt = e.EVENT_CNTNT || e.EVENT_CNTNTS || e.EVENT_CN || "";
+      li.innerHTML = `
+        <div class="t">${escapeHtml(nm)}${g ? `<span style="font-weight:600; font-size:12px; color:#6b7280;"> · 대상: ${escapeHtml(g)}</span>` : ""}</div>
+        <div class="c">${escapeHtml(cnt || "(내용 없음)")}</div>
+      `;
+      ul.appendChild(li);
+    }
+  }
+
+  async function loadMonth(){
+    if(!selectedSchool){
+      setRightStatus("먼저 학교를 선택해 주세요.");
+      return;
+    }
+
+    try{
+      const { start, end } = monthRange(currentMonth);
+      const from = ymd(start);
+      const to = ymd(end);
+
+      const resp = await fetchSchedule(selectedSchool.ATPT_OFCDC_SC_CODE, selectedSchool.SD_SCHUL_CODE, from, to);
+      if(resp && resp.error){
+        throw new Error(resp.error);
+      }
+      const rows = (resp && resp.rows) ? resp.rows : [];
+      monthEvents = rows;
+      indexEvents(monthEvents);
+      $("#monthCount").textContent = monthEvents.length;
+
+      renderCalendar();
+      renderDetail(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+      setRightStatus("불러오기 완료. 날짜를 클릭하면 상세를 볼 수 있습니다.");
+    }catch(err){
+      console.error(err);
+      monthEvents = [];
+      indexEvents([]);
+      $("#monthCount").textContent = "0";
+      renderCalendar();
+      $("#detailList").innerHTML = `<li class="hint">조회 실패: ${escapeHtml(err.message || String(err))}</li>`;
+      setRightStatus("달력 조회 중 오류가 발생했습니다.");
+    }
+  }
+
+  // =========================
+  // Tab2: Jeonbuk school list
+  // =========================
+  function makeSchoolKey(s){
+    return `${s.ATPT_OFCDC_SC_CODE}|${s.SD_SCHUL_CODE}`;
+  }
+
+  function updateJbCounts(){
+    $("#jbTotal").textContent = jbSchools.length;
+    $("#jbPicked").textContent = jbPickedSet.size;
+  }
+
+  function extractSiGunFromAddress(addr){
+    const a = (addr || "").toString().trim();
+    if(!a) return "";
+    const parts = a.split(/\s+/);
+
+    // 전북특별자치도/전라북도 등 도 단위가 먼저 오는 경우 두 번째 토큰이 보통 시/군
+    let cand = parts[0] || "";
+    if(cand.includes("특별자치도") || cand.endsWith("도") || cand.includes("자치도")){
+      cand = parts[1] || "";
+    }
+
+    // 첫 3토큰 중 시/군으로 끝나는 토큰 우선 탐색
+    for(let i=0;i<Math.min(parts.length,3);i++){
+      if(/[시군]$/.test(parts[i])) return parts[i];
+    }
+    if(/[시군]$/.test(cand)) return cand;
+    return cand || "";
+  }
+
+  function ensureJeonbukDerivedFields(){
+    // 시군(__SIGUN) 파생 필드 추가 (필터/표시에 사용)
+    jbSchools.forEach(s => {
+      const addr = s.ORG_RDNMA || s.ORG_RDNDA || "";
+      s.__SIGUN = s.__SIGUN || extractSiGunFromAddress(addr);
+    });
+  }
+
+  function uniqueSorted(arr){
+    const u = Array.from(new Set(arr.filter(Boolean)));
+    u.sort((a,b) => String(a).localeCompare(String(b),"ko"));
+    return u;
+  }
+
+  function fillFilters(){
+    // 학교급은 초/중/고만 노출(고정)
+    const kinds = ALLOWED_SCHOOL_KINDS.slice();
+    const locs = uniqueSorted(jbSchools.map(s => s.__SIGUN));
+
+    const kindSel = $("#kindFilter");
+    const locSel = $("#locFilter");
+
+    kindSel.innerHTML =
+      `<option value="">전체(초/중/고)</option>` +
+      kinds.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join("");
+    locSel.innerHTML =
+      `<option value="">전체</option>` +
+      locs.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+  }
+
+  function getFilteredJb(){
+    const kind = ($("#kindFilter").value || "").trim();
+    const loc = ($("#locFilter").value || "").trim();
+    const name = ($("#nameFilter").value || "").trim();
+
+    return jbSchools.filter(s => {
+      if(kind && (s.SCHUL_KND_SC_NM || "") !== kind) return false;
+      if(loc){
+        const l = (s.__SIGUN || "");
+        if(l !== loc) return false;
+      }
+      if(name){
+        const nm = (s.SCHUL_NM || "");
+        if(!nm.includes(name)) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderJbSchoolList(){
+    const ul = $("#jbSchoolList");
+    ul.innerHTML = "";
+
+    if(!jbSchools.length){
+      ul.innerHTML = `<li class="hint">전북 학교 목록이 없습니다. (새로고침 후 다시 시도해 주세요.)</li>`;
+      updateJbCounts();
+      return;
+    }
+
+    const filtered = getFilteredJb();
+    setJbStatus(`필터 결과: ${filtered.length}개 / 전체: ${jbSchools.length}개`);
+    updateJbCounts();
+
+    if(!filtered.length){
+      ul.innerHTML = `<li class="hint">필터 조건에 맞는 학교가 없습니다.</li>`;
+      return;
+    }
+
+    for(const s of filtered.slice(0, 600)){ // 과도한 렌더 방지
+      const li = document.createElement("li");
+      li.className = "list-item";
+
+      const nm = s.SCHUL_NM || "-";
+      const kind = s.SCHUL_KND_SC_NM || "-";
+      const loc = s.__SIGUN || "";
+      const addr = s.ORG_RDNMA || s.ORG_RDNDA || "";
+
+      const key = makeSchoolKey(s);
+      const checked = jbPickedSet.has(key) ? "checked" : "";
+
+      li.innerHTML = `
+        <div class="li-top">
+          <div style="min-width:0;">
+            <div class="li-title">
+              <label style="display:flex; gap:8px; align-items:center;">
+                <input type="checkbox" class="jb-check" ${checked}/>
+                <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(nm)}</span>
+              </label>
+            </div>
+            <div class="li-meta">${escapeHtml(kind)} ${loc ? "· " + escapeHtml(loc) : ""}<br/>${escapeHtml(addr)}</div>
+          </div>
+          <div class="mini-actions">
+            <button class="mini-btn" data-act="pickOnly">이 학교만</button>
+          </div>
+        </div>
+      `;
+
+      const cb = li.querySelector(".jb-check");
+      cb.addEventListener("change", () => {
+        if(cb.checked) jbPickedSet.add(key);
+        else jbPickedSet.delete(key);
+        updateJbCounts();
+      });
+
+      li.querySelector('[data-act="pickOnly"]').addEventListener("click", () => {
+        jbPickedSet = new Set([key]);
+        renderJbSchoolList();
+      });
+
+      ul.appendChild(li);
+    }
+
+    if(filtered.length > 600){
+      const more = document.createElement("li");
+      more.className = "hint";
+      more.textContent = `※ 성능을 위해 목록 표시를 600개로 제한했습니다. (필터를 더 좁혀주세요)`;
+      ul.appendChild(more);
+    }
+  }
+
+  function cacheSave(list){
+    try{
+      localStorage.setItem(JB_CACHE_KEY, JSON.stringify(list));
+      localStorage.setItem(JB_CACHE_TS_KEY, String(Date.now()));
+    }catch(e){}
+  }
+  function cacheLoad(){
+    try{
+      const raw = localStorage.getItem(JB_CACHE_KEY);
+      if(!raw) return null;
+      const list = JSON.parse(raw);
+      if(!Array.isArray(list)) return null;
+      return list;
+    }catch(e){
+      return null;
+    }
+  }
+  function cacheClear(){
+    localStorage.removeItem(JB_CACHE_KEY);
+    localStorage.removeItem(JB_CACHE_TS_KEY);
+  }
+
+  async function detectJeonbukOfficeCode(_signal){
+    // 전북 시도교육청코드(NEIS): P10
+    return JEONBUK_ATPT_CODE;
+  }
+
+  async function loadJeonbukSchools(){
+    try{ assertKey(); }catch(err){ setJbStatus(err.message || String(err)); return; }
+
+    // 캐시 우선
+    const cached = cacheLoad();
+    if(cached && cached.length){
+      // 구버전 캐시가 있어도 "전북(P10) + 초/중/고"만 남기도록 강제 필터링
+      jbSchools = (cached || []).filter(s => {
+        const kind = (s.SCHUL_KND_SC_NM || "").trim();
+        const atpt = (s.ATPT_OFCDC_SC_CODE || "").trim();
+        return atpt === JEONBUK_ATPT_CODE && ALLOWED_SCHOOL_KINDS.includes(kind);
+      });
+
+      // 정렬 + 캐시 재저장(구버전 캐시 정리)
+      jbSchools.sort((a,b) => String(a.SCHUL_NM||"").localeCompare(String(b.SCHUL_NM||""),"ko"));
+      cacheSave(jbSchools);
+
+      ensureJeonbukDerivedFields();
+      fillFilters();
+      renderJbSchoolList();
+      setJbStatus(`캐시된 전북 학교 목록을 불러왔습니다. (초/중/고만, 총 ${jbSchools.length}개)`);
+      return;
+    }
+
+    const loadBtn = document.querySelector("#loadJeonbukBtn");
+    if(loadBtn) loadBtn.disabled = true;
+    setJbStatus("전북 전체 학교 목록을 불러오는 중입니다... (최초 1회)");
+    $("#jbSchoolList").innerHTML = `<li class="hint">불러오는 중입니다...</li>`;
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    try{
+      const atpt = await detectJeonbukOfficeCode(signal);
+      const all = await fetchSchoolsByOffice(atpt, signal);
+
+      // 전북(P10) + 초/중/고만(고정)
+      jbSchools = (all || []).filter(s => {
+        const kind = (s.SCHUL_KND_SC_NM || "").trim();
+        const atpt = (s.ATPT_OFCDC_SC_CODE || "").trim();
+        return atpt === JEONBUK_ATPT_CODE && ALLOWED_SCHOOL_KINDS.includes(kind);
+      });
+      ensureJeonbukDerivedFields();
+      // 정렬
+      jbSchools.sort((a,b) => String(a.SCHUL_NM||"").localeCompare(String(b.SCHUL_NM||""),"ko"));
+
+      cacheSave(jbSchools);
+      fillFilters();
+      renderJbSchoolList();
+      setJbStatus(`불러오기 완료: 전북 학교 ${jbSchools.length}개`);
+    }catch(err){
+      console.error(err);
+      jbSchools = [];
+      renderJbSchoolList();
+      setJbStatus("불러오기 실패: " + (err.message || String(err)));
+    }finally{
+      const loadBtn2 = document.querySelector("#loadJeonbukBtn");
+      if(loadBtn2) loadBtn2.disabled = false;
+    }
+  }
+
+  function selectAll(){
+    jbPickedSet = new Set(jbSchools.map(makeSchoolKey));
+    renderJbSchoolList();
+  }
+  function clearAll(){
+    jbPickedSet = new Set();
+    renderJbSchoolList();
+  }
+  function selectFiltered(){
+    const filtered = getFilteredJb();
+    filtered.forEach(s => jbPickedSet.add(makeSchoolKey(s)));
+    renderJbSchoolList();
+  }
+
+  function resolvePickedSchools(){
+    const map = new Map(jbSchools.map(s => [makeSchoolKey(s), s]));
+    return Array.from(jbPickedSet).map(k => map.get(k)).filter(Boolean);
+  }
+
+  // =========================
+  // Export (XLSX)
+  // =========================
+  function normalizeYmd(v){
+    const t = (v||"").toString().trim();
+    if(!/^\d{8}$/.test(t)) return null;
+    return t;
+  }
+
+  function splitKeywords(v){
+    return (v||"").split(",").map(x => x.trim()).filter(Boolean);
+  }
+
+  function sleep(ms, signal){
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => resolve(), ms);
+      if(signal){
+        signal.addEventListener("abort", () => {
+          clearTimeout(t);
+          reject(new DOMException("Aborted", "AbortError"));
+        }, { once:true });
+      }
+    });
+  }
+
+  function makeKey(r){
+    return `${r.ATPT_OFCDC_SC_CODE}|${r.SD_SCHUL_CODE}|${r.AA_YMD}|${(r.EVENT_NM||r.SCHUL_EVENT_NM||"")}`;
+  }
+
+  function downloadXlsx(rows, issues, filename){
+    if(!window.XLSX) throw new Error("엑셀 라이브러리(XLSX) 로딩에 실패했습니다. 인터넷 환경을 확인해 주세요.");
+
+    const wb = XLSX.utils.book_new();
+
+    // ======================
+    // 1) 학사일정 시트
+    // ======================
+    const headers1 = ["시도교육청명","시도교육청코드","학교명","학교코드","학사일자(AA_YMD)","행사명(EVENT_NM)","행사내용(EVENT_CNTNT)"];
+    const ws1 = XLSX.utils.aoa_to_sheet([headers1]);
+
+    const data1 = (rows || []).map(r => ([
+      r.ATPT_OFCDC_SC_NM || "",
+      r.ATPT_OFCDC_SC_CODE || "",
+      r.SCHUL_NM || "",
+      r.SD_SCHUL_CODE || "",
+      r.AA_YMD || "",
+      (r.EVENT_NM || r.SCHUL_EVENT_NM || ""),
+      (r.EVENT_CNTNT || r.EVENT_CNTNTS || r.EVENT_CN || "")
+    ]));
+    if(data1.length){
+      XLSX.utils.sheet_add_aoa(ws1, data1, { origin: "A2" });
+    }
+    ws1["!cols"] = [
+      { wch: 16 }, { wch: 12 }, { wch: 22 }, { wch: 12 },
+      { wch: 14 }, { wch: 28 }, { wch: 60 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws1, "학사일정");
+
+    // ======================
+    // 2) 오류(데이터없음 포함) 시트
+    // ======================
+    const issueList = issues || [];
+    if(issueList.length){
+      const headers2 = ["구분","시도교육청명","시도교육청코드","학교명","학교코드","학교급","지역(시·군)","CODE","MESSAGE"];
+      const ws2 = XLSX.utils.aoa_to_sheet([headers2]);
+
+      const data2 = issueList.map(x => ([
+        x.TYPE || "",
+        x.ATPT_OFCDC_SC_NM || "",
+        x.ATPT_OFCDC_SC_CODE || "",
+        x.SCHUL_NM || "",
+        x.SD_SCHUL_CODE || "",
+        x.SCHUL_KND_SC_NM || "",
+        x.SIGUN || "",
+        x.CODE || "",
+        x.MESSAGE || ""
+      ]));
+      XLSX.utils.sheet_add_aoa(ws2, data2, { origin: "A2" });
+      ws2["!cols"] = [
+        { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 26 }, { wch: 12 },
+        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 60 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws2, "오류");
+    }
+
+    XLSX.writeFile(wb, filename);
+  }
+  async function exportXlsx(){
+    try{ assertKey(); }catch(err){ setExportStatus(err.message || String(err)); return; }
+
+    // 목록이 아직 없으면 자동 로드(캐시 우선)
+    if(!jbSchools.length){
+      try{
+        await loadJeonbukSchools();
+      }catch(e){}
+    }
+
+    const picked0 = resolvePickedSchools();
+    // 탭2는 초/중/고만 고정
+    const picked = (picked0 || []).filter(s => ALLOWED_SCHOOL_KINDS.includes((s.SCHUL_KND_SC_NM || "").trim()));
+    if(!picked.length){
+      setExportStatus("추출할 학교가 선택되지 않았습니다. (초/중/고 중 선택)");
+      return;
+    }
+
+    const from = normalizeYmd($("#fromYmd").value) || "20250301";
+    const to = normalizeYmd($("#toYmd").value) || "20260228";
+    if(!isValidYmd(from) || !isValidYmd(to)){
+      setExportStatus("날짜 형식이 올바르지 않습니다. 예) 20250301");
+      return;
+    }
+    if(from > to){
+      setExportStatus("조회 시작일이 종료일보다 늦습니다.");
+      return;
+    }
+
+    const kwRaw = ($("#keywords").value || "").trim();
+    const keywords = kwRaw ? kwRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+    const includeAll = $("#includeAll").checked;
+    const dedupe = $("#dedupe").checked;
+
+    $("#exportBtn").disabled = true;
+    $("#cancelBtn").disabled = false;
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+    exportAbort = controller;
+
+    const total = picked.length;
+    let done = 0;
+    let noDataSchools = 0;
+    let errorSchools = 0;
+
+    const out = [];
+    const issues = [];
+    const seen = new Set();
+
+    setExportStatus("데이터를 수집 중입니다...");
+    $("#progressBar").style.width = "0%";
+
+    try{
+      for(const s of picked){
+        if(signal.aborted) throw Object.assign(new Error("Abort"), { name:"AbortError" });
+
+        done += 1;
+        const pct = Math.round((done-1) / total * 100);
+        $("#progressBar").style.width = pct + "%";
+        setExportStatus(`수집 중... (${done}/${total}) ${s.SCHUL_NM}`);
+
+        try{
+          const resp = await fetchSchedulePaged(s.ATPT_OFCDC_SC_CODE, s.SD_SCHUL_CODE, from, to, signal);
+
+          // INFO-200(데이터 없음)도 기록
+          if(resp && resp.result && resp.result.CODE && resp.result.CODE !== "INFO-000"){
+            const code = resp.result.CODE || "";
+            const msg = resp.result.MESSAGE || "조회 실패";
+            const type = (code === "INFO-200") ? "데이터 없음" : "오류";
+            if(code === "INFO-200") noDataSchools += 1;
+            else errorSchools += 1;
+
+            issues.push({
+              TYPE: type,
+              ATPT_OFCDC_SC_NM: s.ATPT_OFCDC_SC_NM || "",
+              ATPT_OFCDC_SC_CODE: s.ATPT_OFCDC_SC_CODE || "",
+              SCHUL_NM: s.SCHUL_NM || "",
+              SD_SCHUL_CODE: s.SD_SCHUL_CODE || "",
+              SCHUL_KND_SC_NM: s.SCHUL_KND_SC_NM || "",
+              SIGUN: s.__SIGUN || "",
+              CODE: code,
+              MESSAGE: msg
+            });
+            continue;
+          }
+
+          const rows = (resp && resp.rows) ? resp.rows : [];
+          if(!rows.length){
+            // 결과코드가 없지만 행이 없는 경우도 기록(방어)
+            noDataSchools += 1;
+            issues.push({
+              TYPE: "데이터 없음",
+              ATPT_OFCDC_SC_NM: s.ATPT_OFCDC_SC_NM || "",
+              ATPT_OFCDC_SC_CODE: s.ATPT_OFCDC_SC_CODE || "",
+              SCHUL_NM: s.SCHUL_NM || "",
+              SD_SCHUL_CODE: s.SD_SCHUL_CODE || "",
+              SCHUL_KND_SC_NM: s.SCHUL_KND_SC_NM || "",
+              SIGUN: s.__SIGUN || "",
+              CODE: "INFO-200",
+              MESSAGE: "해당 자료가 없습니다."
+            });
+            continue;
+          }
+
+          for(const r of rows){
+            r.SCHUL_NM = r.SCHUL_NM || s.SCHUL_NM;
+            r.ATPT_OFCDC_SC_NM = r.ATPT_OFCDC_SC_NM || s.ATPT_OFCDC_SC_NM;
+            r.ATPT_OFCDC_SC_CODE = r.ATPT_OFCDC_SC_CODE || s.ATPT_OFCDC_SC_CODE;
+            r.SD_SCHUL_CODE = r.SD_SCHUL_CODE || s.SD_SCHUL_CODE;
+
+            const name = (r.EVENT_NM || r.SCHUL_EVENT_NM || "");
+            const cnt = (r.EVENT_CNTNT || r.EVENT_CNTNTS || r.EVENT_CN || "");
+            const hay = (name + " " + cnt).toLowerCase();
+
+            const ok = includeAll ? true : keywords.some(k => hay.includes(k.toLowerCase()));
+            if(!ok) continue;
+
+            if(dedupe){
+              const key = `${r.ATPT_OFCDC_SC_CODE}|${r.SD_SCHUL_CODE}|${r.AA_YMD}|${name}|${cnt}`;
+              if(seen.has(key)) continue;
+              seen.add(key);
+            }
+            out.push(r);
+          }
+        }catch(innerErr){
+          if(innerErr && innerErr.name === "AbortError") throw innerErr;
+
+          errorSchools += 1;
+          const msg = (innerErr && (innerErr.message || String(innerErr))) || "알 수 없는 오류";
+          issues.push({
+            TYPE: "오류",
+            ATPT_OFCDC_SC_NM: s.ATPT_OFCDC_SC_NM || "",
+            ATPT_OFCDC_SC_CODE: s.ATPT_OFCDC_SC_CODE || "",
+            SCHUL_NM: s.SCHUL_NM || "",
+            SD_SCHUL_CODE: s.SD_SCHUL_CODE || "",
+            SCHUL_KND_SC_NM: s.SCHUL_KND_SC_NM || "",
+            SIGUN: s.__SIGUN || "",
+            CODE: "EXCEPTION",
+            MESSAGE: msg
+          });
+          continue;
+        }
+      }
+
+      $("#progressBar").style.width = "100%";
+      const fname = `전북_학사일정_추출_${from}-${to}.xlsx`;
+      downloadXlsx(out, issues, fname);
+
+      const msg = `완료: ${out.length}건 다운로드 (데이터 없음 ${noDataSchools}개 학교, 오류 ${errorSchools}개 학교)`;
+      setExportStatus(msg);
+    }catch(err){
+      if(err && err.name === "AbortError"){
+        setExportStatus("중지되었습니다. (진행 중 수집은 중단)");
+      }else{
+        console.error(err);
+        setExportStatus("오류: " + (err.message || String(err)));
+      }
+    }finally{
+      $("#exportBtn").disabled = false;
+      $("#cancelBtn").disabled = true;
+      exportAbort = null;
+    }
+  }
+  function cancelExport(){
+    if(exportAbort) exportAbort.abort();
+  }
+
+  // =========================
+  // Tab1 search flow
+  // =========================
+  async function onSearch(){
+    try{ assertKey(); }catch(err){ setLeftStatus(err.message || String(err)); return; }
+
+    const q = ($("#schoolQuery").value || "").trim();
+    if(q.length < 2){
+      setLeftStatus("학교명은 2글자 이상 입력해 주세요.");
+      return;
+    }
+
+    setLeftStatus(`"${q}" 검색 중...`);
+    $("#schoolList").innerHTML = `<li class="hint">검색 중입니다...</li>`;
+
+    try{
+      const rows = await searchSchools(q);
+
+      // "전북" 우선 정렬
+      rows.sort((a,b) => {
+        const ak = ((a.ATPT_OFCDC_SC_NM||"").includes("전북") || (a.ATPT_OFCDC_SC_NM||"").includes("전라북도")) ? 0 : 1;
+        const bk = ((b.ATPT_OFCDC_SC_NM||"").includes("전북") || (b.ATPT_OFCDC_SC_NM||"").includes("전라북도")) ? 0 : 1;
+        if(ak !== bk) return ak - bk;
+        return String(a.SCHUL_NM||"").localeCompare(String(b.SCHUL_NM||""),"ko");
+      });
+
+      schools = rows;
+      $("#resultCount").textContent = schools.length;
+      renderSchoolList();
+      setLeftStatus(`검색 완료: ${rows.length}개 학교가 검색되었습니다.`);
+    }catch(err){
+      console.error(err);
+      schools = [];
+      $("#resultCount").textContent = "0";
+      renderSchoolList();
+      setLeftStatus("검색 실패: " + (err.message || String(err)));
+    }
+  }
+
+  function resetTab1(){
+    schools = [];
+    selectedSchool = null;
+    currentMonth = new Date();
+    monthEvents = [];
+    indexEvents([]);
+
+    $("#schoolQuery").value = "";
+    $("#resultCount").textContent = "0";
+    $("#selectedSchool").textContent = "없음";
+    $("#monthCount").textContent = "0";
+    $("#detailTitle").textContent = "날짜를 클릭하면 상세가 표시됩니다";
+    $("#detailList").innerHTML = "";
+    $("#calendar").innerHTML = "";
+
+    renderSchoolList();
+    renderCalendar();
+
+    setLeftStatus("초기화했습니다. 학교를 검색해 주세요.");
+    setRightStatus("학교를 선택하면 달력이 갱신됩니다.");
+  }
+
+  // Month nav
+  function setMonth(y, m){
+    currentMonth = new Date(y, m, 1);
+  }
+  async function prevMonth(){
+    setMonth(currentMonth.getFullYear(), currentMonth.getMonth()-1);
+    renderCalendar();
+    if(selectedSchool) await loadMonth();
+  }
+  async function nextMonth(){
+    setMonth(currentMonth.getFullYear(), currentMonth.getMonth()+1);
+    renderCalendar();
+    if(selectedSchool) await loadMonth();
+  }
+  async function goThisMonth(){
+    const now = new Date();
+    setMonth(now.getFullYear(), now.getMonth());
+    renderCalendar();
+    if(selectedSchool) await loadMonth();
+  }
+
+  function initDefaults(){
+    // 탭2 기본 조회기간(요구사항): 2025-03-01 ~ 2026-02-28
+    $("#fromYmd").value = "20250301";
+    $("#toYmd").value = "20260228";
+  }
+// =========================
+  // Init
+  // =========================
+  document.addEventListener("DOMContentLoaded", () => {
+    updateKeyUI();
+    initDefaults();
+
+    // 탭
+    $("#tabBtn1").addEventListener("click", () => setTab(1));
+    $("#tabBtn2").addEventListener("click", () => setTab(2));
+
+    // 키(내부 고정)
+    updateKeyUI();
+
+// 탭1
+    $("#searchBtn").addEventListener("click", onSearch);
+    $("#schoolQuery").addEventListener("keydown", (e) => { if(e.key === "Enter") onSearch(); });
+    $("#resetTab1Btn").addEventListener("click", resetTab1);
+    $("#prevMonthBtn").addEventListener("click", prevMonth);
+    $("#nextMonthBtn").addEventListener("click", nextMonth);
+    $("#todayMonthBtn").addEventListener("click", goThisMonth);
+
+    // 탭2
+// (옵션) 캐시 초기화 버튼이 있는 경우에만 바인딩
+    const clearCacheBtn = document.querySelector("#clearCacheBtn");
+    if(clearCacheBtn){
+      clearCacheBtn.addEventListener("click", () => {
+        cacheClear();
+        jbSchools = [];
+        jbPickedSet = new Set();
+        $("#kindFilter").innerHTML = `<option value="">전체</option>`;
+        $("#locFilter").innerHTML = `<option value="">전체</option>`;
+        $("#jbSchoolList").innerHTML = `<li class="hint">캐시가 초기화되었습니다. 탭2를 다시 열면 목록을 다시 불러옵니다.</li>`;
+        $("#jbTotal").textContent = "0";
+        $("#jbPicked").textContent = "0";
+        setJbStatus("캐시 초기화 완료");
+      });
+    }
+
+    $("#kindFilter").addEventListener("change", renderJbSchoolList);
+    $("#locFilter").addEventListener("change", renderJbSchoolList);
+    $("#nameFilter").addEventListener("input", () => {
+      // 타이핑 시 과도 렌더 방지: 간단 딜레이
+      if(window.__jb_t) clearTimeout(window.__jb_t);
+      window.__jb_t = setTimeout(renderJbSchoolList, 180);
+    });
+
+    $("#selectAllBtn").addEventListener("click", selectAll);
+    $("#clearAllBtn").addEventListener("click", clearAll);
+    $("#selectFilteredBtn").addEventListener("click", selectFiltered);
+
+    $("#exportBtn").addEventListener("click", exportXlsx);
+    $("#cancelBtn").addEventListener("click", cancelExport);
+
+    // usage modal
+    const btn = $("#usageGuideBtn");
+    const modal = $("#usageGuideModal");
+    const closeBtn = modal.querySelector(".usage-close");
+    const close = () => { modal.style.display = "none"; };
+
+    btn.addEventListener("click", () => { modal.style.display = "block"; });
+    closeBtn.addEventListener("click", close);
+    modal.addEventListener("click", (e) => { if(e.target === modal) close(); });
+
+    // first render
+    schools = [];
+    renderSchoolList();
+    renderCalendar();
+
+    // 탭2 캐시가 있으면 미리 counts만
+    const cached = cacheLoad();
+    if(cached && cached.length){
+      jbSchools = cached;
+      ensureJeonbukDerivedFields();
+      fillFilters();
+      renderJbSchoolList();
+      setJbStatus(`캐시된 전북 학교 목록이 있습니다. (총 ${jbSchools.length}개)`);
+    }else{
+      renderJbSchoolList();
+    }
+  });
+
+  // 날짜 유효성 검사(YYYYMMDD)
+  function isValidYmd(ymd){
+    const t = normalizeYmd(ymd);
+    if(!t) return false;
+    const y = Number(t.slice(0,4));
+    const m = Number(t.slice(4,6));
+    const d = Number(t.slice(6,8));
+    if(!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return false;
+    if(m < 1 || m > 12) return false;
+    const dt = new Date(y, m - 1, d);
+    return dt.getFullYear() === y && (dt.getMonth() + 1) === m && dt.getDate() === d;
+  }
+
+</script>
+
+</body>
+</html>

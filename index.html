@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#00284f" />
+    <title>JB업무ON</title>
+    <style>
+      /* WebView2 초기화와 JS 로딩 사이에 흰 화면이 스치지 않도록,
+         React가 뜨기 전까지 보여줄 시작 화면을 HTML에 직접 넣어 둔다.
+         별도 창이 아니라 #root 안에 있으므로 React가 마운트하면서 그대로 대체된다. */
+      /* 배경은 html에만 둔다. index.css가 로드되면 body 배경이 그 위를 덮으므로
+         두 규칙이 서로 다투지 않는다. */
+      html {
+        background: #00284f;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: linear-gradient(160deg, #003a75, #00203f);
+        color: #ffffff;
+        font-family: Pretendard, "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+      }
+
+      #boot .mark {
+        display: grid;
+        width: 58px;
+        height: 58px;
+        place-items: center;
+        border-radius: 16px;
+        background: #ffffff;
+        color: #003264;
+        font-size: 21px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.6);
+      }
+
+      #boot strong {
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      #boot span {
+        color: #9fbcd8;
+        font-size: 12px;
+      }
+
+      #boot .bar {
+        width: 132px;
+        height: 3px;
+        margin-top: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        overflow: hidden;
+      }
+
+      #boot .bar::after {
+        content: "";
+        display: block;
+        width: 44%;
+        height: 100%;
+        border-radius: 999px;
+        background: #7ab2e8;
+        animation: boot-slide 1s ease-in-out infinite;
+      }
+
+      @keyframes boot-slide {
+        0% {
+          transform: translateX(-110%);
+        }
+        100% {
+          transform: translateX(340%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot .bar::after {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="boot">
+        <div class="mark">JB</div>
+        <strong>JB업무ON</strong>
+        <span>반복 업무를 간단하게</span>
+        <div class="bar"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

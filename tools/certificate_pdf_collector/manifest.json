@@ -1,0 +1,13 @@
+{
+  "id": "certificate_pdf_collector",
+  "name": "이수증 PDF 취합",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "certificate_pdf_collector_entry.py",
+  "icon": "",
+  "description": "여러 연수기관 이수증 PDF를 한 번에 엑셀로 정리합니다.",
+  "order": 80,
+  "enabled": true,
+  "version": "1.6.0",
+  "keywords": []
+}

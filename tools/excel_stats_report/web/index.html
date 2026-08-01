@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>엑셀 통계 요약 도구(v1.2)</title>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<!-- 폰트 (Pretendard) -->
+<link href="https://cdn.jsdelivr.net" rel="preconnect"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+<!-- 라이브러리: SheetJS, Chart.js, DataLabels 플러그인 -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<style>
+  :root{
+    --bg:#f8fbff;
+    --card:#ffffff;
+    --text:#1f2a44;
+    --muted:#6e7aa6;
+    --brand:#4b7cf3;
+    --brand-soft:#e8f0ff;
+    --accent:#ff9f1c;
+    --border:#e6edff;
+    --radius-lg:6px;
+    --shadow-soft:0 10px 24px rgba(75,124,243,.06);
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
+  body{
+    margin:0;
+    font-family: Pretendard, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Noto Sans KR",
+      "Malgun Gothic", sans-serif;
+    background:linear-gradient(180deg,#f7fbff 0%,#fafdff 100%);
+    color:var(--text);
+  }
+
+  /* 레이아웃 */
+
+  .app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding:24px 16px 24px;
+  }
+
+  .app-header{
+    text-align:center;
+    margin-bottom:16px;
+  }
+
+  .logo{
+    font-size:24px;
+    font-weight:800;
+  }
+
+  .subtitle{
+    color:var(--muted);
+    margin-top:6px;
+    font-size:13px;
+  }
+
+  .container{
+    max-width:100%;
+    margin:0 auto;
+    padding:0 16px 24px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    align-items:center; /* 카드들을 가운데 정렬 */
+  }
+
+  /* 카드 공통 */
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-soft);
+    padding:18px 18px 16px;
+    width:900px;          /* 화면의 절반 정도 */
+    max-width:900px;     /* 너무 넓어지지 않도록 상한 */
+    min-width:900px;     /* 너무 좁지 않게 하한 */
+  }
+
+  .section-title{
+    margin:0 0 10px;
+    font-size:16px;
+    font-weight:700;
+  }
+
+  /* 파일 업로드 */
+
+  .upload-section{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .file-label{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .file-label input{
+    display:none;
+  }
+
+  .file-button{
+    background:var(--brand);
+    color:#fff;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+    border:0;
+    box-shadow:0 6px 16px rgba(75,124,243,.25);
+    font-size:13px;
+  }
+
+  .file-button:hover{
+    filter:brightness(.97);
+  }
+
+  .file-hint{
+    color:var(--muted);
+    font-size:12px;
+  }
+
+  .hint{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* 시트 / 헤더 선택 */
+
+  .sheet-section .sheet-select-wrapper{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+  }
+
+  .sheet-select-wrapper label{
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  .sheet-select-wrapper select,
+  .sheet-select-wrapper input[type="number"]{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+    outline:none;
+  }
+
+  .sheet-select-wrapper button{
+    padding:6px 14px;
+    border-radius:6px;
+    border:0;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    background:var(--brand);
+    color:#fff;
+    box-shadow:0 4px 10px rgba(75,124,243,.3);
+  }
+
+  /* 분석 설정 */
+
+  .config-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:14px;
+    margin-top:4px;
+  }
+
+  .config-grid h3{
+    margin:0 0 4px;
+    font-size:14px;
+  }
+
+  /* 체크박스 리스트 전체 폭 고정 */
+  .checkbox-list{
+    border-radius:6px;
+    border:1px solid var(--border);
+    padding:8px 10px;
+    max-height:200px;
+    overflow-y:auto;
+    background:#f8f9ff;
+    width:100%;
+  }
+
+  .checkbox-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:13px;
+    padding:2px 0;
+    cursor:pointer;
+  }
+
+  .checkbox-item input{
+    margin:0;
+  }
+
+  /* 필터 블록 */
+
+  .filter-block{
+    margin-top:12px;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#fff;
+  }
+
+  .filter-block h3{
+    margin:0 0 4px;
+    font-size:14px;
+  }
+
+  .filter-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:4px;
+  }
+
+  .filter-row select,
+  .filter-row input[type="text"]{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+  }
+
+  .filter-enable-label{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* 버튼 */
+
+  .primary-btn{
+    margin-top:12px;
+    padding:8px 16px;
+    border-radius:6px;
+    border:0;
+    font-size:13px;
+    font-weight:800;
+    cursor:pointer;
+    background:var(--accent);
+    color:#fff;
+    box-shadow:0 6px 16px rgba(255,159,28,.4);
+  }
+
+  .primary-btn:hover{
+    filter:brightness(.97);
+  }
+
+  .secondary-btn{
+    padding:6px 12px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#fff;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    color:var(--text);
+  }
+
+  .secondary-btn:hover{
+    background:var(--brand-soft);
+  }
+
+  /* 표 */
+
+  .table-wrapper{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+
+  thead{
+    background:#f0f3ff;
+  }
+
+  th,td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    text-align:right;
+  }
+
+  th:first-child,
+  td:first-child{
+    text-align:left;
+  }
+
+  tr:nth-child(even) td{
+    background:#fafbff;
+  }
+
+  /* 섹션 상단 (제목 + 버튼) */
+
+  .section-header-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    margin-bottom:6px;
+  }
+
+  /* 차트 영역 */
+
+  .detail-section h2{
+    margin-bottom:8px;
+  }
+
+  .chart-header{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-end;
+    gap:10px;
+    margin-bottom:10px;
+  }
+
+  .chart-control{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .chart-control label{
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  .chart-control select{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+  }
+
+  /* 그룹 필터 */
+
+  .chart-filter{
+    margin-bottom:8px;
+  }
+
+  .chart-filter-title-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:4px;
+  }
+
+  .chart-filter-toggle-all{
+    padding:4px 10px;
+    font-size:11px;
+  }
+
+  .chart-filter-title{
+    font-size:12px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:4px;
+  }
+
+  .chart-checkbox-list{
+    max-height:120px;
+  }
+
+  /* 값 표시 체크 */
+
+  .chart-toggle{
+    margin-bottom:6px;
+  }
+
+  .chart-toggle label{
+    font-size:12px;
+    color:var(--muted);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  /* 차트 캔버스 : 카드 폭과 동일하게 */
+
+  .chart-wrapper{
+    width:100%;
+    height:320px;
+  }
+
+  /* footer */
+
+  .app-footer{
+    text-align:center;
+    color:#9aa7d1;
+    font-size:12px;
+    padding:12px 16px 20px;
+  }
+
+  /* 공통 */
+
+  .hidden{
+    display:none;
+  }
+
+  /* 모바일 */
+
+  @media (max-width: 768px){
+    .card{
+      width:100%;
+      max-width:100%;
+      min-width:0;
+    }
+  }
+
+/* ──────────────────────────────
+   전북교육청 통일 테마 오버라이드 (내부 도구 공통)
+   - 기능에는 영향을 주지 않고, 색상/여백/타이포만 맞춤
+   ────────────────────────────── */
+:root{
+  --bg:#ffffff;
+  --card:#ffffff;
+  --text:#222222;
+  --muted:#6b7280;
+  --brand:#0056b8;
+  --brand-weak:#e4effb;
+  --border:#d4dbe8;
+}
+
+html, body{
+  height:100%;
+}
+
+body{
+  margin:0;
+  background:#ffffff;
+  color:var(--text);
+  font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+}
+
+/* 상단 헤더 공통 정리 */
+.app-header{
+  padding:20px 16px 12px;
+  margin:0 0 16px;
+  border-bottom:1px solid var(--border);
+  background:#ffffff;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  margin:0;
+  font-size:24px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  color:#111827;
+}
+
+.app-header .subtitle,
+.app-header p,
+.app-header-description{
+  margin-top:4px;
+  font-size:13px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+/* 카드/섹션 공통 */
+.card,
+.section-card,
+.panel,
+.box{
+  background:#ffffff;
+  border:1px solid var(--border);
+  border-radius:6px;
+  box-shadow:none;
+}
+
+.section-title,
+.card-title,
+.box-title{
+  margin:0 0 8px;
+  font-size:15px;
+  font-weight:600;
+  color:#111827;
+}
+
+.section-desc,
+.card-desc,
+.box-desc{
+  margin:0 0 10px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* 버튼 공통 */
+button,
+.btn,
+.primary-btn,
+.btn-primary{
+  font-family:inherit;
+}
+
+.btn-primary,
+.primary-btn{
+  background:var(--brand);
+  color:#ffffff;
+  border:1px solid var(--brand);
+  border-radius:6px;
+  padding:8px 14px;
+}
+
+.btn-primary:hover,
+.primary-btn:hover{
+  background:#00479a;
+}
+
+/* 입력 요소 공통 */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+input[type="search"],
+select,
+textarea{
+  font-family:inherit;
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+
+/* 제목 여백 차이 줄이기 (학교명 표준화 등) */
+.app-header-icon{
+  margin-bottom:4px;
+}
+.app-header h1{
+  margin-top:0;
+}
+
+
+/* ── 전북교육청 통일 헤더 테마 (추가 오버라이드) ── */
+html, body{
+  background:#ffffff !important;
+}
+
+.app-header{
+  background:#ffffff !important;
+  padding:20px 16px 12px !important;
+  margin:0 0 16px !important;
+  border-bottom:1px solid #d4dbe8 !important;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  font-size:24px !important;
+  font-weight:600 !important;
+  letter-spacing:-0.02em;
+  margin:0 !important;
+  color:#111827 !important;
+}
+
+.app-header p,
+.app-header .subtitle,
+.app-header-description{
+  margin-top:4px !important;
+  font-size:13px !important;
+  color:#6b7280 !important;
+}
+
+
+/* 제목 하단 구분선 제거 (전 탭 공통) */
+.app-header{
+  border-bottom:none !important;
+  box-shadow:none !important;
+}
+
+/* 모든 탭 제목 높이 통일 */
+.app-header{
+  padding:20px 0 8px !important;
+  margin:0 auto 8px !important;
+  text-align:center !important;
+}
+
+  .group-options {
+    margin: 8px 0 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #f2f4ff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .group-options-label {
+    font-weight: 600;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .group-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .group-options input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+  }
+
+
+  .inline-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .field {
+    flex: 1 1 0;
+    min-width: 120px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .small {
+    font-size: 12px;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
+  .mt-8 {
+    margin-top: 8px;
+  }
+
+.main-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+}
+
+.card.full-width {
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 18px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+  /* 통계 요약 섹션: 하위 제목 스타일과 아이콘 조정 */
+  .summary-section .section-title,
+  #groupSection .section-title,
+  #chartSection .section-title{
+    font-size:14px;
+  }
+
+  .summary-section .section-title::before,
+  #groupSection .section-title::before,
+  #chartSection .section-title::before{
+    content:none;
+  }
+
+  #summarySection,
+  #groupSection,
+  #chartSection{
+    margin-top:16px;
+  }
+
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+
+/* 통계 요약 리포트: 전체 영역과 메인 카드 폭을 품질 점검/학교명 도구와 동일하게 고정 */
+.app {
+  width: 100%;
+  max-width: noen;
+  margin: 0 auto 40;
+  padding: 0 16px 40px;
+}
+
+.main-grid {
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.main-grid > .card {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+select {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+}
+
+select:disabled {
+  background: #f1f3fb;
+  color: #a1aac8;
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="app-header">
+<div class="logo">📊 엑셀 통계 요약 도구(v1.2)</div>
+<div class="subtitle">
+        엑셀 파일을 업로드하면 요약 통계 · 그룹별 통계 · 그래프까지 한 번에 확인할 수 있습니다.
+      </div>
+</header>
+<main class="main-grid">
+<section class="card">
+<h2 class="section-title">1. 대상 데이터 파일 업로드</h2>
+<p class="section-desc">
+          엑셀 데이터를 업로드한 뒤 <strong>시트</strong>와 <strong>헤더 행</strong>, <strong>분석 설정</strong>까지 순서대로 선택하세요.
+        </p>
+<label class="file-label" style="margin-top:10px;">
+<input accept=".xlsx,.xls" id="fileInput" type="file"/>
+<span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
+</label>
+<p class="hint small muted mt-8"></p>
+<div class="inline-fields">
+<div class="field">
+<label for="sheetSelect">시트 선택</label>
+<select disabled="" id="sheetSelect">
+<option value="">파일을 먼저 선택하세요</option>
+</select>
+</div>
+<div class="field">
+<label for="headerRowSelect">헤더 행 선택</label>
+<select disabled="" id="headerRowSelect">
+<option value="">헤더 행을 선택하세요</option>
+</select>
+<p class="small muted mt-8">
+</p>
+</div>
+</div>
+<!-- 기존 숫자 입력/버튼은 스크립트 호환을 위해 숨김 -->
+<div style="display:none;">
+<label for="headerRowInput">헤더가 있는 행 번호 (엑셀에서 보이는 행 번호)</label>
+<input id="headerRowInput" min="1" type="number" value="1"/>
+<button id="applyHeaderBtn" type="button">적용</button>
+</div>
+<!-- 분석 설정 -->
+<section class="sheet-section" id="configSection">
+<div class="config-grid">
+<div>
+<h3>그룹 기준 열 선택 (선택)</h3>
+<p class="hint">예: 시도명, 교육지원청, 학교급, 학년 등</p>
+<select id="groupBySelect">
+<option value="">(선택 안 함)</option>
+</select>
+</div>
+<div>
+<h3>숫자 열 선택</h3>
+<p class="hint">요약 통계를 계산할 열을 선택하세요.</p>
+<div class="checkbox-list" id="numericColumnsContainer">
+<!-- JS에서 채움 -->
+</div>
+</div>
+</div>
+<!-- 조건 필터 -->
+<div class="filter-block">
+<h3>조건 필터 (선택)</h3>
+<p class="hint">예: 학교급 = 초등학교, 학급수 &gt; 0 등</p>
+<div class="filter-row">
+<select id="filterColumnSelect"></select>
+<select id="filterOperatorSelect">
+<option value="eq">= (같음)</option>
+<option value="ne">≠ (다름)</option>
+<option value="gt">&gt; (초과)</option>
+<option value="ge">≥ (이상)</option>
+<option value="lt">&lt; (미만)</option>
+<option value="le">≤ (이하)</option>
+<option value="contains">포함</option>
+<option value="notcontains">포함 안 함</option>
+</select>
+<input id="filterValueInput" placeholder="값 입력" type="text"/>
+<label class="filter-enable-label">
+<input id="filterEnableCheckbox" type="checkbox"/>
+              필터 사용
+            </label>
+</div>
+</div>
+<button class="primary-btn" id="runAnalysisBtn" type="button">통계 분석 실행</button>
+<button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
+</section>
+</section>
+<section class="card full-width">
+<h2 class="section-title">2. 통계 요약</h2>
+<p class="section-desc">
+          전체 요약 통계, 그룹별 통계, 그래프를 한 번에 확인하고 결과를 엑셀로 저장할 수 있습니다.
+        </p>
+<!-- 요약 통계 -->
+<section class="summary-section" id="summarySection">
+<div class="section-header-row">
+<h2 class="section-title">전체 요약 통계</h2>
+<button class="secondary-btn" id="downloadSummaryBtn" type="button">
+            요약 통계 엑셀 다운로드
+          </button>
+</div>
+<div class="table-wrapper">
+<table id="summaryTable">
+<thead>
+<tr>
+<th>열 이름</th>
+<th>유효 값 개수</th>
+<th>결측 비율</th>
+<th>합계</th>
+<th>최소값</th>
+<th>중앙값</th>
+<th>최대값</th>
+<th>평균</th>
+<th>표준편차</th>
+</tr>
+</thead>
+<tbody>
+<!-- JS에서 채움 -->
+</tbody>
+</table>
+</div>
+</section>
+<!-- 그룹별 통계 -->
+<section class="detail-section" id="groupSection">
+<div class="section-header-row">
+<h2 class="section-title">그룹별 통계</h2>
+<button class="secondary-btn" id="downloadGroupBtn" type="button">
+            그룹별 통계 엑셀 다운로드
+          </button>
+</div>
+<p class="hint" id="groupHint"></p>
+<div class="group-options">
+<span class="group-options-label">계산할 통계 선택:</span>
+<label><input checked="" name="groupStatOption" type="checkbox" value="sum"/> 합계</label>
+<label><input checked="" name="groupStatOption" type="checkbox" value="avg"/> 평균</label>
+<label><input name="groupStatOption" type="checkbox" value="ratio"/> 비율(전체 대비 %)</label>
+<label><input name="groupStatOption" type="checkbox" value="min"/> 최소값</label>
+<label><input name="groupStatOption" type="checkbox" value="max"/> 최대값</label>
+<label><input name="groupStatOption" type="checkbox" value="median"/> 중앙값</label>
+</div>
+<div class="table-wrapper">
+<table id="groupTable">
+<thead>
+<!-- JS에서 채움 -->
+</thead>
+<tbody>
+<!-- JS에서 채움 -->
+</tbody>
+</table>
+</div>
+</section>
+<!-- 차트 -->
+<section class="detail-section" id="chartSection">
+<h2 class="section-title">그룹별 그래프</h2>
+<div class="chart-header">
+<div class="chart-control">
+<label for="chartColumnSelect">그래프로 보고 싶은 숫자 열</label>
+<select id="chartColumnSelect"></select>
+</div>
+<div class="chart-control">
+<label for="chartTypeSelect">그래프 종류</label>
+<select id="chartTypeSelect">
+<option value="bar">막대그래프</option>
+<option value="line">선그래프</option>
+<option value="pie">원형그래프</option>
+<option value="doughnut">도넛그래프</option>
+</select>
+</div>
+<div class="chart-control">
+<label for="valueModeSelect">값 방식</label>
+<select id="valueModeSelect">
+<option value="value">합계 값</option>
+<option value="min">최소값</option>
+<option value="median">중앙값</option>
+<option value="max">최대값</option>
+<option value="avg">평균</option>
+<option value="std">표준편차</option>
+<option value="percent">전체 대비 비율(%)</option>
+</select>
+</div>
+<div class="chart-control">
+<label for="chartSortSelect">정렬 방식</label>
+<select id="chartSortSelect">
+<option value="labelAsc">이름 오름차순</option>
+<option value="labelDesc">이름 내림차순</option>
+<option selected="" value="valueDesc">값이 큰 순</option>
+<option value="valueAsc">값이 작은 순</option>
+</select>
+</div>
+<div class="chart-control chart-download">
+<label> </label>
+<button class="secondary-btn" id="downloadChartBtn" type="button">
+              그래프 PNG 저장
+            </button>
+</div>
+</div>
+<!-- X축에 포함할 그룹 선택 -->
+<div class="chart-filter">
+<div class="chart-filter-title-row">
+<span class="chart-filter-title">그래프에 포함할 그룹 (기본: 전체 선택)</span>
+<button class="secondary-btn chart-filter-toggle-all" id="chartGroupToggleAllBtn" type="button">모두</button>
+</div>
+<div class="checkbox-list chart-checkbox-list" id="chartGroupFilter">
+<!-- JS에서 채움 -->
+</div>
+</div>
+<!-- 값 표시 여부 -->
+<div class="chart-toggle">
+<label>
+<input id="showValueLabels" type="checkbox"/>
+            그래프 위에 값 표시
+          </label>
+</div>
+<div class="chart-wrapper">
+<canvas id="groupChart"></canvas>
+<input id="chartColorPicker" style="display:none" type="color"/>
+</div>
+</section>
+</section>
+</main>
+</div>
+<script>
+  // DataLabels 플러그인 등록
+  if (window.ChartDataLabels) {
+    Chart.register(ChartDataLabels);
+  }
+
+  // DOM 요소
+  const fileInput = document.getElementById("fileInput");
+
+  const sheetSection = document.getElementById("sheetSection");
+  const sheetSelect = document.getElementById("sheetSelect");
+
+  const headerSection = document.getElementById("headerSection");
+  const headerRowInput = document.getElementById("headerRowInput");
+  const applyHeaderBtn = document.getElementById("applyHeaderBtn");
+
+  const configSection = document.getElementById("configSection");
+  const groupBySelect = document.getElementById("groupBySelect");
+  const numericColumnsContainer = document.getElementById("numericColumnsContainer");
+  const runAnalysisBtn = document.getElementById("runAnalysisBtn");
+
+  // 필터 DOM
+  const filterColumnSelect = document.getElementById("filterColumnSelect");
+  const filterOperatorSelect = document.getElementById("filterOperatorSelect");
+  const filterValueInput = document.getElementById("filterValueInput");
+  const filterEnableCheckbox = document.getElementById("filterEnableCheckbox");
+
+  const summarySection = document.getElementById("summarySection");
+  const summaryTableBody = document.querySelector("#summaryTable tbody");
+  const downloadSummaryBtn = document.getElementById("downloadSummaryBtn");
+
+  const groupSection = document.getElementById("groupSection");
+  const groupHint = document.getElementById("groupHint");
+  const groupTableHead = document.querySelector("#groupTable thead");
+  const groupTableBody = document.querySelector("#groupTable tbody");
+  const downloadGroupBtn = document.getElementById("downloadGroupBtn");
+
+  const chartSection = document.getElementById("chartSection");
+  const chartColumnSelect = document.getElementById("chartColumnSelect");
+  const chartTypeSelect = document.getElementById("chartTypeSelect");
+  const valueModeSelect = document.getElementById("valueModeSelect");
+  const chartSortSelect = document.getElementById("chartSortSelect");
+  const chartGroupFilter = document.getElementById("chartGroupFilter");
+  const chartGroupToggleAllBtn = document.getElementById("chartGroupToggleAllBtn");
+  const showValueLabelsCheckbox = document.getElementById("showValueLabels");
+  const chartCanvas = document.getElementById("groupChart");
+  const chartColorPicker = document.getElementById("chartColorPicker");
+  const downloadChartBtn = document.getElementById("downloadChartBtn");
+
+  // 상태 변수
+  let currentFileName = "";
+  let sheetDataMap = {}; // { sheetName: rowsArray }
+  let currentSheetName = "";
+  let currentHeaderRowIndex = null; // 0-based
+  let currentHeader = [];
+  let currentDataRows = []; // 2D array (필터 적용 전 원본)
+  let numericColumns = []; // { key, index }
+  let groupStats = null;   // 그룹별 통계
+  let currentChart = null;
+
+  // 엑셀 다운로드용 최근 통계 저장
+  let lastSummaryStats = null;
+  let lastGroupStats = null;
+
+  // 이벤트 바인딩
+  fileInput.addEventListener("change", handleFileSelect);
+
+  sheetSelect.addEventListener("change", () => {
+    const selectedSheet = sheetSelect.value;
+    const rows = sheetDataMap[selectedSheet];
+    if (!rows) return;
+
+    currentSheetName = selectedSheet;
+    setupHeaderForSheet(rows);
+  });
+
+  applyHeaderBtn.addEventListener("click", () => {
+    if (!currentSheetName) return;
+    const rows = sheetDataMap[currentSheetName];
+    if (!rows || rows.length === 0) return;
+
+    const val = parseInt(headerRowInput.value, 10);
+    if (isNaN(val) || val < 1 || val > rows.length) {
+      alert("유효한 행 번호를 입력해주세요.");
+      return;
+    }
+
+    currentHeaderRowIndex = val - 1;
+    applyHeaderAndBuildConfig(rows);
+  });
+
+  runAnalysisBtn.addEventListener("click", () => {
+    if (!currentHeader || currentHeader.length === 0 || currentDataRows.length === 0) {
+      alert("헤더와 데이터가 올바르게 설정되지 않았습니다.");
+      return;
+    }
+
+    const selectedNumericKeys = getSelectedNumericKeys();
+    if (selectedNumericKeys.length === 0) {
+      alert("최소 1개 이상의 숫자 열을 선택해주세요.");
+      return;
+    }
+
+    const groupKey = groupBySelect.value || null;
+
+    // 조건 필터 적용
+    const filteredRows = applyFilterToRows(currentHeader, currentDataRows);
+
+    const summaryStats = computeSummaryStats(
+      currentHeader,
+      filteredRows,
+      selectedNumericKeys
+    );
+    lastSummaryStats = summaryStats;
+    renderSummaryTable(summaryStats);
+
+    // 5·6단계 처리
+    if (groupKey) {
+      groupStats = computeGroupStats(
+        currentHeader,
+        filteredRows,
+        groupKey,
+        selectedNumericKeys
+      );
+      lastGroupStats = groupStats;
+
+      if (!groupStats || !groupStats.groupEntries || groupStats.groupEntries.length === 0) {
+        groupTableHead.innerHTML = "";
+        groupTableBody.innerHTML = "";
+        groupHint.textContent = "선택한 조건을 만족하는 데이터가 없습니다.";
+        groupSection.classList.remove("hidden");
+
+        chartSection.classList.add("hidden");
+        destroyChart();
+      } else {
+        renderGroupTable(groupKey, selectedNumericKeys, groupStats);
+        setupChartOptions(selectedNumericKeys, groupKey, groupStats);
+        chartSection.classList.remove("hidden");
+      }
+    } else {
+      groupSection.classList.add("hidden");
+      chartSection.classList.add("hidden");
+      groupStats = null;
+      lastGroupStats = null;
+      destroyChart();
+    }
+
+    summarySection.classList.remove("hidden");
+  });
+
+  // 차트 컨트롤 변경 시마다 다시 그리기
+  chartColumnSelect.addEventListener("change", updateChartFromControls);
+  chartTypeSelect.addEventListener("change", updateChartFromControls);
+  valueModeSelect.addEventListener("change", updateChartFromControls);
+  chartSortSelect.addEventListener("change", updateChartFromControls);
+  showValueLabelsCheckbox.addEventListener("change", updateChartFromControls);
+
+  if (chartGroupToggleAllBtn) {
+    chartGroupToggleAllBtn.addEventListener("click", () => {
+      const inputs = chartGroupFilter.querySelectorAll("input[type='checkbox']");
+      const arr = Array.from(inputs);
+      if (arr.length === 0) return;
+      const allChecked = arr.every((inp) => inp.checked);
+      const newChecked = !allChecked;
+      arr.forEach((inp) => {
+        inp.checked = newChecked;
+      });
+      updateChartFromControls();
+      updateChartGroupToggleAllButtonLabel();
+    });
+  }
+
+  // 다운로드 버튼
+  downloadSummaryBtn.addEventListener("click", downloadSummaryExcel);
+  downloadGroupBtn.addEventListener("click", downloadGroupExcel);
+  downloadChartBtn.addEventListener("click", downloadChartImage);
+
+  const groupStatOptionInputs = document.querySelectorAll('input[name="groupStatOption"]');
+  if (groupStatOptionInputs && groupStatOptionInputs.length > 0) {
+    groupStatOptionInputs.forEach((el) => {
+      el.addEventListener("change", () => {
+        if (lastGroupStats) {
+          renderGroupTable(
+            lastGroupStats.groupKey,
+            lastGroupStats.numericKeys,
+            lastGroupStats
+          );
+        }
+      });
+    });
+  }
+
+
+  /* -------------------------
+    파일 처리 / 시트 처리
+  -------------------------- */
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    currentFileName = file.name;
+    sheetDataMap = {};
+    currentSheetName = "";
+    currentHeaderRowIndex = null;
+    currentHeader = [];
+    currentDataRows = [];
+    numericColumns = [];
+    groupStats = null;
+    lastSummaryStats = null;
+    lastGroupStats = null;
+    destroyChart();
+    hideResultSections();
+
+    reader.onload = function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          alert("시트가 존재하지 않습니다.");
+          return;
+        }
+
+        workbook.SheetNames.forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+          sheetDataMap[sheetName] = rows;
+        });
+
+        initSheetSelect(workbook.SheetNames);
+
+        const firstSheetName = workbook.SheetNames[0];
+        const firstRows = sheetDataMap[firstSheetName];
+        if (!firstRows || firstRows.length === 0) {
+          alert("첫 번째 시트에 데이터가 없습니다.");
+          return;
+        }
+
+        currentSheetName = firstSheetName;
+        setupHeaderForSheet(firstRows);
+
+        if (sheetSection) if (sheetSection) sheetSection.classList.remove("hidden");
+        if (headerSection) headerSection.classList.remove("hidden");
+      } catch (error) {
+        console.error(error);
+        alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
+  function initSheetSelect(sheetNames) {
+    sheetSelect.innerHTML = "";
+    sheetSelect.disabled = false;
+    sheetNames.forEach((name, idx) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      if (idx === 0) option.selected = true;
+      sheetSelect.appendChild(option);
+    });
+  }
+
+  function setupHeaderForSheet(rows) {
+    if (!rows || rows.length === 0) return;
+
+    const guessedIndex = findHeaderRowIndex(rows);
+    currentHeaderRowIndex = guessedIndex;
+    headerRowInput.min = 1;
+    headerRowInput.max = rows.length;
+    headerRowInput.value = guessedIndex + 1;
+
+    // 헤더 행 선택 셀렉트 박스 갱신
+    const headerRowSelectEl = document.getElementById("headerRowSelect");
+    if (headerRowSelectEl) {
+      headerRowSelectEl.innerHTML = "";
+      rows.forEach((row, idx) => {
+        const preview = (row || [])
+          .slice(0, 5)
+          .map((v) =>
+            v === null || v === undefined ? "" : String(v)
+          )
+          .join(" | ");
+        const opt = document.createElement("option");
+        opt.value = String(idx + 1); // 1-based
+        opt.textContent = preview
+          ? `${idx + 1}행 - ${preview}`
+          : `${idx + 1}행`;
+        if (idx === guessedIndex) opt.selected = true;
+        headerRowSelectEl.appendChild(opt);
+      });
+      headerRowSelectEl.disabled = false;
+    }
+
+    applyHeaderAndBuildConfig(rows);
+  }
+
+  // 헤더 행 선택 셀렉트와 숫자 입력값 연동
+  (function () {
+    const headerRowSelectEl = document.getElementById("headerRowSelect");
+    if (!headerRowSelectEl) return;
+
+    headerRowSelectEl.addEventListener("change", () => {
+      const v = parseInt(headerRowSelectEl.value, 10);
+      if (!currentSheetName || !sheetDataMap[currentSheetName]) return;
+      if (isNaN(v) || v < 1) return;
+
+      headerRowInput.value = String(v);
+      applyHeaderBtn.click();
+    });
+  })();
+
+  function applyHeaderAndBuildConfig(rows) {
+    if (!rows || rows.length === 0) return;
+    if (
+      currentHeaderRowIndex == null ||
+      currentHeaderRowIndex < 0 ||
+      currentHeaderRowIndex >= rows.length
+    ) {
+      currentHeaderRowIndex = 0;
+    }
+
+    currentHeader = rows[currentHeaderRowIndex] || [];
+    currentDataRows = rows.slice(currentHeaderRowIndex + 1);
+
+    currentHeader = currentHeader.map((h, idx) =>
+      (h && String(h).trim()) || `열${idx + 1}`
+    );
+
+    buildConfigOptions(currentHeader, currentDataRows);
+
+    configSection.classList.remove("hidden");
+    hideResultSections();
+  }
+
+  function hideResultSections() {
+    summarySection.classList.add("hidden");
+    groupSection.classList.add("hidden");
+    chartSection.classList.add("hidden");
+  }
+
+  /* -------------------------
+    헤더 후보 자동 탐색
+  -------------------------- */
+
+  function findHeaderRowIndex(rows) {
+      if (!rows || rows.length === 0) return 0;
+
+      const containsKeyword = (cell, keywords) => {
+        if (cell === undefined || cell === null) return false;
+        let s = String(cell).replace(/\s+/g, "").toLowerCase();
+        return keywords.some((k) => s.includes(k));
+      };
+
+      let headerIdx = -1;
+      const maxRows = Math.min(rows.length, 50);
+
+      for (let i = 0; i < maxRows; i++) {
+        const row = rows[i] || [];
+        const hasNonEmpty = row.some(
+          (c) => c !== undefined && c !== null && String(c).trim() !== ""
+        );
+        if (!hasNonEmpty) continue;
+
+        const hasHeaderKeyword = row.some((c) =>
+          containsKeyword(c, ["학교명", "학교 명", "학교코드", "학교 코드"])
+        );
+
+        if (hasHeaderKeyword) {
+          headerIdx = i;
+          break;
+        }
+
+        if (headerIdx === -1) {
+          headerIdx = i; // 첫 번째 내용 있는 행을 후보로
+        }
+      }
+
+      if (headerIdx === -1) headerIdx = 0;
+      return headerIdx;
+    }
+
+  /* -------------------------
+    분석 설정 UI 구성
+  -------------------------- */
+
+  function buildConfigOptions(header, dataRows) {
+    // 그룹 기준 셀렉트
+    groupBySelect.innerHTML = "";
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "(선택 안 함)";
+    groupBySelect.appendChild(defaultOption);
+
+    header.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      groupBySelect.appendChild(opt);
+    });
+
+    // 숫자 열 후보 찾기
+    numericColumns = detectNumericColumns(header, dataRows);
+
+    numericColumnsContainer.innerHTML = "";
+    if (numericColumns.length === 0) {
+      const p = document.createElement("p");
+      p.textContent = "숫자형 열을 찾지 못했습니다. 헤더 행을 다시 확인해 주세요.";
+      p.classList.add("hint");
+      numericColumnsContainer.appendChild(p);
+    } else {
+      // 모두 선택 체크박스 (label로 감싸기)
+      const selectAllLabel = document.createElement("label");
+      selectAllLabel.classList.add("checkbox-item");
+
+      const selectAllInput = document.createElement("input");
+      selectAllInput.type = "checkbox";
+      selectAllInput.id = "selectAllNumeric";
+      selectAllInput.checked = true;
+
+      const selectAllSpan = document.createElement("span");
+      selectAllSpan.textContent = "모두 선택";
+
+      selectAllLabel.appendChild(selectAllInput);
+      selectAllLabel.appendChild(selectAllSpan);
+      numericColumnsContainer.appendChild(selectAllLabel);
+
+      // 개별 숫자열 체크박스
+      numericColumns.forEach((col) => {
+        const label = document.createElement("label");
+        label.classList.add("checkbox-item");
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = col.key;
+        input.checked = true;
+
+        const span = document.createElement("span");
+        span.textContent = col.key;
+
+        label.appendChild(input);
+        label.appendChild(span);
+        numericColumnsContainer.appendChild(label);
+
+        // 개별 체크 시 모두선택 상태 갱신
+        input.addEventListener("change", () => {
+          const others = numericColumnsContainer.querySelectorAll(
+            "input[type='checkbox']:not(#selectAllNumeric)"
+          );
+          const allChecked = Array.from(others).every((inp) => inp.checked);
+          selectAllInput.checked = allChecked;
+        });
+      });
+
+      // 모두 선택 토글
+      selectAllInput.addEventListener("change", () => {
+        const checked = selectAllInput.checked;
+        const others = numericColumnsContainer.querySelectorAll(
+          "input[type='checkbox']:not(#selectAllNumeric)"
+        );
+        others.forEach((inp) => (inp.checked = checked));
+      });
+    }
+
+    // 조건 필터용 열 셀렉트 채우기
+    filterColumnSelect.innerHTML = "";
+    header.forEach((name, idx) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      if (idx === 0) opt.selected = true;
+      filterColumnSelect.appendChild(opt);
+    });
+  }
+
+  function detectNumericColumns(header, dataRows) {
+    const result = [];
+
+    header.forEach((name, idx) => {
+      let nonEmpty = 0;
+      let numericCount = 0;
+
+      dataRows.forEach((row) => {
+        const v = row[idx];
+        if (v === null || v === undefined || String(v).trim() === "") return;
+        nonEmpty++;
+        if (!isNaN(Number(v))) numericCount++;
+      });
+
+      const ratio = nonEmpty === 0 ? 0 : numericCount / nonEmpty;
+      if (ratio >= 0.7 && nonEmpty > 0) {
+        result.push({ key: name, index: idx });
+      }
+    });
+
+    return result;
+  }
+
+  function getSelectedNumericKeys() {
+    const checked = [];
+    const inputs = numericColumnsContainer.querySelectorAll(
+      "input[type='checkbox']:not(#selectAllNumeric)"
+    );
+    inputs.forEach((inp) => {
+      if (inp.checked) checked.push(inp.value);
+    });
+    return checked;
+  }
+
+  /* -------------------------
+    조건 필터 적용
+  -------------------------- */
+
+  function applyFilterToRows(header, rows) {
+    if (!filterEnableCheckbox.checked) return rows;
+
+    const colName = filterColumnSelect.value;
+    const op = filterOperatorSelect.value;
+    const filterValRaw = filterValueInput.value;
+
+    if (!colName || !op || filterValRaw === "") return rows;
+
+    const colIndex = header.indexOf(colName);
+    if (colIndex < 0) return rows;
+
+    const filterNum = Number(filterValRaw);
+    const filterIsNum = !isNaN(filterNum);
+
+    return rows.filter((row) => {
+      const vRaw = row[colIndex];
+      if (vRaw === null || vRaw === undefined) return false;
+      const vStr = String(vRaw).trim();
+      if (vStr === "") return false;
+
+      const valNum = Number(vRaw);
+      const valIsNum = !isNaN(valNum);
+
+      if (
+        (op === "gt" || op === "ge" || op === "lt" || op === "le") &&
+        filterIsNum &&
+        valIsNum
+      ) {
+        if (op === "gt") return valNum > filterNum;
+        if (op === "ge") return valNum >= filterNum;
+        if (op === "lt") return valNum < filterNum;
+        if (op === "le") return valNum <= filterNum;
+      }
+
+      if (op === "eq") {
+        if (filterIsNum && valIsNum) return valNum === filterNum;
+        return vStr === filterValRaw;
+      }
+
+      if (op === "ne") {
+        if (filterIsNum && valIsNum) return valNum !== filterNum;
+        return vStr !== filterValRaw;
+      }
+
+      if (op === "contains") {
+        return vStr.includes(filterValRaw);
+      }
+
+      if (op === "notcontains") {
+        return !vStr.includes(filterValRaw);
+      }
+
+      return true;
+    });
+  }
+
+  /* -------------------------
+    통계 계산
+  -------------------------- */
+
+  function computeSummaryStats(header, dataRows, numericKeys) {
+    const colIndexMap = {};
+    header.forEach((name, idx) => {
+      colIndexMap[name] = idx;
+    });
+
+    const result = [];
+
+    numericKeys.forEach((key) => {
+      const idx = colIndexMap[key];
+      if (idx == null) return;
+
+      const values = [];
+      let missing = 0;
+
+      dataRows.forEach((row) => {
+        const vRaw = row[idx];
+        if (vRaw === null || vRaw === undefined || String(vRaw).trim() === "") {
+          missing++;
+          return;
+        }
+        const v = Number(vRaw);
+        if (isNaN(v)) {
+          missing++;
+        } else {
+          values.push(v);
+        }
+      });
+
+      const totalRows = dataRows.length;
+      const count = values.length;
+      const missingRatio = totalRows === 0 ? 0 : missing / totalRows;
+
+      let sum = null,
+        min = null,
+        max = null,
+        mean = null,
+        variance = null,
+        std = null,
+        median = null;
+
+      if (count > 0) {
+        sum = values.reduce((a, b) => a + b, 0);
+        min = Math.min(...values);
+        max = Math.max(...values);
+        mean = sum / count;
+
+        const meanLocal = mean;
+        const sqDiffs = values.map((v) => (v - meanLocal) * (v - meanLocal));
+        const meanSqDiff = sqDiffs.reduce((a, b) => a + b, 0) / count;
+        variance = meanSqDiff;
+        std = Math.sqrt(meanSqDiff);
+
+        const sorted = [...values].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        if (sorted.length % 2 === 1) {
+          median = sorted[mid];
+        } else {
+          median = (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+      }
+
+      result.push({
+        key,
+        count,
+        missingRatio,
+        sum,
+        min,
+        median,
+        max,
+        mean,
+        std
+      });
+    });
+
+    return result;
+  }
+
+  
+  function computeGroupStats(header, dataRows, groupKey, numericKeys) {
+    const colIndexMap = {};
+    header.forEach((name, idx) => {
+      colIndexMap[name] = idx;
+    });
+
+    const gIdx = colIndexMap[groupKey];
+    if (gIdx == null) return null;
+
+    const numericIndexMap = {};
+    numericKeys.forEach((k) => {
+      numericIndexMap[k] = colIndexMap[k];
+    });
+
+    const groups = {};
+
+    dataRows.forEach((row) => {
+      const raw = row[gIdx];
+      const gVal =
+        raw === null || raw === undefined || String(raw).trim() === ""
+          ? "(값 없음)"
+          : String(raw).trim();
+
+      if (!groups[gVal]) {
+        groups[gVal] = {
+          totalCount: 0,
+          stats: {}
+        };
+        numericKeys.forEach((k) => {
+          groups[gVal].stats[k] = {
+            sum: 0,
+            count: 0,
+            min: null,
+            max: null,
+            values: []
+          };
+        });
+      }
+
+      groups[gVal].totalCount++;
+
+      numericKeys.forEach((k) => {
+        const idx = numericIndexMap[k];
+        if (idx == null) return;
+        const vRaw = row[idx];
+        if (vRaw === null || vRaw === undefined || String(vRaw).trim() === "") return;
+        const v = Number(vRaw);
+        if (isNaN(v)) return;
+
+        const stat = groups[gVal].stats[k];
+        stat.sum += v;
+        stat.count += 1;
+        if (stat.min === null || v < stat.min) stat.min = v;
+        if (stat.max === null || v > stat.max) stat.max = v;
+        stat.values.push(v);
+      });
+    });
+
+    const groupEntries = Object.entries(groups).sort((a, b) =>
+      a[0].localeCompare(b[0], "ko")
+    );
+
+    const totalSumsByKey = {};
+    numericKeys.forEach((k) => {
+      totalSumsByKey[k] = 0;
+    });
+    groupEntries.forEach(([, data]) => {
+      numericKeys.forEach((k) => {
+        totalSumsByKey[k] += data.stats[k].sum;
+      });
+    });
+
+    return {
+      groupKey,
+      numericKeys,
+      groups,
+      groupEntries,
+      totalSumsByKey
+    };
+  }
+
+  const groupStatLabelMap = {
+    sum: "합계",
+    avg: "평균",
+    ratio: "비율(전체 대비 %)",
+    min: "최소값",
+    max: "최대값",
+    median: "중앙값"
+  };
+
+  function getActiveGroupStatOptions() {
+    const inputs = document.querySelectorAll('input[name="groupStatOption"]');
+    let opts = Array.from(inputs || [])
+      .filter((el) => el.checked)
+      .map((el) => el.value);
+    if (!opts || opts.length === 0) {
+      opts = ["sum", "avg"];
+    }
+    return opts;
+  }
+
+/* -------------------------
+    표 렌더링
+  -------------------------- */
+
+  function renderSummaryTable(summaryStats) {
+    summaryTableBody.innerHTML = "";
+
+    const fmt = (v, digits = 2) => {
+      if (v === null || v === undefined || isNaN(v)) return "-";
+      return v.toFixed(digits);
+    };
+
+    summaryStats.forEach((s) => {
+      const tr = document.createElement("tr");
+
+      const tdName = document.createElement("td");
+      tdName.textContent = s.key;
+
+      const tdCount = document.createElement("td");
+      tdCount.textContent = s.count;
+
+      const tdMissing = document.createElement("td");
+      tdMissing.textContent = (s.missingRatio * 100).toFixed(1) + "%";
+
+      const tdSum = document.createElement("td");
+      tdSum.textContent = fmt(s.sum, 1);
+
+      const tdMin = document.createElement("td");
+      tdMin.textContent = fmt(s.min, 1);
+
+      const tdMedian = document.createElement("td");
+      tdMedian.textContent = fmt(s.median, 1);
+
+      const tdMax = document.createElement("td");
+      tdMax.textContent = fmt(s.max, 1);
+
+      const tdMean = document.createElement("td");
+      tdMean.textContent = fmt(s.mean, 2);
+
+      const tdStd = document.createElement("td");
+      tdStd.textContent = fmt(s.std, 2);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdCount);
+      tr.appendChild(tdMissing);
+      tr.appendChild(tdSum);
+      tr.appendChild(tdMin);
+      tr.appendChild(tdMedian);
+      tr.appendChild(tdMax);
+      tr.appendChild(tdMean);
+      tr.appendChild(tdStd);
+
+      summaryTableBody.appendChild(tr);
+    });
+  }
+
+  
+  function renderGroupTable(groupKey, numericKeys, groupStats) {
+    if (!groupStats) return;
+
+    groupTableHead.innerHTML = "";
+    groupTableBody.innerHTML = "";
+
+    const activeOptions = getActiveGroupStatOptions();
+
+    const headerRow = document.createElement("tr");
+    const thGroup = document.createElement("th");
+    thGroup.textContent = groupKey;
+    headerRow.appendChild(thGroup);
+
+    numericKeys.forEach((k) => {
+      activeOptions.forEach((opt) => {
+        const th = document.createElement("th");
+        const label =
+          groupStatLabelMap[opt] || opt;
+        th.textContent = `${k} (${label})`;
+        headerRow.appendChild(th);
+      });
+    });
+
+    groupTableHead.appendChild(headerRow);
+    groupHint.textContent = `그룹 기준: ${groupKey}`;
+
+    const totals = groupStats.totalSumsByKey || {};
+
+    groupStats.groupEntries.forEach(([gVal, data]) => {
+      const tr = document.createElement("tr");
+
+      const tdGroup = document.createElement("td");
+      tdGroup.textContent = gVal;
+      tr.appendChild(tdGroup);
+
+      numericKeys.forEach((k) => {
+        const stat = data.stats[k] || {
+          sum: 0,
+          count: 0,
+          min: null,
+          max: null,
+          values: []
+        };
+        const sum = stat.sum ?? 0;
+        const count = stat.count ?? 0;
+        const avg = count > 0 ? sum / count : null;
+        const min = count > 0 ? stat.min : null;
+        const max = count > 0 ? stat.max : null;
+
+        let median = null;
+        if (Array.isArray(stat.values) && stat.values.length > 0) {
+          const arr = [...stat.values].sort((a, b) => a - b);
+          const mid = Math.floor(arr.length / 2);
+          if (arr.length % 2 === 0) {
+            median = (arr[mid - 1] + arr[mid]) / 2;
+          } else {
+            median = arr[mid];
+          }
+        }
+
+        const totalForKey = totals[k] || 0;
+        const ratio = totalForKey > 0 ? (sum / totalForKey) * 100 : null;
+
+        activeOptions.forEach((opt) => {
+          const td = document.createElement("td");
+          let v = null;
+
+          if (opt === "sum") v = sum;
+          else if (opt === "avg") v = avg;
+          else if (opt === "min") v = min;
+          else if (opt === "max") v = max;
+          else if (opt === "median") v = median;
+          else if (opt === "ratio") v = ratio;
+
+          if (v === null || v === undefined || (typeof v === "number" && isNaN(v))) {
+            td.textContent = "-";
+          } else if (opt === "ratio") {
+            td.textContent = v.toFixed(1) + "%";
+          } else if (typeof v === "number") {
+            td.textContent = v.toFixed(2);
+          } else {
+            td.textContent = String(v);
+          }
+
+          tr.appendChild(td);
+        });
+      });
+
+      groupTableBody.appendChild(tr);
+    });
+
+    groupSection.classList.remove("hidden");
+  }
+
+/* -------------------------
+    차트 (값 방식 + 정렬 + 그룹 필터 + 값 표시)
+  -------------------------- */
+
+  function setupChartOptions(numericKeys, groupKey, groupStatsObj) {
+    chartColumnSelect.innerHTML = "";
+
+    numericKeys.forEach((k, idx) => {
+      const opt = document.createElement("option");
+      opt.value = k;
+      opt.textContent = k;
+      if (idx === 0) opt.selected = true;
+      chartColumnSelect.appendChild(opt);
+    });
+
+    // 기본값: 막대, 값이 큰 순, 합계 값
+    chartTypeSelect.value = "bar";
+    chartSortSelect.value = "valueDesc";
+    valueModeSelect.value = "value";
+    showValueLabelsCheckbox.checked = false;
+
+    // 그룹 필터 체크박스 생성
+    buildChartGroupFilter(groupStatsObj);
+
+    groupStats = groupStatsObj; // 전역에 저장
+    updateChartFromControls();
+  }
+
+  function buildChartGroupFilter(groupStatsObj) {
+    chartGroupFilter.innerHTML = "";
+
+    groupStatsObj.groupEntries.forEach(([label]) => {
+      const labelEl = document.createElement("label");
+      labelEl.classList.add("checkbox-item");
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = label;
+      input.checked = true;
+
+      const span = document.createElement("span");
+      span.textContent = label;
+
+      labelEl.appendChild(input);
+      labelEl.appendChild(span);
+      chartGroupFilter.appendChild(labelEl);
+
+      input.addEventListener("change", () => {
+        updateChartFromControls();
+        updateChartGroupToggleAllButtonLabel();
+      });
+    });
+
+    updateChartGroupToggleAllButtonLabel();
+  }
+
+  function getSelectedChartGroups() {
+    const inputs = chartGroupFilter.querySelectorAll("input[type='checkbox']");
+    const selected = [];
+    inputs.forEach((inp) => {
+      if (inp.checked) selected.push(inp.value);
+    });
+    return selected;
+  }
+
+  function updateChartGroupToggleAllButtonLabel() {
+    if (!chartGroupToggleAllBtn) return;
+    const inputs = chartGroupFilter.querySelectorAll("input[type='checkbox']");
+    const arr = Array.from(inputs);
+    if (arr.length === 0) {
+      chartGroupToggleAllBtn.textContent = "모두";
+      chartGroupToggleAllBtn.disabled = true;
+      return;
+    }
+    chartGroupToggleAllBtn.disabled = false;
+    const allChecked = arr.every((inp) => inp.checked);
+    chartGroupToggleAllBtn.textContent = allChecked ? "전체 해제" : "전체 선택";
+  }
+
+  function updateChartFromControls() {
+    if (!groupStats) return;
+    const groupKey = groupStats.groupKey;
+    const numericKey = chartColumnSelect.value;
+    const chartType = chartTypeSelect.value;
+    const sortMode = chartSortSelect.value;
+    const valueMode = valueModeSelect.value || "value";
+    const showValues = showValueLabelsCheckbox.checked;
+    const selectedGroups = getSelectedChartGroups();
+
+    if (!numericKey) return;
+
+    drawGroupChart(
+      groupKey,
+      numericKey,
+      chartType,
+      sortMode,
+      valueMode,
+      showValues,
+      selectedGroups,
+      groupStats
+    );
+  }
+
+  // 색상 팔레트 생성 (원형/도넛용)
+  function generateColorPalette(n) {
+    const colors = [];
+    for (let i = 0; i < n; i++) {
+      const hue = Math.round((360 * i) / Math.max(1, n));
+      colors.push(`hsl(${hue}, 70%, 70%)`);
+    }
+    return colors;
+  }
+
+  function drawGroupChart(
+    groupKey,
+    numericKey,
+    chartType,
+    sortMode,
+    valueMode,
+    showValues,
+    selectedGroups,
+    groupStatsObj
+  ) {
+    destroyChart();
+    if (!groupStatsObj) return;
+
+    // 그룹별 통계에서 합계/최소값/중앙값/최대값/평균/표준편차를 모두 계산
+    let pairs = groupStatsObj.groupEntries.map(([gVal, data]) => {
+      const stat = (data.stats && data.stats[numericKey]) || {
+        sum: 0,
+        count: 0,
+        min: null,
+        max: null,
+        values: []
+      };
+      const sum = stat.sum ?? 0;
+      const count = stat.count ?? 0;
+      const min = count > 0 ? stat.min : null;
+      const max = count > 0 ? stat.max : null;
+      const avg = count > 0 ? sum / count : null;
+
+      let median = null;
+      if (Array.isArray(stat.values) && stat.values.length > 0) {
+        const arr = [...stat.values].sort((a, b) => a - b);
+        const mid = Math.floor(arr.length / 2);
+        median = arr.length % 2 === 0 ? (arr[mid - 1] + arr[mid]) / 2 : arr[mid];
+      }
+
+      let std = null;
+      if (Array.isArray(stat.values) && stat.values.length > 0) {
+        const arr = stat.values;
+        const m = avg != null ? avg : arr.reduce((acc, v) => acc + v, 0) / arr.length;
+        const variance = arr.reduce((acc, v) => acc + Math.pow(v - m, 2), 0) / arr.length;
+        std = Math.sqrt(variance);
+      }
+
+      return { label: gVal, sum, min, max, avg, median, std };
+    });
+
+    // 선택된 그룹만 필터 (선택이 하나도 없으면 전체 사용)
+    if (selectedGroups && selectedGroups.length > 0) {
+      pairs = pairs.filter((p) => selectedGroups.includes(p.label));
+    }
+
+    // 비율 계산용 전체 합계
+    const totalSum = pairs.reduce((acc, p) => acc + (p.sum || 0), 0);
+
+    function getChartValue(p) {
+      if (valueMode === 'percent') {
+        if (!totalSum) return 0;
+        return ((p.sum || 0) / totalSum) * 100;
+      }
+      if (valueMode === 'min') return p.min != null ? p.min : 0;
+      if (valueMode === 'median') return p.median != null ? p.median : 0;
+      if (valueMode === 'max') return p.max != null ? p.max : 0;
+      if (valueMode === 'avg') return p.avg != null ? p.avg : 0;
+      if (valueMode === 'std') return p.std != null ? p.std : 0;
+      // 기본: 합계
+      return p.sum != null ? p.sum : 0;
+    }
+
+    // 차트에 쓸 value 필드 계산
+    pairs = pairs.map((p) => ({
+      ...p,
+      value: getChartValue(p)
+    }));
+
+    // 정렬
+    if (sortMode === 'labelAsc') {
+      pairs.sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+    } else if (sortMode === 'labelDesc') {
+      pairs.sort((a, b) => b.label.localeCompare(a.label, 'ko'));
+    } else if (sortMode === 'valueDesc') {
+      pairs.sort((a, b) => b.value - a.value);
+    } else if (sortMode === 'valueAsc') {
+      pairs.sort((a, b) => a.value - b.value);
+    }
+
+    const labels = pairs.map((p) => p.label);
+    const chartValues = pairs.map((p) => p.value);
+
+    const ctx = chartCanvas.getContext('2d');
+
+    // 데이터셋 라벨 (값 방식에 따라 문구 변경)
+    let datasetLabel;
+    if (valueMode === 'percent') {
+      datasetLabel = `${groupKey}별 ${numericKey} 비율(%)`;
+    } else if (valueMode === 'min') {
+      datasetLabel = `${groupKey}별 ${numericKey} 최소값`;
+    } else if (valueMode === 'median') {
+      datasetLabel = `${groupKey}별 ${numericKey} 중앙값`;
+    } else if (valueMode === 'max') {
+      datasetLabel = `${groupKey}별 ${numericKey} 최대값`;
+    } else if (valueMode === 'avg') {
+      datasetLabel = `${groupKey}별 ${numericKey} 평균`;
+    } else if (valueMode === 'std') {
+      datasetLabel = `${groupKey}별 ${numericKey} 표준편차`;
+    } else {
+      datasetLabel = `${groupKey}별 ${numericKey} 합계`;
+    }
+
+    // 데이터셋 설정
+    const dataset = {
+      label: datasetLabel,
+      data: chartValues
+    };
+
+    const isPieLike = chartType === 'pie' || chartType === 'doughnut';
+
+    if (chartType === 'bar') {
+      dataset.backgroundColor = 'rgba(75, 123, 236, 0.35)';
+      dataset.borderRadius = 6;
+    } else if (chartType === 'line') {
+      dataset.borderColor = 'rgba(75, 123, 236, 0.9)';
+      dataset.backgroundColor = 'rgba(75, 123, 236, 0.2)';
+      dataset.fill = false;
+      dataset.tension = 0.2;
+      dataset.pointRadius = 3;
+    } else if (isPieLike) {
+      const baseColors = [
+        '#4b7bec',
+        '#ff9f40',
+        '#ffcd56',
+        '#4bc0c0',
+        '#9966ff',
+        '#c9cbcf',
+        '#e74c3c',
+        '#2ecc71',
+        '#f1c40f',
+        '#9b59b6'
+      ];
+      dataset.backgroundColor = labels.map((_, idx) => baseColors[idx % baseColors.length]);
+    }
+
+    // 옵션: 차트 타입별로 축/격자 설정 + 값 표시
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: isPieLike ? 10 : 0,
+          bottom: 0
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          onClick: (e, legendItem, legend) => {
+            const chart = legend.chart;
+            if (!chart) return;
+            const datasetIndex = legendItem.datasetIndex ?? 0;
+            const ds = chart.data.datasets[datasetIndex];
+            if (!ds) return;
+
+            const colorInput = document.getElementById('chartColorPicker');
+            if (!colorInput) return;
+
+            // 현재 색상이 hex면 그대로, 아니면 기본값 지정
+            let currentColor;
+            if (Array.isArray(ds.backgroundColor)) {
+              const idx = typeof legendItem.index === 'number' ? legendItem.index : 0;
+              currentColor = ds.backgroundColor[idx] ?? ds.backgroundColor[0];
+            } else {
+              currentColor = ds.backgroundColor;
+            }
+            if (typeof currentColor !== 'string' || !currentColor.startsWith('#')) {
+              currentColor = '#4b7bec';
+            }
+            colorInput.value = currentColor;
+
+            const handler = (event) => {
+              const newColor = event.target.value || '#4b7bec';
+
+              const isPieLikeLegend = chart.config && (chart.config.type === 'pie' || chart.config.type === 'doughnut');
+              const itemIndex = typeof legendItem.index === 'number' ? legendItem.index : 0;
+
+              if (Array.isArray(ds.backgroundColor)) {
+                const bgArr = Array.from(ds.backgroundColor);
+                if (isPieLikeLegend) {
+                  bgArr[itemIndex] = newColor;
+                } else {
+                  for (let i = 0; i < bgArr.length; i++) {
+                    bgArr[i] = newColor;
+                  }
+                }
+                ds.backgroundColor = bgArr;
+              } else {
+                ds.backgroundColor = newColor;
+              }
+
+              if (ds.borderColor) {
+                if (Array.isArray(ds.borderColor)) {
+                  const borderArr = Array.from(ds.borderColor);
+                  if (isPieLikeLegend) {
+                    borderArr[itemIndex] = newColor;
+                  } else {
+                    for (let i = 0; i < borderArr.length; i++) {
+                      borderArr[i] = newColor;
+                    }
+                  }
+                  ds.borderColor = borderArr;
+                } else {
+                  ds.borderColor = newColor;
+                }
+              }
+
+              chart.update();
+
+              colorInput.removeEventListener('input', handler);
+              colorInput.removeEventListener('change', handler);
+            };
+
+            colorInput.addEventListener('input', handler);
+            colorInput.addEventListener('change', handler);
+            colorInput.click();
+          }
+        },
+        datalabels: {
+          display: showValues,
+          formatter: (value) => {
+            if (valueMode === 'percent') {
+              return value.toFixed(1) + '%';
+            }
+            return value.toLocaleString();
+          },
+          font: {
+            size: isPieLike ? 9 : 10
+          },
+          color: '#333',
+          anchor: isPieLike ? 'center' : 'end',
+          align: isPieLike ? 'center' : 'end',
+          offset: isPieLike ? 0 : 4,
+          clip: false,
+          clamp: true
+        }
+      }
+    };
+
+    if (isPieLike) {
+      options.scales = {}; // 파이/도넛은 축 없음
+    } else {
+      options.scales = {
+        x: {
+          ticks: { autoSkip: true, maxRotation: 45, minRotation: 0 },
+          grid: { display: false } // 세로 격자선 제거
+        },
+        y: {
+          beginAtZero: true,
+          grid: { display: false } // 가로 격자선 제거
+        }
+      };
+    }
+
+    currentChart = new Chart(ctx, {
+      type: chartType,
+      data: {
+        labels,
+        datasets: [dataset]
+      },
+      options
+    });
+
+    chartSection.classList.remove('hidden');
+  }
+
+  function destroyChart() {
+    if (currentChart) {
+      currentChart.destroy();
+      currentChart = null;
+    }
+  }
+
+  /* -------------------------
+    엑셀 / 이미지 다운로드
+  -------------------------- */
+
+  function getBaseFileName() {
+    if (!currentFileName) return "데이터";
+    return currentFileName.replace(/\.[^/.]+$/, "");
+  }
+
+  function downloadSummaryExcel() {
+    if (!lastSummaryStats || lastSummaryStats.length === 0) {
+      alert("먼저 통계 분석을 실행해주세요.");
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const headerRow = [
+      "열 이름",
+      "유효 값 개수",
+      "결측 비율(%)",
+      "합계",
+      "최소값",
+      "중앙값",
+      "최대값",
+      "평균",
+      "표준편차"
+    ];
+
+    const dataRows = lastSummaryStats.map((s) => [
+      s.key,
+      s.count,
+      s.missingRatio != null ? s.missingRatio * 100 : null,
+      s.sum,
+      s.min,
+      s.median,
+      s.max,
+      s.mean,
+      s.std
+    ]);
+
+    const aoa = [headerRow, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, "요약통계");
+
+    const filename = `${getBaseFileName()}_통계요약.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
+  
+  function downloadGroupExcel() {
+    if (!lastGroupStats) {
+      alert("그룹별 통계가 없습니다. 먼저 그룹 기준을 선택해 통계를 실행해주세요.");
+      return;
+    }
+
+    const { groupKey, numericKeys, groupEntries, totalSumsByKey } = lastGroupStats;
+    const wb = XLSX.utils.book_new();
+
+    const activeOptions = getActiveGroupStatOptions();
+
+    const headerRow = [groupKey];
+    numericKeys.forEach((k) => {
+      activeOptions.forEach((opt) => {
+        const label = groupStatLabelMap[opt] || opt;
+        headerRow.push(`${k} ${label}`);
+      });
+    });
+
+    const dataRows = groupEntries.map(([label, data]) => {
+      const row = [label];
+
+      numericKeys.forEach((k) => {
+        const stat = data.stats[k] || {
+          sum: 0,
+          count: 0,
+          min: null,
+          max: null,
+          values: []
+        };
+        const sum = stat.sum ?? 0;
+        const count = stat.count ?? 0;
+        const avg = count > 0 ? sum / count : null;
+        const min = count > 0 ? stat.min : null;
+        const max = count > 0 ? stat.max : null;
+
+        let median = null;
+        if (Array.isArray(stat.values) && stat.values.length > 0) {
+          const arr = [...stat.values].sort((a, b) => a - b);
+          const mid = Math.floor(arr.length / 2);
+          if (arr.length % 2 === 0) {
+            median = (arr[mid - 1] + arr[mid]) / 2;
+          } else {
+            median = arr[mid];
+          }
+        }
+
+        const totalForKey = (totalSumsByKey && totalSumsByKey[k]) || 0;
+        const ratio = totalForKey > 0 ? (sum / totalForKey) * 100 : null;
+
+        activeOptions.forEach((opt) => {
+          let v = null;
+          if (opt === "sum") v = sum;
+          else if (opt === "avg") v = avg;
+          else if (opt === "min") v = min;
+          else if (opt === "max") v = max;
+          else if (opt === "median") v = median;
+          else if (opt === "ratio") v = ratio;
+
+          if (v === null || v === undefined || (typeof v === "number" && isNaN(v))) {
+            row.push(null);
+          } else if (opt === "ratio") {
+            row.push(Number(v.toFixed(2)));
+          } else if (typeof v === "number") {
+            row.push(Number(v.toFixed(4)));
+          } else {
+            row.push(v);
+          }
+        });
+      });
+
+      return row;
+    });
+
+    const aoa = [headerRow, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, "그룹통계");
+
+    const filename = `${getBaseFileName()}_그룹통계.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
+function downloadChartImage() {
+    if (!currentChart) {
+      alert("먼저 그래프를 생성해주세요.");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = currentChart.toBase64Image("image/png", 1);
+    link.download = `${getBaseFileName()}_그룹그래프.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  /* -------------------------
+    기타 유틸 (현재는 사용 X지만 남겨둠)
+  -------------------------- */
+
+    // 날짜처럼 보이는지 엄격하게 체크
+  // 지원 형식: YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD / YYYYMMDD
+  function looksLikeDate(value) {
+    if (value === null || value === undefined) return false;
+    const s = String(value).trim();
+    if (!s) return false;
+
+    // 1) 구분자가 있는 형식 (YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD)
+    const m = s.match(/^(\d{4})([-./])(\d{2})\2(\d{2})$/);
+    if (m) {
+      const year = Number(m[1]);
+      const month = Number(m[3]);
+      const day = Number(m[4]);
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+      if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+      const dt = new Date(year, month - 1, day);
+      return (
+        dt.getFullYear() === year &&
+        dt.getMonth() === month - 1 &&
+        dt.getDate() === day
+      );
+    }
+
+    // 2) 구분자 없는 8자리 숫자 (YYYYMMDD)
+    if (/^\d{8}$/.test(s)) {
+      const year = Number(s.slice(0, 4));
+      const month = Number(s.slice(4, 6));
+      const day = Number(s.slice(6, 8));
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+      if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+      const dt = new Date(year, month - 1, day);
+      return (
+        dt.getFullYear() === year &&
+        dt.getMonth() === month - 1 &&
+        dt.getDate() === day
+      );
+    }
+
+    return false;
+  }
+  </script>
+<div style="position:fixed; top:10px; right:10px; z-index:9999;">
+<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
+    사용가이드
+  </button>
+</div>
+<div id="usageGuideModal" style="
+  display:none;
+  position:fixed;
+  z-index:10000;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  max-width:720px;
+  width:90%;
+  max-height:80%;
+  background:#ffffff;
+  border-radius:6px;
+  box-shadow:0 18px 45px rgba(15,23,42,0.25);
+  padding:18px 22px;
+  box-sizing:border-box;
+  overflow:auto;
+  font-size:13px;
+  line-height:1.6;
+">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<h2 style="margin:0; font-size:16px;">통계 요약 리포트 사용 가이드</h2>
+<button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
+</div>
+<div class="usage-guide-body">
+<p><strong>이 도구는 엑셀 데이터를 바탕으로 요약 통계와 그룹별 통계를 자동 계산하고, 그래프까지 만들어 주는 통합 통계 리포트 도구입니다.</strong></p>
+<ol>
+<li><strong>파일 및 시트 선택</strong><br/>
+    - 분석할 엑셀 파일을 업로드한 뒤, 통계를 낼 시트를 선택합니다.<br/>
+    - 헤더(열 이름)가 있는 행 번호가 맞는지 확인합니다.
+  </li>
+<li><strong>기초 통계 요약 확인</strong><br/>
+    - 숫자형 열에 대해 개수, 결측 비율, 합계, 최소값, 중앙값, 최대값, 평균, 표준편차 등을 자동 계산합니다.<br/>
+    - “통계 요약 엑셀 다운로드” 버튼을 통해 <code>원본명_통계요약.xlsx</code> 를 저장할 수 있습니다.
+  </li>
+<li><strong>그룹별 통계 설정</strong><br/>
+    - 학년, 학교, 성별 등 그룹 기준이 될 열을 선택합니다.<br/>
+    - 통계를 낼 숫자열(예: 점수, 인원수 등)을 한 개 이상 선택합니다.<br/>
+    - 필요하면 어떤 통계값(합계, 평균, 표준편차 등)을 포함할지 옵션에서 고를 수 있습니다.
+  </li>
+<li><strong>그룹별 통계 결과 활용</strong><br/>
+    - 그룹별로 계산된 통계를 표 형태로 확인합니다.<br/>
+    - “그룹별 통계 엑셀 다운로드” 버튼으로 <code>원본명_그룹통계.xlsx</code> 파일을 저장합니다.<br/>
+    - 필터나 정렬을 활용해 특정 그룹만 골라서 볼 수도 있습니다.
+  </li>
+<li><strong>그룹별 그래프 만들기</strong><br/>
+    - 그래프로 보고 싶은 숫자열과 그룹 기준을 선택합니다.<br/>
+    - 그래프 종류(막대, 선, 원형, 도넛)와 값 방식(합계, 최소값, 중앙값, 최대값, 평균, 표준편차, 비율)을 선택합니다.<br/>
+    - 우측의 그룹 체크박스를 통해 포함할 그룹을 선택하거나, “모두” 버튼으로 전체 선택/해제를 할 수 있습니다.<br/>
+    - 완성된 그래프는 “이미지로 다운로드” 버튼으로 <code>원본명_그룹그래프.png</code> 형태로 저장됩니다.
+  </li>
+</ol>
+<p><strong>Tip.</strong> 분석 목적에 따라 “값 방식(합계/평균/비율 등)”과 “그래프 종류”를 바꿔가며 비교해 보세요. 같은 데이터라도 시각화 방식에 따라 전혀 다른 인사이트를 얻을 수 있습니다.</p>
+</div>
+</div>
+<script>
+(function() {
+  const btn = document.getElementById('usageGuideBtn');
+  const modal = document.getElementById('usageGuideModal');
+  const closeBtn = modal ? modal.querySelector('.usage-guide-close') : null;
+  if (btn && modal) {
+    btn.addEventListener('click', () => {
+      modal.style.display = 'block';
+    });
+  }
+  if (closeBtn && modal) {
+    const close = () => { modal.style.display = 'none'; };
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    });
+  }
+})();
+</script>
+</body>
+</html>

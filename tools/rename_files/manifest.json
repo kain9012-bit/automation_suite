@@ -1,0 +1,13 @@
+{
+  "id": "rename_files",
+  "name": "파일명 일괄 변경",
+  "top_tab": "업무 자동화",
+  "type": "internal_python",
+  "entry": "rename_files_entry.py",
+  "icon": "",
+  "description": "여러 파일명의 문자열을 바꾸거나 앞뒤에 일괄 추가합니다.",
+  "order": 10,
+  "enabled": true,
+  "version": "2.1.0",
+  "keywords": []
+}

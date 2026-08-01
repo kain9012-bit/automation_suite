@@ -1,0 +1,13 @@
+{
+  "id": "folder_unpacker",
+  "name": "파일 꺼내기",
+  "top_tab": "업무 자동화",
+  "type": "internal_python",
+  "entry": "folder_unpacker_entry.py",
+  "icon": "",
+  "description": "선택한 폴더 안의 파일을 상위 폴더로 이동하고 빈 폴더를 정리합니다.",
+  "order": 21,
+  "enabled": true,
+  "version": "2.1.0",
+  "keywords": ["파일", "폴더", "꺼내기", "이동", "정리"]
+}

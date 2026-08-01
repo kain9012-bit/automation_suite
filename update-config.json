@@ -1,0 +1,16 @@
+{
+  "app": {
+    "enabled": true,
+    "channel": "stable",
+    "check_on_start": true,
+    "check_interval_hours": 6
+  },
+  "tools": {
+    "enabled": true,
+    "catalog_url": "",
+    "check_on_start": true,
+    "check_interval_hours": 6,
+    "require_signature": true,
+    "public_key": "y5Kuth8GVkIa4ZaI9/OlU/aIJub1Oamwl982LTOkcZ0="
+  }
+}

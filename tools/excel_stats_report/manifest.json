@@ -1,0 +1,13 @@
+{
+  "id": "excel_stats_report",
+  "name": "데이터 요약",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "엑셀 데이터의 통계 요약 리포트를 생성하는 도구",
+  "order": 80,
+  "enabled": true,
+  "version": "1.2.0",
+  "keywords": []
+}

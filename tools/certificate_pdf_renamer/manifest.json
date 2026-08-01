@@ -1,0 +1,14 @@
+{
+  "id": "certificate_pdf_renamer",
+  "name": "이수증 PDF 이름 변경",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "services/renamer_service.py",
+  "icon": "",
+  "description": "이수증 내용을 읽어 근무기관·성명·과정명 등으로 파일명을 자동 변경합니다.",
+  "order": 82,
+  "enabled": true,
+  "version": "1.6.0",
+  "keywords": ["이수증", "PDF", "파일명", "이름 변경"]
+}
+

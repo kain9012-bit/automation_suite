@@ -1,0 +1,13 @@
+{
+  "id": "zip_batch_extractor",
+  "name": "ZIP 일괄 풀기",
+  "top_tab": "업무 자동화",
+  "type": "internal_python",
+  "entry": "zip_batch_extractor_entry.py",
+  "icon": "",
+  "description": "여러 ZIP 파일을 선택해 지정한 방식으로 일괄 압축 해제합니다.",
+  "order": 23,
+  "enabled": true,
+  "version": "2.1.0",
+  "keywords": ["zip", "압축", "풀기", "압축해제", "일괄"]
+}

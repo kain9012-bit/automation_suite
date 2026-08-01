@@ -1,0 +1,13 @@
+{
+  "id": "word_cloud_generator",
+  "name": "워드클라우드",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "텍스트에서 키워드를 추출하고 편집한 뒤 워드클라우드를 생성합니다.",
+  "order": 40,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["워드클라우드", "키워드", "빈도", "텍스트 분석"]
+}

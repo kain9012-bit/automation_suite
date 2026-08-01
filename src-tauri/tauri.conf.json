@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "JB업무ON",
+  "version": "1.1.0",
+  "identifier": "kr.go.jbe.automation-suite",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5174",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "JB업무ON",
+        "width": 1320,
+        "height": 860,
+        "minWidth": 1000,
+        "minHeight": 680,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' customprotocol: asset:; img-src 'self' asset: data: blob: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' ipc: http://ipc.localhost https:; frame-src 'self' data: blob: https:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../tools/**/*",
+      "../update-config.json"
+    ],
+    "externalBin": [
+      "binaries/bridge-runner"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "endpoints": [
+        "https://github.com/kain9012-bit/automation_suite/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3RDc5RDUxOEQ1QjQzRgpSV1EvdE5VWTFYbDlCc0hPRVZHUkFpR01JdDBFcEdwSlpxenR4NTd1dWxxblRHa0IxZlFFNVZEdAo="
+    }
+  }
+}
+

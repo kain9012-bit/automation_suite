@@ -1,0 +1,13 @@
+{
+  "id": "academic_schedule_extractor",
+  "name": "학사일정 추출",
+  "top_tab": "수집·추출",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "학사일정 데이터를 추출하는 도구",
+  "order": 10,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": []
+}

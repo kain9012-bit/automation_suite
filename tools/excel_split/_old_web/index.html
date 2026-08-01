@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>엑셀 분할 도구(v1.0)</title>
+
+  <!-- XLSX: 데이터 읽기/미리보기용 -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- ExcelJS: 서식 보존용 (병합도구와 동일 버전) -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <!-- JSZip: 다건 파일을 ZIP 하나로 묶어 다운로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <!-- 공통 폰트: Pretendard -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-soft:#e4effb;
+      --accent:#f97316;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+    }
+
+    *{
+      box-sizing:border-box;
+      margin:0;
+      padding:0;
+    }
+
+    html,body{
+      height:100%;
+    }
+
+    body{
+      font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{
+      max-width:1100px;
+      margin:0 auto;
+      padding:24px 16px 32px;
+    }
+
+    header{
+      padding-bottom:12px;
+      border-bottom:0;
+      margin-bottom:16px;
+      text-align:center;
+    }
+
+    header h1{
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-0.02em;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      color:#111827;
+    }
+
+    .logo-badge{
+      width:32px;
+      height:32px;
+      border-radius:6px;
+      background:var(--brand);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:700;
+      font-size:16px;
+    }
+
+    header p{
+      margin-top:4px;
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    .layout{
+      margin-top:16px;
+      display:grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.1fr);
+      gap:16px;
+    }
+
+    @media(max-width:960px){
+      .layout{
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel{
+      background:var(--card);
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      box-shadow:var(--shadow-soft);
+      padding:16px 16px 14px;
+      min-width:0;
+    }
+
+    .panel-title{
+      font-size:18px;
+      font-weight:600;
+      margin-bottom:8px;
+    }
+
+    .panel-desc{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:10px;
+    }
+
+    .file-label{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      margin:8px 0;
+      cursor:pointer;
+    }
+
+    .file-label input[type=file]{
+      display:none;
+    }
+
+    .file-btn{
+      background:var(--brand);
+      color:#fff;
+      padding:9px 14px;
+      border-radius:6px;
+      font-size:13px;
+      font-weight:600;
+      box-shadow:0 6px 16px rgba(0,0,0,.12);
+      border:none;
+    }
+
+    .file-btn:hover{
+      background:#00479a;
+    }
+
+    .file-hint{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .file-summary{
+      margin-top:4px;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .mode-group{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--border);
+    }
+
+    .mode-title{
+      font-size:15px;
+      font-weight:600;
+      margin-bottom:6px;
+    }
+
+    .mode{
+      display:flex;
+      align-items:flex-start;
+      gap:6px;
+      margin-bottom:4px;
+      font-size:13px;
+    }
+
+    .mode input{
+      margin-top:3px;
+    }
+
+    .mode span{
+      line-height:1.4;
+    }
+
+    .options-block{
+      margin-top:10px;
+      padding:10px 10px 8px;
+      border-radius:6px;
+      border:1px solid var(--border);
+      background:#f9fafb;
+    }
+
+    .options-title{
+      font-size:15px;
+      font-weight:600;
+      margin-bottom:4px;
+    }
+
+    .option-row{
+      margin-bottom:6px;
+      font-size:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      align-items:center;
+    }
+
+    .option-row label{
+      font-size:12px;
+    }
+
+    input[type="number"],
+    select{
+      padding:4px 8px;
+      border-radius:6px;
+      border:1px solid var(--border);
+      font-size:12px;
+      min-width:60px;
+    }
+
+    input[type="checkbox"]{
+      vertical-align:middle;
+    }
+
+    .actions{
+      margin-top:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+
+    .btn-primary{
+      background:var(--brand);
+      color:#fff;
+      border-radius:6px;
+      border:none;
+      padding:8px 14px;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+    }
+
+    .btn-primary[disabled]{
+      opacity:.5;
+      cursor:not-allowed;
+    }
+
+    .btn-primary:hover:not([disabled]){
+      background:#00479a;
+    }
+
+    .btn-ghost{
+      background:#fff;
+      color:#111827;
+      border-radius:6px;
+      border:1px solid var(--border);
+      padding:8px 12px;
+      font-size:12px;
+      cursor:pointer;
+    }
+
+    .status{
+      margin-top:8px;
+      font-size:12px;
+      color:#374151;
+      white-space:pre-line;
+    }
+
+    .status small{
+      display:block;
+      color:var(--muted);
+      margin-top:2px;
+    }
+
+    .sheet-header{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      margin-bottom:8px;
+    }
+
+    .sheet-header label{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .sheet-select,
+    .column-select{
+      padding:4px 8px;
+      border-radius:6px;
+      border:1px solid var(--border);
+      font-size:12px;
+      min-width:120px;
+      background:#fff;
+    }
+
+    .summary-badges{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-bottom:8px;
+    }
+
+    .badge{
+      border-radius:6px;
+      padding:3px 8px;
+      font-size:11px;
+      background:var(--brand-soft);
+      color:var(--brand);
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+    }
+
+    .badge-label{
+      color:var(--muted);
+      font-size:11px;
+    }
+
+    .preview-wrapper{
+      border:1px solid var(--border);
+      border-radius:6px;
+      overflow:auto;
+      max-height:420px;
+      min-height:200px;
+      background:#fff;
+      padding:0;
+    }
+
+    .preview-wrapper table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:auto;
+      margin:0;
+      font-size:12px;
+    }
+
+    .preview-wrapper th,
+    .preview-wrapper td{
+      border:1px solid #e5e7eb;
+      padding:6px 8px;
+      white-space:nowrap;
+    }
+
+    .preview-wrapper thead{
+      background:#f3f4f6;
+    }
+
+    .hint-text{
+      font-size:11px;
+      color:var(--muted);
+      margin-top:6px;
+    }
+
+    .footer{
+      margin-top:10px;
+      font-size:11px;
+      color:var(--muted);
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div style="position:fixed; top:10px; right:10px; z-index:9999;">
+<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
+    사용가이드
+  </button>
+</div>
+  <div id="usageGuideModal" style="
+  display:none;
+  position:fixed;
+  z-index:10000;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  max-width:720px;
+  width:90%;
+  max-height:80%;
+  background:#ffffff;
+  border-radius:6px;
+  box-shadow:0 18px 45px rgba(15,23,42,0.25);
+  padding:18px 22px;
+  box-sizing:border-box;
+  overflow:auto;
+  font-size:13px;
+  line-height:1.6;
+">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<h2 style="margin:0; font-size:16px;">엑셀 분할 도구 사용 가이드</h2>
+<button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
+</div>
+<div class="usage-guide-body">
+    <p><strong>이 도구는 하나의 엑셀 파일을 조건에 따라 여러 개로 자동 분할해 주는 도구입니다.</strong></p>
+    <ol>
+      <li><strong>엑셀 파일 선택</strong><br/>
+        - 왼쪽 패널에서 .xlsx, .xls, .csv 파일 한 개를 선택합니다.<br/>
+        - 파일이 로드되면 첫 번째 시트의 상위 일부가 오른쪽에 미리보기로 표시됩니다.
+      </li>
+      <li><strong>분할 모드 선택</strong><br/>
+        - <em>행 수 기준 분할</em>: 일정 행 수씩 끊어서 여러 파일로 나눕니다.<br/>
+        - <em>특정 열 값별 분할</em>: 선택한 열(예: 학교명, 학년) 값마다 파일을 나눕니다.<br/>
+        - <em>시트별 분할</em>: 통합 문서의 각 시트를 개별 파일로 저장합니다.
+      </li>
+      <li><strong>옵션 설정</strong><br/>
+        - 헤더 행 번호, 파일당 최대 행 수, 분할 기준 열, 빈 값 건너뛰기 여부 등을 상황에 맞게 조정합니다.<br/>
+        - 자동 감지 옵션을 켜 두면 헤더 행 번호를 먼저 추정해 줍니다.
+      </li>
+      <li><strong>미리보기 확인</strong><br/>
+        - 오른쪽 미리보기에서 시트를 바꾸며 구조와 헤더/설명 행을 확인합니다.<br/>
+        - 상단 배지에서 시트명, 행 수, 열 수를 함께 볼 수 있습니다.
+      </li>
+      <li><strong>분할 실행 및 초기화</strong><br/>
+        - [분할 실행] 버튼을 누르면 선택한 모드와 옵션에 따라 여러 개의 엑셀 파일이 내려받아집니다.<br/>
+        - [초기화] 버튼으로 파일·옵션·상태를 모두 지우고 처음 상태로 되돌릴 수 있습니다.
+      </li>
+    </ol>
+  </div>
+</div>
+
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">D</span>
+        엑셀 분할 도구(v1.0)
+      </h1>
+      <p>하나의 엑셀 파일을 행 수·열 값·시트 기준으로 나누어 여러 개의 파일로 저장해 주는 분할 도구입니다.</p>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-title">1. 파일 선택 및 분할 기준 설정</div>
+        <label class="file-label">
+          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
+          <span class="file-btn">엑셀 파일 선택 (.xlsx, .xls, .csv)</span>
+        </label>
+        <div id="fileSummary" class="file-summary">선택된 파일이 없습니다.</div>
+
+        <div class="mode-group">
+          <div class="mode-title">분할 모드</div>
+          <label class="mode">
+            <input type="radio" name="mode" value="column" checked />
+            <span>1) 특정 열 값별 분할<br /><small>예: ‘학교명’ 열 값마다 한 파일씩 생성</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="mode" value="sheet" />
+            <span>2) 시트별 분할<br /><small>멀티시트 파일을 시트별로 각각 파일 생성</small></span>
+          </label>
+          <label class="mode">
+            <input type="radio" name="mode" value="chunk" />
+            <span>3) 행 수 기준 분할<br /><small>예: 1,000행씩 잘라 여러 파일 생성</small></span>
+          </label>
+        </div>
+
+        <div id="optsChunk" class="options-block">
+          <div class="options-title">모드3 · 행 수 기준 분할 옵션</div>
+          <div class="option-row">
+            <label>
+              <input id="chunkAutoHeader" type="checkbox" checked />
+              헤더 행 자동 감지 사용 (값만 자동 채움, 실제 분할은 아래 숫자를 그대로 사용)
+            </label>
+          </div>
+          <div class="option-row">
+            <span>헤더 행 번호(1부터):</span>
+            <input id="chunkHeaderRow" type="number" min="1" value="1" />
+            <span class="badge-label">1행 ~ 이 행까지가 설명+헤더 블록으로 그대로 유지됩니다.</span>
+          </div>
+          <div class="option-row">
+            <span>파일당 최대 데이터 행 수:</span>
+            <input id="rowsPerFile" type="number" min="1" value="1000" />
+            <span class="badge-label">예: 500, 1000, 2000...</span>
+          </div>
+        </div>
+
+        <div id="optsColumn" class="options-block" style="display:none;">
+          <div class="options-title">모드1 · 특정 열 값별 분할 옵션</div>
+          <div class="option-row">
+            <label>
+              <input id="columnAutoHeader" type="checkbox" checked />
+              헤더 행 자동 감지 사용 (값만 자동 채움, 실제 분할은 아래 숫자를 그대로 사용)
+            </label>
+          </div>
+          <div class="option-row">
+            <span>헤더 행 번호(1부터):</span>
+            <input id="columnHeaderRow" type="number" min="1" value="1" />
+          </div>
+          <div class="option-row">
+            <span>분할 기준 열 선택:</span>
+            <select id="columnSelect">
+              <option>파일을 먼저 선택하세요</option>
+            </select>
+          </div>
+          <div class="option-row">
+            <label>
+              <input id="skipEmptyKey" type="checkbox" checked />
+              기준 열 값이 비어있는 행은 건너뛰기
+            </label>
+          </div>
+        </div>
+
+        <div id="optsSheet" class="options-block" style="display:none;">
+          <div class="options-title">모드2 · 시트별 분할 안내</div>
+          <div class="option-row">
+            선택한 통합 문서의 <strong>각 시트</strong> 전체를 하나의 파일로 저장합니다.<br />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="runBtn" class="btn-primary" disabled>분할 실행 (서식 유지)</button>
+          <button id="resetBtn" class="btn-ghost">초기화</button>
+        </div>
+
+        <div id="status" class="status"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">1. 시트 선택 및 미리보기</div>
+        <div class="panel-desc">실제 분할 전에 시트 구조와 헤더·설명 행을 눈으로 확인하세요. (미리보기는 상위 80행만 표시)</div>
+
+        <div class="sheet-header">
+          <label for="sheetSelect">시트 선택:</label>
+          <select id="sheetSelect" class="sheet-select" disabled>
+            <option>파일을 먼저 선택하세요</option>
+          </select>
+        </div>
+
+        <div class="summary-badges" id="summaryBadges" style="display:none;">
+          <div class="badge"><span class="badge-label">시트명</span><span id="badgeSheetName"></span></div>
+          <div class="badge"><span class="badge-label">행 수</span><span id="badgeRows"></span></div>
+          <div class="badge"><span class="badge-label">열 수</span><span id="badgeCols"></span></div>
+        </div>
+
+        <div id="previewWrapper" class="preview-wrapper">
+          <div style="padding:10px; font-size:12px; color:var(--muted);">
+            아직 미리볼 데이터가 없습니다.<br />
+            파일을 선택하면 첫 번째 시트의 상위 일부 데이터를 미리 보여줍니다.
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      file: null,
+      wb: null,
+      sheetNames: [],
+      aoaMap: {},
+      currentSheet: null,
+      headerMeta: {},
+      ejWb: null
+    };
+
+    const $  = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    const fileInput   = $("#fileInput");
+    const fileSummary = $("#fileSummary");
+    const runBtn      = $("#runBtn");
+    const resetBtn    = $("#resetBtn");
+    const statusBox   = $("#status");
+    const sheetSelect = $("#sheetSelect");
+    const previewWrapper = $("#previewWrapper");
+    const summaryBadges  = $("#summaryBadges");
+    const badgeSheetName = $("#badgeSheetName");
+    const badgeRows      = $("#badgeRows");
+    const badgeCols      = $("#badgeCols");
+
+    const optsChunk  = $("#optsChunk");
+    const optsColumn = $("#optsColumn");
+    const optsSheet  = $("#optsSheet");
+
+    const chunkAutoHeader = $("#chunkAutoHeader");
+    const chunkHeaderRow  = $("#chunkHeaderRow");
+    const rowsPerFile     = $("#rowsPerFile");
+
+    const columnAutoHeader = $("#columnAutoHeader");
+    const columnHeaderRow  = $("#columnHeaderRow");
+    const columnSelect     = $("#columnSelect");
+    const skipEmptyKey     = $("#skipEmptyKey");
+
+    function setStatus(msg){
+      statusBox.textContent = msg;
+    }
+
+    function setStatusWithExtra(main, sub){
+      statusBox.innerHTML = "";
+      const mainNode = document.createTextNode(main);
+      statusBox.appendChild(mainNode);
+      if(sub){
+        const small = document.createElement("small");
+        small.textContent = "\\n" + sub;
+        statusBox.appendChild(small);
+      }
+    }
+
+    function formatBytes(bytes){
+      if(!Number.isFinite(bytes)) return "";
+      const units = ["B","KB","MB","GB"];
+      let v = bytes;
+      let idx = 0;
+      while(v >= 1024 && idx < units.length - 1){
+        v /= 1024;
+        idx++;
+      }
+      const fixed = v < 10 && idx > 0 ? v.toFixed(1) : v.toFixed(0);
+      return fixed + " " + units[idx];
+    }
+
+    function getSelectedMode(){
+      const radio = $$('input[name="mode"]').find(r => r.checked);
+      return radio ? radio.value : "chunk";
+    }
+
+    function updateModeUI(){
+      const mode = getSelectedMode();
+      optsChunk.style.display  = mode === "chunk"  ? "" : "none";
+      optsColumn.style.display = mode === "column" ? "" : "none";
+      optsSheet.style.display  = mode === "sheet"  ? "" : "none";
+    }
+
+    function normalizeCell(v){
+      if(v == null) return "";
+      return String(v).replace(/\s+/g," ").trim();
+    }
+
+    function safeFileName(base){
+      let name = String(base || "part").trim();
+      name = name.replace(/[/\\?%*:|"<>]/g,"_");
+      if(name.length > 80) name = name.slice(0,80);
+      if(!name) name = "part";
+      return name;
+    }
+
+    function baseNameWithoutExt(filename){
+      return filename.replace(/\.[^.]+$/, "");
+    }
+
+    function getAOA(sheetName){
+      if(state.aoaMap[sheetName]) return state.aoaMap[sheetName];
+      if(!state.wb) return [];
+      const ws = state.wb.Sheets[sheetName];
+      if(!ws) return [];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:"" });
+      state.aoaMap[sheetName] = aoa;
+      return aoa;
+    }
+
+    function detectHeaderRowIndexFromSheet(sheetName){
+      if(state.headerMeta[sheetName]?.autoHeaderRow){
+        return state.headerMeta[sheetName].autoHeaderRow;
+      }
+      if(!state.wb) return 1;
+      const ws = state.wb.Sheets[sheetName];
+      if(!ws || !ws["!ref"]){
+        state.headerMeta[sheetName] = { autoHeaderRow:1 };
+        return 1;
+      }
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      const maxScanRows = Math.min(30, range.e.r - range.s.r + 1);
+      let bestScore = -Infinity;
+      let bestIdx = 0;
+      for(let r=0; r<maxScanRows; r++){
+        const rowIndex = range.s.r + r;
+        let nonEmpty=0, numeric=0, text=0;
+        for(let c=range.s.c; c<=range.e.c; c++){
+          const addr = XLSX.utils.encode_cell({r:rowIndex,c});
+          const cell = ws[addr];
+          if(!cell || cell.v == null) continue;
+          const v = normalizeCell(cell.v);
+          if(!v) continue;
+          nonEmpty++;
+          const isNum = typeof cell.v === "number" || /^-?\\d+(?:[.,]\\d+)?$/.test(v);
+          if(isNum) numeric++; else text++;
+        }
+        if(nonEmpty === 0) continue;
+        const density = nonEmpty;
+        const distinctBonus = text;
+        const score = density*2 + text*1 - numeric*0.5 + distinctBonus*0.5;
+        if(score > bestScore){
+          bestScore = score;
+          bestIdx = r;
+        }
+      }
+      const headerRowIndex = bestIdx + 1;
+      state.headerMeta[sheetName] = { autoHeaderRow: headerRowIndex };
+      return headerRowIndex;
+    }
+
+    function getSheetSize(sheetName){
+      if(!state.wb) return {rows:0, cols:0};
+      const ws = state.wb.Sheets[sheetName];
+      if(!ws || !ws["!ref"]) return {rows:0, cols:0};
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      const rows = range.e.r - range.s.r + 1;
+      const cols = range.e.c - range.s.c + 1;
+      return {rows, cols};
+    }
+
+    function updateSummaryBadges(sheetName){
+      const size = getSheetSize(sheetName);
+      badgeSheetName.textContent = sheetName;
+      badgeRows.textContent = String(size.rows || 0);
+      badgeCols.textContent = String(size.cols || 0);
+      summaryBadges.style.display = size.rows ? "" : "none";
+    }
+
+    function renderPreview(sheetName){
+      if(!state.wb){
+        previewWrapper.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">워크북이 없습니다.</div>';
+        return;
+      }
+      const ws = state.wb.Sheets[sheetName];
+      if(!ws){
+        previewWrapper.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">표시할 시트를 찾을 수 없습니다.</div>';
+        return;
+      }
+      const originalRef = ws["!ref"];
+      let html;
+      try{
+        if(originalRef){
+          const range = XLSX.utils.decode_range(originalRef);
+          const maxRows = 80;
+          const totalRows = range.e.r - range.s.r + 1;
+          if(totalRows > maxRows){
+            const previewRange = {
+              s:{r:range.s.r,c:range.s.c},
+              e:{r:range.s.r+maxRows-1,c:range.e.c}
+            };
+            ws["!ref"] = XLSX.utils.encode_range(previewRange);
+            html = XLSX.utils.sheet_to_html(ws);
+            ws["!ref"] = originalRef;
+          }else{
+            html = XLSX.utils.sheet_to_html(ws);
+          }
+        }else{
+          html = XLSX.utils.sheet_to_html(ws);
+        }
+      }catch(e){
+        console.error(e);
+        previewWrapper.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">미리보기를 생성하는 중 오류가 발생했습니다.</div>';
+        updateSummaryBadges(sheetName);
+        return;
+      }
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = html;
+      const table = tempDiv.querySelector("table");
+      previewWrapper.innerHTML = "";
+      if(table){
+        table.style.width = "100%";
+        table.style.borderCollapse = "collapse";
+        table.querySelectorAll("th,td").forEach(td => {
+          td.style.border = "1px solid #e5e7eb";
+          td.style.padding = "6px 8px";
+          td.style.fontSize = "12px";
+          td.style.whiteSpace = "nowrap";
+        });
+        const thead = table.querySelector("thead");
+        if(thead) thead.style.background = "#f3f4f6";
+        previewWrapper.appendChild(table);
+      }else{
+        previewWrapper.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">미리보기를 생성할 수 없습니다.</div>';
+      }
+      updateSummaryBadges(sheetName);
+    }
+
+    function cloneWorksheetPreserve(ejWbOut, wsIn, outName){
+      const wsOut = ejWbOut.addWorksheet(outName, {
+        state: wsIn.state,
+        views: wsIn.views?.map(v => ({...v})) || undefined,
+        properties: wsIn.properties ? { ...wsIn.properties } : undefined,
+        pageSetup: wsIn.pageSetup ? { ...wsIn.pageSetup } : undefined,
+        headerFooter: wsIn.headerFooter ? { ...wsIn.headerFooter } : undefined,
+      });
+      if(Array.isArray(wsIn.columns) && wsIn.columns.length){
+        wsOut.columns = wsIn.columns.map(col => ({
+          key: col?.key,
+          width: (typeof col?.width === "number" ? col.width : undefined),
+          hidden: !!col?.hidden,
+          outlineLevel: col?.outlineLevel,
+          style: col?.style ? { ...col.style } : undefined
+        }));
+      }else{
+        const n = wsIn.columnCount || 1;
+        wsOut.columns = Array.from({length:n}, () => ({width:12}));
+      }
+      const maxRow = wsIn.rowCount || 0;
+      const maxCol = wsIn.columnCount || 0;
+      for(let r=1; r<=maxRow; r++){
+        const rowIn = wsIn.getRow(r);
+        const rowOut = wsOut.getRow(r);
+        if(typeof rowIn.height === "number") rowOut.height = rowIn.height;
+        if(rowIn.outlineLevel) rowOut.outlineLevel = rowIn.outlineLevel;
+        for(let c=1; c<=maxCol; c++){
+          const src = rowIn.getCell(c);
+          const dst = rowOut.getCell(c);
+          dst.value = src.value;
+          if(src.numFmt)    dst.numFmt = src.numFmt;
+          if(src.alignment) dst.alignment = { ...src.alignment };
+          if(src.font)      dst.font = { ...src.font };
+          if(src.fill)      dst.fill = src.fill ? JSON.parse(JSON.stringify(src.fill)) : undefined;
+          if(src.border)    dst.border = src.border ? JSON.parse(JSON.stringify(src.border)) : undefined;
+          if(src.hyperlink) dst.hyperlink = src.hyperlink;
+          if(src.note)      dst.note = src.note;
+        }
+        rowOut.commit();
+      }
+      const mergeFromModel = wsIn?.model?.merges;
+      if(Array.isArray(mergeFromModel) && mergeFromModel.length){
+        mergeFromModel.forEach(rng => { try{ wsOut.mergeCells(rng); }catch{} });
+      }
+      const mg = wsIn?._merges;
+      if(mg){
+        if(typeof mg.forEach === "function"){
+          mg.forEach((_, key)=>{ try{ wsOut.mergeCells(key); }catch{} });
+        }else{
+          Object.keys(mg).forEach(k => { try{ wsOut.mergeCells(k); }catch{} });
+        }
+      }
+      return wsOut;
+    }
+
+    async function workbookToBlob(ejWbOut){
+      const buf = await ejWbOut.xlsx.writeBuffer();
+      return new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    }
+
+    async function downloadZip(zipBaseName, files){
+      if(!files || !files.length){
+        throw new Error("ZIP으로 저장할 파일이 없습니다.");
+      }
+      const zip = new JSZip();
+      for(const file of files){
+        zip.file(file.filename, file.blob);
+      }
+      const zipBlob = await zip.generateAsync({type:"blob"});
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${safeFileName(zipBaseName)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 300);
+    }
+
+    async function loadWorkbook(file){
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer, {type:"array"});
+      state.wb = wb;
+      state.file = file;
+      state.sheetNames = wb.SheetNames || [];
+      state.aoaMap = {};
+      state.headerMeta = {};
+      state.currentSheet = null;
+      if(!state.sheetNames.length){
+        throw new Error("시트를 찾을 수 없습니다.");
+      }
+      try{
+        if(window.ExcelJS){
+          const ejWb = new ExcelJS.Workbook();
+          await ejWb.xlsx.load(arrayBuffer);
+          state.ejWb = ejWb;
+        }else{
+          state.ejWb = null;
+        }
+      }catch(e){
+        console.warn("ExcelJS 로드 실패 (서식 보존 불가, 값만 분할):", e);
+        state.ejWb = null;
+      }
+      state.currentSheet = state.sheetNames[0];
+      populateSheetSelect();
+      const autoIdx = detectHeaderRowIndexFromSheet(state.currentSheet);
+      if(chunkAutoHeader.checked)  chunkHeaderRow.value  = autoIdx;
+      if(columnAutoHeader.checked) columnHeaderRow.value = autoIdx;
+      renderPreview(state.currentSheet);
+
+      updateColumnSelect();
+
+      runBtn.disabled = false;
+      sheetSelect.disabled = false;
+
+      setStatusWithExtra(
+        `파일을 읽었습니다: ${file.name}`,
+        `시트 ${state.sheetNames.length}개, 현재 시트: ${state.currentSheet} / 자동 감지된 헤더 행: ${autoIdx}행 (필요시 숫자 직접 수정)`
+      );
+    }
+
+    function populateSheetSelect(){
+      sheetSelect.innerHTML = "";
+      state.sheetNames.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        sheetSelect.appendChild(opt);
+      });
+      sheetSelect.value = state.currentSheet;
+    }
+
+    function updateColumnSelect(){
+      if(!state.wb || !state.currentSheet){
+        columnSelect.innerHTML = "<option>파일을 먼저 선택하세요</option>";
+        return;
+      }
+      const sheetName = state.currentSheet;
+      const aoa = getAOA(sheetName);
+      if(!aoa.length){
+        columnSelect.innerHTML = "<option>데이터가 없습니다.</option>";
+        return;
+      }
+      if(columnAutoHeader.checked){
+        const autoIdx = detectHeaderRowIndexFromSheet(sheetName);
+        columnHeaderRow.value = autoIdx;
+      }
+      let headerRowIndex = Math.max(1, parseInt(columnHeaderRow.value, 10) || 1);
+      const headerBlock = aoa.slice(0, headerRowIndex);
+      const headerRow = headerBlock[headerBlock.length - 1] || [];
+      columnSelect.innerHTML = "";
+      if(headerRow.length === 0){
+        const opt = document.createElement("option");
+        opt.textContent = "헤더 행에 데이터가 없습니다.";
+        columnSelect.appendChild(opt);
+      }else{
+        headerRow.forEach((val, idx) => {
+          const opt = document.createElement("option");
+          const label = String(val || "").trim() || `열 ${idx+1}`;
+          opt.value = String(idx);
+          opt.textContent = `${idx+1}열 - ${label}`;
+          columnSelect.appendChild(opt);
+        });
+      }
+    }
+
+    async function runModeChunk(){
+      const sheetName = state.currentSheet;
+      if(!sheetName){
+        setStatus("먼저 시트를 선택하세요.");
+        return;
+      }
+      if(!state.ejWb){
+        setStatus("ExcelJS 로딩에 실패하여 서식을 완전히 보존할 수 없습니다.");
+        return;
+      }
+      const ejWbIn = state.ejWb;
+      const wsIn = ejWbIn.getWorksheet(sheetName) || ejWbIn.worksheets?.[0];
+      if(!wsIn){
+        setStatus("ExcelJS 워크시트를 찾을 수 없습니다.");
+        return;
+      }
+      const headerRowIndex = Math.max(1, parseInt(chunkHeaderRow.value, 10) || 1);
+      const lastRowObj = wsIn.lastRow;
+      const lastRow = lastRowObj ? lastRowObj.number : wsIn.rowCount || headerRowIndex;
+      if(lastRow <= headerRowIndex){
+        setStatus("헤더 아래에 데이터 행이 없습니다.");
+        return;
+      }
+      const dataStart = headerRowIndex + 1;
+      const dataCount = lastRow - headerRowIndex;
+      const rowsPer = Math.max(1, parseInt(rowsPerFile.value, 10) || 1);
+      const totalParts = Math.ceil(dataCount / rowsPer);
+      const base = baseNameWithoutExt(state.file.name);
+      const zipFiles = [];
+
+      for(let i=0; i<totalParts; i++){
+        const startRow = dataStart + i*rowsPer;
+        const endRow   = Math.min(dataStart + (i+1)*rowsPer - 1, lastRow);
+        const ejWbOut = new ExcelJS.Workbook();
+        const wsOut = cloneWorksheetPreserve(ejWbOut, wsIn, sheetName);
+        const maxRowOut = wsOut.lastRow ? wsOut.lastRow.number : wsOut.rowCount;
+        for(let r=maxRowOut; r>headerRowIndex; r--){
+          if(r < startRow || r > endRow){
+            wsOut.spliceRows(r, 1);
+          }
+        }
+        const filename = `${safeFileName(base)}_part${i+1}_rows${startRow}-${endRow}.xlsx`;
+        zipFiles.push({
+          filename,
+          blob: await workbookToBlob(ejWbOut)
+        });
+      }
+
+      await downloadZip(`${safeFileName(base)}_행수기준분할`, zipFiles);
+
+      setStatusWithExtra(
+        `모드3: 행 수 기준으로 ${totalParts}개의 파일을 ZIP 1개로 생성했습니다.`,
+        `각 파일의 1행~${headerRowIndex}행(설명+헤더 블록)과 해당 범위의 서식이 그대로 유지됩니다.`
+      );
+    }
+
+    async function runModeColumn(){
+      const sheetName = state.currentSheet;
+      if(!sheetName){
+        setStatus("먼저 시트를 선택하세요.");
+        return;
+      }
+      if(!state.ejWb){
+        setStatus("ExcelJS 로딩에 실패하여 서식을 완전히 보존할 수 없습니다.");
+        return;
+      }
+      const ejWbIn = state.ejWb;
+      const wsIn = ejWbIn.getWorksheet(sheetName) || ejWbIn.worksheets?.[0];
+      if(!wsIn){
+        setStatus("ExcelJS 워크시트를 찾을 수 없습니다.");
+        return;
+      }
+      const aoa = getAOA(sheetName);
+      if(!aoa.length){
+        setStatus("선택한 시트에 데이터가 없습니다.");
+        return;
+      }
+      const headerRowIndex = Math.max(1, parseInt(columnHeaderRow.value, 10) || 1);
+      const colIdx = parseInt(columnSelect.value, 10);
+      if(!Number.isInteger(colIdx)){
+        setStatus("분할 기준 열을 선택해주세요.");
+        return;
+      }
+      const skipEmpty = !!skipEmptyKey.checked;
+      const groups = new Map();
+      const lastRowIndex = aoa.length;
+      for(let r = headerRowIndex+1; r <= lastRowIndex; r++){
+        const rowArr = aoa[r-1] || [];
+        const raw = rowArr[colIdx];
+        const key = normalizeCell(raw);
+        if(!key && skipEmpty) continue;
+        const groupKey = key || "__EMPTY__";
+        if(!groups.has(groupKey)) groups.set(groupKey, new Set());
+        groups.get(groupKey).add(r);
+      }
+      if(!groups.size){
+        setStatus("분할 기준 열에 유효한 값이 없어 분할할 수 없습니다.");
+        return;
+      }
+      const base = baseNameWithoutExt(state.file.name);
+      const zipFiles = [];
+      let downloaded = 0;
+
+      for(const [key, rowSet] of groups.entries()){
+        const ejWbOut = new ExcelJS.Workbook();
+        const wsOut = cloneWorksheetPreserve(ejWbOut, wsIn, sheetName);
+        const maxRowOut = wsOut.lastRow ? wsOut.lastRow.number : wsOut.rowCount;
+        for(let r=maxRowOut; r>headerRowIndex; r--){
+          if(!rowSet.has(r)){
+            wsOut.spliceRows(r, 1);
+          }
+        }
+        const label = key === "__EMPTY__" ? "EMPTY" : key;
+        const filename = `${safeFileName(base)}_${safeFileName(label)}.xlsx`;
+        zipFiles.push({
+          filename,
+          blob: await workbookToBlob(ejWbOut)
+        });
+        downloaded++;
+      }
+
+      await downloadZip(`${safeFileName(base)}_열값기준분할`, zipFiles);
+
+      setStatusWithExtra(
+        `모드1: 기준 열 값에 따라 ${downloaded}개의 파일을 ZIP 1개로 생성했습니다.`,
+        `각 파일의 1행~${headerRowIndex}행(설명+헤더 블록)과 해당 행의 서식이 그대로 유지됩니다.`
+      );
+    }
+
+    async function runModeSheet(){
+      if(!state.ejWb){
+        setStatus("ExcelJS 로딩에 실패하여 서식을 완전히 보존할 수 없습니다.");
+        return;
+      }
+      const ejWbIn = state.ejWb;
+      const names = state.sheetNames || [];
+      if(!names.length){
+        setStatus("먼저 파일을 불러오세요.");
+        return;
+      }
+      const base = baseNameWithoutExt(state.file.name);
+      const zipFiles = [];
+      let count = 0;
+
+      for(const name of names){
+        const wsIn = ejWbIn.getWorksheet(name);
+        if(!wsIn) continue;
+        const ejWbOut = new ExcelJS.Workbook();
+        cloneWorksheetPreserve(ejWbOut, wsIn, name);
+        const filename = `${safeFileName(base)}_${safeFileName(name)}.xlsx`;
+        zipFiles.push({
+          filename,
+          blob: await workbookToBlob(ejWbOut)
+        });
+        count++;
+      }
+
+      await downloadZip(`${safeFileName(base)}_시트별분할`, zipFiles);
+
+      setStatusWithExtra(
+        `모드2: 시트별로 ${count}개의 파일을 ZIP 1개로 생성했습니다.`,
+        "각 시트의 병합, 색, 글꼴, 행/열 크기 등 서식을 가능한 한 그대로 복제했습니다."
+      );
+    }
+
+    fileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if(!file){
+        state.file = null;
+        fileSummary.textContent = "선택된 파일이 없습니다.";
+        runBtn.disabled = true;
+        return;
+      }
+      fileSummary.textContent = `${file.name} (${formatBytes(file.size)})`;
+      setStatus("파일을 읽는 중입니다... (대용량은 조금 걸릴 수 있어요)");
+      try{
+        await loadWorkbook(file);
+      }catch(err){
+        console.error(err);
+        setStatus("파일을 읽는 중 오류가 발생했습니다: " + (err.message || err));
+        runBtn.disabled = true;
+      }
+    });
+
+    sheetSelect.addEventListener("change", (e) => {
+      const name = e.target.value;
+      state.currentSheet = name;
+      if(state.wb){
+        const autoIdx = detectHeaderRowIndexFromSheet(name);
+        if(chunkAutoHeader.checked)  chunkHeaderRow.value  = autoIdx;
+        if(columnAutoHeader.checked) columnHeaderRow.value = autoIdx;
+        renderPreview(name);
+        updateColumnSelect();
+        setStatus(`현재 시트: ${name} / 자동 감지된 헤더 행: ${autoIdx}행 (필요시 숫자 직접 수정)`);
+      }
+    });
+
+    $$('input[name="mode"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        updateModeUI();
+        const mode = getSelectedMode();
+        if(mode === "column"){
+          updateColumnSelect();
+        }
+        runBtn.disabled = !state.file;
+      });
+    });
+
+    columnHeaderRow.addEventListener("change", () => {
+      if(state.wb){
+        updateColumnSelect();
+      }
+    });
+
+    columnAutoHeader.addEventListener("change", () => {
+      if(state.wb && columnAutoHeader.checked){
+        updateColumnSelect();
+      }
+    });
+
+    chunkAutoHeader.addEventListener("change", () => {
+      if(state.wb && state.currentSheet && chunkAutoHeader.checked){
+        const autoIdx = detectHeaderRowIndexFromSheet(state.currentSheet);
+        chunkHeaderRow.value = autoIdx;
+      }
+    });
+
+    runBtn.addEventListener("click", () => {
+      if(!state.file || !state.wb){
+        setStatus("먼저 파일을 선택하여 불러오세요.");
+        return;
+      }
+      const mode = getSelectedMode();
+      setStatus("분할 처리 중입니다... (데이터가 많으면 잠시 멈춘 것처럼 보일 수 있습니다)");
+      setTimeout(async () => {
+        try{
+          if(mode === "chunk")      await runModeChunk();
+          else if(mode === "column") await runModeColumn();
+          else                       await runModeSheet();
+        }catch(err){
+          console.error(err);
+          setStatus("분할 과정에서 오류가 발생했습니다: " + (err.message || err));
+        }
+      }, 30);
+    });
+
+    resetBtn.addEventListener("click", () => {
+      state.file = null;
+      state.wb = null;
+      state.sheetNames = [];
+      state.aoaMap = {};
+      state.headerMeta = {};
+      state.currentSheet = null;
+      state.ejWb = null;
+      fileInput.value = "";
+      fileSummary.textContent = "선택된 파일이 없습니다.";
+      runBtn.disabled = true;
+      sheetSelect.disabled = true;
+      sheetSelect.innerHTML = '<option>파일을 먼저 선택하세요</option>';
+      columnSelect.innerHTML = '<option>파일을 먼저 선택하세요</option>';
+      previewWrapper.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);">아직 미리볼 데이터가 없습니다.<br />파일을 선택하면 첫 번째 시트의 상위 일부 데이터를 미리 보여줍니다.</div>';
+      summaryBadges.style.display = "none";
+      setStatusWithExtra("초기화되었습니다.","파일을 다시 선택한 뒤 원하는 분할 모드를 고르고 실행하세요.");
+    });
+
+    updateModeUI();
+  </script>
+
+
+<script>
+(function() {
+  const btn = document.getElementById('usageGuideBtn');
+  const modal = document.getElementById('usageGuideModal');
+  const closeBtn = modal ? modal.querySelector('.usage-guide-close') : null;
+  if (btn && modal) {
+    btn.addEventListener('click', () => {
+      modal.style.display = 'block';
+    });
+  }
+  if (closeBtn && modal) {
+    const close = () => { modal.style.display = 'none'; };
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    });
+  }
+})();
+</script>
+</body>
+</html>

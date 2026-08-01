@@ -1,0 +1,13 @@
+{
+  "id": "school_year_compare",
+  "name": "연도별 데이터 비교",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "연도별 학교 데이터를 비교·취합하는 도구",
+  "order": 50,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": []
+}

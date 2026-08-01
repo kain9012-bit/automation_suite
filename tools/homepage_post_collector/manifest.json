@@ -1,0 +1,13 @@
+{
+  "id": "homepage_post_collector",
+  "name": "게시글 추출",
+  "top_tab": "수집·추출",
+  "type": "internal_python",
+  "entry": "homepage_post_collector_entry.py",
+  "icon": "",
+  "description": "전북교육청 홈페이지 게시글을 수집해 엑셀로 저장하고, 필요시 첨부파일도 다운로드합니다.",
+  "order": 20,
+  "enabled": true,
+  "version": "2.0.0",
+  "keywords": []
+}

@@ -1,0 +1,13 @@
+{
+  "id": "criteria_compare_matcher",
+  "name": "데이터 매칭",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "기준 데이터와 비교 데이터를 매칭 표시하는 도구",
+  "order": 60,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": []
+}

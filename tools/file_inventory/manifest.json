@@ -1,0 +1,13 @@
+{
+  "id": "file_inventory",
+  "name": "파일 현황표",
+  "top_tab": "업무 자동화",
+  "type": "internal_python",
+  "entry": "file_inventory_entry.py",
+  "icon": "",
+  "description": "선택한 폴더의 파일·폴더 목록을 엑셀 현황표로 작성합니다.",
+  "order": 22,
+  "enabled": true,
+  "version": "2.1.0",
+  "keywords": ["파일", "폴더", "현황표", "목록", "엑셀"]
+}

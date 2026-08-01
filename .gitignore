@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+build-sidecar/
+src-tauri/target/
+src-tauri/binaries/*.exe
+bridge/build-sidecar/
+bridge/dist/
+*.pyc
+__pycache__/
+.signing/*.key
+.signing/*.password
+.codex_*.diff
+.codex_*.patch
+*.log
+exe버전/
+_incoming/

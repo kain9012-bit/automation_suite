@@ -1,0 +1,13 @@
+{
+  "id": "pdf_merge",
+  "name": "PDF 파일 취합",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "pdf_merge_entry.py",
+  "icon": "",
+  "description": "선택한 PDF 파일을 순서대로 하나의 PDF로 병합합니다.",
+  "order": 10,
+  "enabled": true,
+  "version": "2.2.0",
+  "keywords": []
+}

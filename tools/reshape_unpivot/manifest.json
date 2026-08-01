@@ -1,0 +1,13 @@
+{
+  "id": "reshape_unpivot",
+  "name": "형태 변환·언피벗",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "가로형 데이터를 세로형으로 변환하는 도구",
+  "order": 70,
+  "enabled": true,
+  "version": "1.2.0",
+  "keywords": []
+}

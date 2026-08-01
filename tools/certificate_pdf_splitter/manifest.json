@@ -1,0 +1,14 @@
+{
+  "id": "certificate_pdf_splitter",
+  "name": "이수증 PDF 자동 분리",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "services/splitter_service.py",
+  "icon": "",
+  "description": "여러 장의 이수증 PDF를 한 장씩 분리하고 이수증 정보로 파일명을 만듭니다.",
+  "order": 81,
+  "enabled": true,
+  "version": "1.6.0",
+  "keywords": ["이수증", "PDF", "분리", "연수"]
+}
+

@@ -1,0 +1,2764 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<link href="https://cdn.jsdelivr.net" rel="preconnect"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<title>엑셀 데이터 품질 점검 도구(v1.2)</title>
+<style>
+  :root{
+    --bg:#f8fbff;
+    --card:#ffffff;
+    --text:#1f2a44;
+    --muted:#6e7aa6;
+    --brand:#4b7cf3;
+    --brand-soft:#e8f0ff;
+    --accent:#ff9f1c;
+    --border:#e6edff;
+    --radius-lg:6px;
+    --shadow-soft:0 10px 24px rgba(75,124,243,.06);
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
+  body{
+    margin:0;
+    font-family: Pretendard, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Noto Sans KR",
+      "Malgun Gothic", sans-serif;
+    background:linear-gradient(180deg,#f7fbff 0%,#fafdff 100%);
+    color:var(--text);
+  }
+
+  .app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 16px 24px;
+  }
+
+  .app-header{
+    text-align:center;
+    margin-bottom:16px;
+  }
+
+  .app-header h1{
+    font-size:24px;
+    margin:0 0 6px;
+    font-weight:800;
+  }
+
+  .app-header p{
+    margin:0;
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  /* 공통 카드 스타일: 이 페이지의 주요 섹션들을 통일감 있게 표시 */
+  .upload-section,
+  .sheet-section,
+  .summary-section,
+  .detail-section,
+  .issue-section{
+    margin-bottom:12px;
+  }
+
+  .summary-section h2,
+  .detail-section h2,
+  .issue-section h2,
+  .sheet-section h2{
+    margin:0 0 10px;
+    font-size:14px;
+    font-weight:700;
+  }
+
+  .upload-section{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .file-label{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 14px;
+    border-radius:6px;
+    background:var(--brand);
+    color:#fff;
+    font-weight:700;
+    cursor:pointer;
+    box-shadow:0 6px 16px rgba(75,124,243,.25);
+    font-size:13px;
+  }
+
+  .file-label input{
+    display:none;
+  }
+
+  .hint{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* 시트 / 헤더 선택 */
+  .sheet-select-wrapper{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+  }
+
+  .sheet-select-wrapper label{
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  .sheet-select-wrapper select,
+  .sheet-select-wrapper input[type="number"]{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+    outline:none;
+  }
+
+  .sheet-select-wrapper button{
+    padding:6px 14px;
+    border-radius:6px;
+    border:0;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    background:var(--brand);
+    color:#fff;
+    box-shadow:0 4px 10px rgba(75,124,243,.3);
+  }
+
+  .sheet-select-wrapper button:hover{
+    filter:brightness(.97);
+  }
+
+  /* 요약 카드들 */
+  .summary-cards{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:10px;
+  }
+
+  .summary-cards .card{
+    background:var(--brand-soft);
+    border-radius:6px;
+    padding:10px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  .card-title{
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .card-value{
+    font-size:18px;
+    font-weight:700;
+  }
+
+  /* 표 */
+  .table-wrapper{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+
+  thead{
+    background:#f0f3ff;
+  }
+
+  th,td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    text-align:left;
+  }
+
+  tr:nth-child(even) td{
+    background:#fafbff;
+  }
+
+  th{
+    font-weight:600;
+  }
+
+  /* 배지 스타일 (열 타입/이슈 표시) */
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    padding:2px 8px;
+    border-radius:6px;
+    font-size:11px;
+    font-weight:600;
+  }
+
+  .badge.numeric{
+    background:#e3f8ff;
+    color:#0366d6;
+  }
+
+  .badge.date{
+    background:#e3fff5;
+    color:#0b8457;
+  }
+
+  .badge.text{
+    background:#fff3e0;
+    color:#e67e22;
+  }
+
+  .badge-issue{
+    background:#ffecec;
+    color:#c0392b;
+  }
+
+  .issue-section ul{
+    padding-left:18px;
+    margin:0;
+  }
+
+  .issue-section li{
+    margin-bottom:6px;
+    font-size:12px;
+  }
+
+  .app-footer{
+    text-align:center;
+    color:#9aa7d1;
+    font-size:12px;
+    padding:12px 16px 20px;
+  }
+
+  .hidden{
+    display:none;
+  }
+
+  /* 모바일 */
+  @media (max-width: 768px){
+    .upload-section,
+    .sheet-section,
+    .summary-section,
+    .detail-section,
+    .issue-section{
+      width:100%;
+      max-width:100%;
+      min-width:0;
+    }
+
+    .app-header h1{
+      font-size:20px;
+    }
+
+    .file-label{
+      width:100%;
+      justify-content:center;
+    }
+
+    .sheet-select-wrapper{
+      flex-direction:column;
+      align-items:flex-start;
+    }
+
+    .sheet-select-wrapper select,
+    .sheet-select-wrapper input[type="number"],
+    .sheet-select-wrapper button{
+      width:100%;
+    }
+  }
+
+/* ──────────────────────────────
+   전북교육청 통일 테마 오버라이드 (내부 도구 공통)
+   - 기능에는 영향을 주지 않고, 색상/여백/타이포만 맞춤
+   ────────────────────────────── */
+:root{
+  --bg:#ffffff;
+  --card:#ffffff;
+  --text:#222222;
+  --muted:#6b7280;
+  --brand:#0056b8;
+  --brand-weak:#e4effb;
+  --border:#d4dbe8;
+}
+
+html, body{
+  height:100%;
+}
+
+body{
+  margin:0;
+  background:#ffffff;
+  color:var(--text);
+  font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+}
+
+/* 상단 헤더 공통 정리 */
+.app-header{
+  padding:20px 16px 12px;
+  margin:0 0 16px;
+  border-bottom:1px solid var(--border);
+  background:#ffffff;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  margin:0;
+  font-size:24px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  color:#111827;
+}
+
+.app-header .subtitle,
+.app-header p,
+.app-header-description{
+  margin-top:4px;
+  font-size:13px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+/* 카드/섹션 공통 */
+.card,
+.section-card,
+.panel,
+.box{
+  background:#ffffff;
+  border:1px solid var(--border);
+  border-radius:6px;
+  box-shadow:none;
+}
+
+.section-title,
+.card-title,
+.box-title{
+  margin:0 0 8px;
+  font-size:15px;
+  font-weight:600;
+  color:#111827;
+}
+
+.section-desc,
+.card-desc,
+.box-desc{
+  margin:0 0 10px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* 버튼 공통 */
+button,
+.btn,
+.primary-btn,
+.btn-primary{
+  font-family:inherit;
+}
+
+.btn-primary,
+.primary-btn{
+  background:var(--brand);
+  color:#ffffff;
+  border:1px solid var(--brand);
+  border-radius:6px;
+  padding:8px 14px;
+}
+
+.btn-primary:hover,
+.primary-btn:hover{
+  background:#00479a;
+}
+
+.secondary-btn{
+  padding:6px 12px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  background:#fff;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  color:var(--text);
+}
+
+.secondary-btn:hover{
+  background:var(--brand-soft);
+}
+
+/* 입력 요소 공통 */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+input[type="search"],
+select,
+textarea{
+  font-family:inherit;
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+
+/* 제목 여백 차이 줄이기 (학교명 표준화 등) */
+.app-header-icon{
+  margin-bottom:4px;
+}
+.app-header h1{
+  margin-top:0;
+}
+
+
+/* ── 전북교육청 통일 헤더 테마 (추가 오버라이드) ── */
+html, body{
+  background:#ffffff !important;
+}
+
+.app-header{
+  background:#ffffff !important;
+  padding:20px 16px 12px !important;
+  margin:0 0 16px !important;
+  border-bottom:1px solid #d4dbe8 !important;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  font-size:24px !important;
+  font-weight:600 !important;
+  letter-spacing:-0.02em;
+  margin:0 !important;
+  color:#111827 !important;
+}
+
+.app-header p,
+.app-header .subtitle,
+.app-header-description{
+  margin-top:4px !important;
+  font-size:13px !important;
+  color:#6b7280 !important;
+}
+
+
+/* 상단 여백/구분선 통일 (엑셀 병합 기준) */
+.app{
+  margin:0 auto 32px !important;
+  padding:16px 16px 32px !important;
+}
+
+/* 상단 여백/정렬 완전 통일 (엑셀 병합/통계 기준) */
+.app{
+  min-height:100vh !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  margin:0 auto !important;
+  padding:0 0 24px !important;
+}
+
+
+
+/* 상단 여백/정렬/선 폭 통일 (데이터 품질 점검) */
+.app{
+  min-height:100vh !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  width:100% !important;
+  margin:0 !important;
+  padding:0 0 24px !important;
+}
+
+/* 섹션 카드들은 가운데 정렬 유지 */
+.upload-section,
+.sheet-section,
+.summary-section,
+.detail-section,
+.issue-section{
+  margin-left:auto !important;
+  margin-right:auto !important;
+}
+
+/* 제목 하단 구분선 제거 (전 탭 공통) */
+.app-header{
+  border-bottom:none !important;
+  box-shadow:none !important;
+}
+
+/* 모든 탭 제목 높이 통일 */
+.app-header{
+  padding:20px 0 8px !important;
+  margin:0 auto 8px !important;
+  text-align:center !important;
+}
+
+  .summary-actions{
+    margin-top:12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+  }
+  .summary-help{
+    margin-top:6px;
+    font-size:0.85rem;
+    color:var(--muted);
+  }
+
+
+  .row-issue-columns{
+    margin:8px 0 12px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  .row-issue-columns label{
+    font-size:13px;
+    font-weight:600;
+  }
+
+  .row-issue-columns select{
+    min-height:80px;
+    max-height:160px;
+    padding:4px 6px;
+    font-size:12px;
+  }
+
+  .row-actions{
+    margin:12px 0;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+
+  .row-preview{
+    margin-top:8px;
+    border-top:1px dashed var(--border);
+    padding-top:8px;
+  }
+
+  .row-preview h3{
+    margin:0 0 6px;
+    font-size:14px;
+    font-weight:700;
+  }
+
+  .row-preview .table-wrapper{
+    max-height:260px;
+    overflow:auto;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:#f9fbff;
+  }
+
+  #rowPreviewTable{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+
+  #rowPreviewTable th,
+  #rowPreviewTable td{
+    padding:4px 6px;
+    border-bottom:1px solid #e4ebff;
+    white-space:nowrap;
+  }
+
+  #rowPreviewTable th{
+    position:sticky;
+    top:0;
+    background:#eef3ff;
+    z-index:1;
+  }
+
+  .row-preview-help{
+    margin-top:4px;
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .file-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .file-label input[type="file"] {
+    display: none;
+  }
+
+  .file-button{
+    background:var(--brand);
+    color:#fff;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+    border:0;
+    box-shadow:0 6px 16px rgba(75,124,243,.25);
+    font-size:13px;
+  }
+
+  .file-button:hover{
+    filter:brightness(.98);
+  }
+
+  .file-hint{
+    color:var(--muted);
+    font-size:12px;
+  }
+
+
+
+  .inline-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .field {
+    flex: 1 1 0;
+    min-width: 120px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .small {
+    font-size: 12px;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
+  .mt-8 {
+    margin-top: 8px;
+  }
+
+.main-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+}
+
+.card.full-width {
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 18px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+
+
+/* 학교명 표준화 도우미와 동일한 카드/폼 스타일 */
+.card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+}
+
+.card.full-width {
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 18px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.file-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.file-label input[type="file"] {
+  display: none;
+}
+
+.inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.field {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+select {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+}
+
+select:disabled {
+  background: #f1f3fb;
+  color: #a1aac8;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn.primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+.btn.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.secondary,
+.secondary-btn {
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid var(--brand-soft);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mt-8 {
+  margin-top: 8px;
+}
+
+/* ── 요약 바 ── */
+
+.summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f4f7ff;
+  border: 1px dashed var(--border);
+}
+
+.summary-item {
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-item .label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.summary-item .value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.summary-item .value.auto {
+  color: #0a9b64;
+}
+
+.summary-item .value.review {
+  color: #e15b5b;
+}
+
+/* ── 배지 ── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.auto {
+  background: #e5f8f0;
+  color: #0a9b64;
+}
+
+.badge.review {
+  background: #ffe7e7;
+  color: #d64747;
+}
+
+/* ── 테이블 ── */
+
+.table-wrapper {
+  max-height: 420px;
+  overflow: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+thead {
+  position: sticky;
+  top: 0;
+  background: #f4f6ff;
+  z-index: 1;
+}
+
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef1ff;
+  text-align: left;
+}
+
+th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+td {
+  line-height: 1.4;
+}
+
+th:nth-child(1),
+td:nth-child(1) {
+  width: 40px;
+  text-align: center;
+}
+
+th:nth-child(5),
+td:nth-child(5) {
+  width: 120px;
+  white-space: nowrap;
+}
+
+.th-sub {
+  font-weight: 400;
+  font-size: 10px;
+  color: #9aa3c4;
+}
+
+/* 상태 텍스트 색 */
+
+.status-auto {
+  color: #0a9b64;
+  font-weight: 600;
+}
+
+.status-review {
+  color: #d64747;
+  font-weight: 600;
+}
+
+/* 액션 버튼 영역 */
+
+.actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 푸터 */
+
+.app-footer {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 반응형 */
+
+@media (max-width: 900px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .card {
+    padding: 16px 14px 18px;
+  }
+
+  .file-label {
+    width: 100%;
+  }
+
+  .summary-bar {
+    flex-direction: column;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ──────────────────────────────
+   전북교육청 통일 테마 오버라이드 (내부 도구 공통)
+   - 기능에는 영향을 주지 않고, 색상/여백/타이포만 맞춤
+   ────────────────────────────── */
+:root{
+  --bg:#ffffff;
+  --card:#ffffff;
+  --text:#222222;
+  --muted:#6b7280;
+  --brand:#0056b8;
+  --brand-weak:#e4effb;
+  --border:#d4dbe8;
+}
+
+html, body{
+  height:100%;
+}
+
+body{
+  margin:0;
+  background:#ffffff;
+  color:var(--text);
+  font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+}
+
+/* 상단 헤더 공통 정리 */
+.app-header{
+  padding:20px 16px 12px;
+  margin:0 0 16px;
+  border-bottom:1px solid var(--border);
+  background:#ffffff;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  margin:0;
+  font-size:24px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  color:#111827;
+}
+
+.app-header .subtitle,
+.app-header p,
+.app-header-description{
+  margin-top:4px;
+  font-size:13px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+/* 카드/섹션 공통 */
+.card,
+.section-card,
+.panel,
+.box{
+  background:#ffffff;
+  border:1px solid var(--border);
+  border-radius:6px;
+  box-shadow:none;
+}
+
+.section-title,
+.card-title,
+.box-title{
+  margin:0 0 8px;
+  font-size:15px;
+  font-weight:600;
+  color:#111827;
+}
+
+.section-desc,
+.card-desc,
+.box-desc{
+  margin:0 0 10px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* 버튼 공통 */
+button,
+.btn,
+.primary-btn,
+.btn-primary{
+  font-family:inherit;
+}
+
+.btn-primary,
+.primary-btn{
+  background:var(--brand);
+  color:#ffffff;
+  border:1px solid var(--brand);
+  border-radius:6px;
+  padding:8px 14px;
+}
+
+.btn-primary:hover,
+.primary-btn:hover{
+  background:#00479a;
+}
+
+/* 입력 요소 공통 */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+input[type="search"],
+select,
+textarea{
+  font-family:inherit;
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+
+/* 제목 여백 차이 줄이기 (학교명 표준화 등) */
+.app-header-icon{
+  margin-bottom:4px;
+}
+.app-header h1{
+  margin-top:0;
+}
+
+
+/* ── 전북교육청 통일 헤더 테마 (추가 오버라이드) ── */
+html, body{
+  background:#ffffff !important;
+}
+
+.app-header{
+  background:#ffffff !important;
+  padding:20px 16px 12px !important;
+  margin:0 0 16px !important;
+  border-bottom:1px solid #d4dbe8 !important;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  font-size:24px !important;
+  font-weight:600 !important;
+  letter-spacing:-0.02em;
+  margin:0 !important;
+  color:#111827 !important;
+}
+
+.app-header p,
+.app-header .subtitle,
+.app-header-description{
+  margin-top:4px !important;
+  font-size:13px !important;
+  color:#6b7280 !important;
+}
+
+
+
+
+/* 학교명 표준화: 헤더 선을 전체 폭으로 */
+.app{
+  max-width:none !important;
+  width:100% !important;
+  margin:0 !important;
+  padding:0 0 24px !important;
+}
+
+/* 상단 여백/정렬/선 폭 통일 (학교명 표준화) */
+.app{
+  min-height:100vh !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  width:100% !important;
+  margin:0 !important;
+  padding:0 0 24px !important;
+}
+
+/* 학교명 표준화: 내용 박스 좌우 여백 */
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 16px !important;
+}
+
+/* 학교명 표준화: 내용 박스 좌우 여백 보정 */
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 24px !important;
+}
+
+/* 학교명 표준화: 최종 레이아웃 정리 (여백 + 정렬) */
+.app{
+  max-width:900px !important;
+  margin:24px auto 40px !important;
+  padding:0 24px 40px !important;
+}
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 24px !important;
+}
+
+/* 학교명 표준화: 엑셀 병합/통계 도구와 레이아웃 통일 */
+.app{
+  max-width:900px !important;
+  margin:0 auto 40px !important;
+  padding:0 16px 40px !important;
+}
+
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 !important;
+}
+
+/* 학교명 표준화: 헤더 선 전체 폭 + 카드 폭 통일 */
+.app{
+  width:100% !important;
+  max-width:none !important;
+  margin:0 !important;
+  padding:0 0 40px !important;
+}
+
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 16px !important;
+}
+
+.card,
+.card.full-width{
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+
+/* 학교명 표준화: 헤더 선 & 카드 폭 완전 통일 (최종) */
+.app{
+  max-width:none !important;
+  width:100% !important;
+  margin:0 auto 40px !important;
+  padding:0 24px 40px !important;
+}
+
+.app-header{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 0 12px !important;
+  border-bottom:1px solid var(--border) !important;
+}
+
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+  padding:0 !important;
+}
+
+.card,
+.card.full-width{
+  width:100% !important;
+  margin-left:0 !important;
+  margin-right:0 !important;
+  box-sizing:border-box !important;
+}
+
+/* 제목 하단 구분선 제거 (전 탭 공통) */
+.app-header{
+  border-bottom:none !important;
+  box-shadow:none !important;
+}
+
+/* 모든 탭 제목 높이 통일 */
+.app-header{
+  padding:20px 0 8px !important;
+  margin:0 auto 8px !important;
+  text-align:center !important;
+}
+
+/* 학교명 표준화: 박스1·박스2 너비 통일 */
+.main-grid{
+  max-width:900px !important;
+  margin:0 auto 16px !important;
+}
+
+.card,
+.card.full-width{
+  max-width:900px !important;
+  width:100% !important;
+  margin:0 auto 16px !important;
+  box-sizing:border-box !important;
+}
+
+/* 수동 확정 모달 */
+.manual-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 40;
+}
+
+.manual-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.manual-modal[hidden],
+.manual-overlay[hidden] {
+  display: none;
+}
+
+.manual-modal-inner {
+  width: min(420px, 90vw);
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.25);
+  padding: 18px 20px 16px;
+  border: 1px solid var(--border);
+}
+
+.manual-modal-inner h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.manual-caption {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.manual-candidate-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 0;
+  margin-bottom: 10px;
+  border-top: 1px solid #eef1ff;
+  border-bottom: 1px solid #eef1ff;
+}
+
+.manual-candidate-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.manual-candidate-item input[type="radio"] {
+  accent-color: var(--brand);
+}
+
+.manual-footnote {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.manual-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 표 내 수동 확정 버튼 크기 조정 */
+.btn.manual-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.manual-fixed-cell {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+  .file-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .file-label input[type="file"] {
+    display: none;
+  }
+
+  .file-button{
+    background:var(--brand);
+    color:#fff;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+    border:0;
+    box-shadow:0 6px 16px rgba(75,124,243,.25);
+    font-size:13px;
+  }
+
+  .file-button:hover{
+    filter:brightness(.98);
+  }
+
+  .file-hint{
+    color:var(--muted);
+    font-size:12px;
+  }
+
+
+
+/* override from school tool for consistent style */
+.card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 18px 20px 20px;
+  border: 1px solid var(--border);
+}
+
+.card.full-width {
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 18px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+
+.section-desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.file-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.file-label input[type="file"] {
+  display: none;
+}
+
+.inline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.field {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+select {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+}
+
+select:disabled {
+  background: #f1f3fb;
+  color: #a1aac8;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn.primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+.btn.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.secondary,
+.secondary-btn {
+  background: #fff;
+  color: var(--brand);
+  border: 1px solid var(--brand-soft);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mt-8 {
+  margin-top: 8px;
+}
+
+
+/* app width from school tool */
+.app {
+  max-width: 900px;
+  width: 100%;
+  margin: 24px auto 40px;
+  padding: 0 16px 40px;
+}
+
+/* 강제로 카드 폭을 고정해서 엑셀 데이터 내용과 무관하게 유지 */
+.card {
+  max-width: 900px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 메인 카드 폭을 완전히 고정 (학교명 표준화 도구와 동일하게 보이도록) */
+.main-grid {
+  max-width: 900px;
+  min-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.main-grid > .card {
+  box-sizing: border-box;
+  width: 100%;
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="app-header">
+<div class="logo">🧹 엑셀 데이터 품질 점검 도구(v1.2)</div>
+<div class="subtitle">엑셀 파일을 업로드하면 데이터 품질을 자동으로 진단해드립니다.</div>
+</header>
+<main class="main-grid">
+<section class="card">
+<h2 class="section-title">1. 대상 데이터 파일 업로드</h2>
+<p class="section-desc">
+          품질을 점검할 엑셀 파일을 업로드한 뒤 <strong>시트</strong>와 <strong>헤더 행</strong>을 선택하세요.
+        </p>
+<label class="file-label" style="margin-top:10px;">
+<input accept=".xlsx,.xls" id="fileInput" type="file"/>
+<span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
+</label>
+<p class="hint small muted mt-8"></p>
+<div class="inline-fields">
+<div class="field">
+<label for="sheetSelect">시트 선택</label>
+<select disabled="" id="sheetSelect">
+<option value="">파일을 먼저 선택하세요</option>
+</select>
+</div>
+<div class="field">
+<label for="headerRowSelect">헤더 행 선택</label>
+<select disabled="" id="headerRowSelect">
+<option value="">헤더 행을 선택하세요</option>
+</select>
+<p class="small muted mt-8">
+</p>
+</div>
+</div>
+<!-- 기존 숫자 입력/버튼은 스크립트 호환을 위해 숨김 -->
+<div style="display:none;">
+<label for="headerRowInput">헤더가 있는 행 번호 (엑셀에서 보이는 행 번호)</label>
+<input id="headerRowInput" min="1" type="number" value="1"/>
+<button id="applyHeaderBtn" type="button">적용</button>
+</div>
+</section>
+<section class="card full-width">
+<h2 class="section-title">2. 품질 진단 결과</h2>
+<p class="section-desc">
+          파일 요약과 열별 품질 이슈를 한 번에 확인하고, 문제 있는 행과 열을 엑셀로 내보낼 수 있습니다.
+        </p>
+<section class="summary-section" id="summarySection">
+<h2>파일 요약</h2>
+<div class="summary-cards">
+<div class="card">
+<div class="card-title">파일명</div>
+<div class="card-value" id="fileName">-</div>
+</div>
+<div class="card">
+<div class="card-title">행 개수</div>
+<div class="card-value" id="rowCount">-</div>
+</div>
+<div class="card">
+<div class="card-title">열 개수</div>
+<div class="card-value" id="colCount">-</div>
+</div>
+</div>
+<div class="summary-actions">
+<button class="primary-btn" id="exportIssueRowsBtn">이슈가 있는 행만 엑셀로 내보내기</button>
+<button class="primary-btn" id="exportIssueSummaryBtn">열별 이슈 요약 엑셀로 내보내기</button>
+<button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
+</div>
+<p class="summary-help">
+        품질 진단 결과를 바탕으로, 이슈가 있는 행과 열별 이슈 요약을 별도 엑셀 파일로 저장할 수 있습니다.
+      </p>
+</section>
+<section class="detail-section" id="detailSection">
+<h2>열별 품질 진단</h2>
+<div class="table-wrapper">
+<table id="resultTable">
+<thead>
+<tr>
+<th>열 번호</th>
+<th>열 이름</th>
+<th>추정 타입</th>
+<th>결측값 비율</th>
+<th>고유값 개수</th>
+<th>이슈 요약</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+</div>
+</section>
+<section class="issue-section hidden" id="issueSection">
+<h2>상세 이슈 목록</h2>
+<div class="row-issue-columns">
+<label for="rowIssueColumns">행 기준 결측 이슈를 계산할 열 선택 (여러 개 선택 가능)</label>
+<select id="rowIssueColumns" multiple="" size="4"></select>
+<p class="row-preview-help">
+          예: 학번, 학생명, 점수 열만 선택하고 비고 열은 선택하지 않으면, 비고가 비어 있어도 결측 행으로 보지 않습니다.
+        </p>
+</div>
+<div class="row-actions">
+<button class="primary-btn" id="exportMissingOnlyBtn">결측치 있는 행만 엑셀로 내보내기</button>
+<button class="primary-btn" id="exportMissingRemovedBtn">결측치 있는 행 삭제 후 엑셀로 내보내기</button>
+</div>
+<ul id="issueList"></ul>
+</section>
+</section></main></div>
+<!-- ExcelJS (스타일/서식 보존용) -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<!-- SheetJS (xlsx) 라이브러리 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+const issueSection = document.getElementById("issueSection");
+    const sheetSection = document.getElementById("sheetSection");
+    const sheetSelect = document.getElementById("sheetSelect");
+    const headerSection = document.getElementById("headerSection");
+    const headerRowInput = document.getElementById("headerRowInput");
+    const applyHeaderBtn = document.getElementById("applyHeaderBtn");
+
+    const fileInput = document.getElementById("fileInput");
+    const fileNameEl = document.getElementById("fileName");
+    const rowCountEl = document.getElementById("rowCount");
+    const colCountEl = document.getElementById("colCount");
+    const resultTableBody = document.querySelector("#resultTable tbody");
+    const issueListEl = document.getElementById("issueList");
+    const exportIssueRowsBtn = document.getElementById("exportIssueRowsBtn");
+    const exportIssueSummaryBtn = document.getElementById("exportIssueSummaryBtn");
+    const rowIssueColumnsSelect = document.getElementById("rowIssueColumns");
+    const exportMissingOnlyBtn = document.getElementById("exportMissingOnlyBtn");
+    const exportMissingRemovedBtn = document.getElementById("exportMissingRemovedBtn");
+
+    // 현재 상태 저장용
+    let currentFileName = "";
+    let sheetDataMap = {};      // { sheetName: rowsArray }
+    let currentSheetName = "";
+    let currentHeaderRowIndex = null; // 0-based 인덱스
+    let currentHeader = null;
+    let currentDataRows = [];
+    let currentColumnStats = [];
+    let currentIssueRowIndexes = [];
+    let currentIssueMessagesByRow = {};
+    let originalFileData = null; // 원본 엑셀 바이너리 (서식 유지용)
+    let rowIssueColumnIndexes = []; // 결측 행 판정에 사용할 열 인덱스들
+
+    // 파일 선택 이벤트
+    fileInput.addEventListener("change", handleFileSelect);
+
+    // 결과 엑셀 내보내기 이벤트
+    exportIssueRowsBtn.addEventListener("click", handleExportIssueRows);
+    exportIssueSummaryBtn.addEventListener("click", handleExportIssueSummary);
+
+    // 결측 행만/결측 행 삭제 엑셀 내보내기
+    exportMissingOnlyBtn.addEventListener("click", handleExportMissingOnly);
+    exportMissingRemovedBtn.addEventListener("click", handleExportMissingRemoved);
+
+    // 행 기준 결측 이슈 열 선택 변경
+    rowIssueColumnsSelect.addEventListener("change", handleRowIssueColumnsChange);
+
+    // 시트 선택 이벤트
+    sheetSelect.addEventListener("change", () => {
+      const selectedSheet = sheetSelect.value;
+      const rows = sheetDataMap[selectedSheet];
+      if (!rows) return;
+
+      currentSheetName = selectedSheet;
+
+      // 새 시트에 맞게 헤더 행 범위/기본값 세팅
+      const guessedIndex = findHeaderRowIndex(rows);
+      currentHeaderRowIndex = guessedIndex;
+
+      headerRowInput.min = 1;
+      headerRowInput.max = rows.length;
+      headerRowInput.value = guessedIndex + 1;
+
+      // 헤더 행 선택 셀렉트 박스도 같이 갱신
+      const headerRowSelectEl = document.getElementById("headerRowSelect");
+      if (headerRowSelectEl) {
+        headerRowSelectEl.innerHTML = "";
+        rows.forEach((row, idx) => {
+          const preview = (row || [])
+            .slice(0, 5)
+            .map((v) =>
+              v === null || v === undefined ? "" : String(v)
+            )
+            .join(" | ");
+          const opt = document.createElement("option");
+          opt.value = String(idx + 1); // 1-based
+          opt.textContent = preview
+            ? `${idx + 1}행 - ${preview}`
+            : `${idx + 1}행`;
+          if (idx === guessedIndex) opt.selected = true;
+          headerRowSelectEl.appendChild(opt);
+        });
+        headerRowSelectEl.disabled = false;
+      }
+
+      analyzeData(rows, currentFileName, currentHeaderRowIndex);
+    });
+
+    // 헤더 행 선택 셀렉트와 숫자 입력값 연동
+    (function () {
+      const headerRowSelectEl = document.getElementById("headerRowSelect");
+      if (!headerRowSelectEl) return;
+
+      headerRowSelectEl.addEventListener("change", () => {
+        const v = parseInt(headerRowSelectEl.value, 10);
+        if (!currentSheetName || !sheetDataMap[currentSheetName]) return;
+        if (isNaN(v) || v < 1) return;
+
+        headerRowInput.value = String(v);
+        applyHeaderBtn.click();
+      });
+    })();
+
+    // 헤더 행 적용 버튼
+    applyHeaderBtn.addEventListener("click", () => {
+      if (!currentSheetName) return;
+      const rows = sheetDataMap[currentSheetName];
+      if (!rows || rows.length === 0) return;
+
+      const val = parseInt(headerRowInput.value, 10);
+      if (isNaN(val) || val < 1) {
+        alert("유효한 행 번호를 입력해주세요.");
+        return;
+      }
+
+      const clamped = Math.min(val, rows.length);
+      currentHeaderRowIndex = clamped - 1; // 0-based
+
+      analyzeData(rows, currentFileName, currentHeaderRowIndex);
+    });
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      currentFileName = file.name;
+      sheetDataMap = {};
+      currentSheetName = "";
+      currentHeaderRowIndex = null;
+
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          originalFileData = data;
+          const workbook = XLSX.read(data, { type: "array" });
+
+          // 시트별 데이터 미리 파싱해서 저장
+          workbook.SheetNames.forEach((sheetName) => {
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+            sheetDataMap[sheetName] = rows;
+          });
+
+          if (workbook.SheetNames.length === 0) {
+            alert("시트가 존재하지 않습니다.");
+            return;
+          }
+
+          // 시트 선택 셀렉트 박스 초기화
+          initSheetSelect(workbook.SheetNames);
+
+          // 기본은 첫 번째 시트로 분석
+          const firstSheetName = workbook.SheetNames[0];
+          const firstRows = sheetDataMap[firstSheetName];
+          currentSheetName = firstSheetName;
+
+          if (!firstRows || firstRows.length === 0) {
+            alert("첫 번째 시트에 데이터가 없습니다.");
+            return;
+          }
+
+          // 헤더 행 자동 추정 후 입력칸에 세팅
+          const guessedIndex = findHeaderRowIndex(firstRows);
+          currentHeaderRowIndex = guessedIndex;
+
+          headerRowInput.min = 1;
+          headerRowInput.max = firstRows.length;
+          headerRowInput.value = guessedIndex + 1;
+
+          // 헤더 행 선택 셀렉트 박스도 같이 갱신
+          const headerRowSelectEl = document.getElementById("headerRowSelect");
+          if (headerRowSelectEl) {
+            headerRowSelectEl.innerHTML = "";
+            firstRows.forEach((row, idx) => {
+              const preview = (row || [])
+                .slice(0, 5)
+                .map((v) =>
+                  v === null || v === undefined ? "" : String(v)
+                )
+                .join(" | ");
+              const opt = document.createElement("option");
+              opt.value = String(idx + 1); // 1-based
+              opt.textContent = preview
+                ? `${idx + 1}행 - ${preview}`
+                : `${idx + 1}행`;
+              if (idx === guessedIndex) opt.selected = true;
+              headerRowSelectEl.appendChild(opt);
+            });
+            headerRowSelectEl.disabled = false;
+          }
+
+          // 시트/헤더 선택 영역 표시
+          if (sheetSection) sheetSection.classList.remove("hidden");
+          if (headerSection) headerSection.classList.remove("hidden");
+
+          analyzeData(firstRows, currentFileName, currentHeaderRowIndex);
+        } catch (error) {
+          console.error(error);
+          alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function initSheetSelect(sheetNames) {
+      sheetSelect.innerHTML = "";
+      sheetSelect.disabled = false;
+
+      sheetNames.forEach((name, index) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        if (index === 0) option.selected = true;
+        sheetSelect.appendChild(option);
+      });
+    }
+
+    // 헤더로 쓸 행 자동 탐지 (기본값용, 사용자는 수동으로 바꿀 수 있음)
+    function findHeaderRowIndex(rows) {
+      if (!rows || rows.length === 0) return 0;
+
+      const containsKeyword = (cell, keywords) => {
+        if (cell === undefined || cell === null) return false;
+        let s = String(cell).replace(/\s+/g, "").toLowerCase();
+        return keywords.some((k) => s.includes(k));
+      };
+
+      let headerIdx = -1;
+      const maxRows = Math.min(rows.length, 50);
+
+      for (let i = 0; i < maxRows; i++) {
+        const row = rows[i] || [];
+        const hasNonEmpty = row.some(
+          (c) => c !== undefined && c !== null && String(c).trim() !== ""
+        );
+        if (!hasNonEmpty) continue;
+
+        const hasHeaderKeyword = row.some((c) =>
+          containsKeyword(c, ["학교명", "학교 명", "학교코드", "학교 코드"])
+        );
+
+        if (hasHeaderKeyword) {
+          headerIdx = i;
+          break;
+        }
+
+        if (headerIdx === -1) {
+          headerIdx = i; // 첫 번째 내용 있는 행을 후보로
+        }
+      }
+
+      if (headerIdx === -1) headerIdx = 0;
+      return headerIdx;
+    }
+
+    function analyzeData(rows, fileName, headerIndex) {
+      if (!rows || rows.length === 0) {
+        alert("시트에 데이터가 없습니다.");
+        summarySection.classList.add("hidden");
+        detailSection.classList.add("hidden");
+        issueSection.classList.add("hidden");
+        return;
+      }
+
+      let hIndex = headerIndex;
+      if (hIndex == null || isNaN(hIndex) || hIndex < 0 || hIndex >= rows.length) {
+        hIndex = findHeaderRowIndex(rows);
+      }
+
+      const header = rows[hIndex];
+      const dataRows = rows.slice(hIndex + 1);
+
+      const rowCount = dataRows.length;
+      const colCount = header.length;
+
+      // 요약 정보 표시
+      fileNameEl.textContent = fileName || "-";
+      rowCountEl.textContent = rowCount;
+      colCountEl.textContent = colCount;
+
+      // 열별 품질 분석
+      const columnStats = analyzeColumns(header, dataRows);
+
+      // 행 기준 결측 이슈에 사용할 열 선택 UI 업데이트
+      updateRowIssueColumns(header, columnStats);
+
+      // 현재 분석 결과 전역 상태에 저장 (엑셀 내보내기용)
+      currentHeader = header;
+      currentDataRows = dataRows;
+      currentColumnStats = columnStats;
+      const rowIssueInfo = computeRowIssues(header, dataRows, columnStats);
+      currentIssueRowIndexes = rowIssueInfo.issueRowIndexes;
+      currentIssueMessagesByRow = rowIssueInfo.issueMessagesByRow;
+
+      // 테이블 렌더링
+      renderResultTable(columnStats);
+
+      // 상세 이슈 렌더링
+      renderIssues(columnStats);
+
+      summarySection.classList.remove("hidden");
+      detailSection.classList.remove("hidden");
+      issueSection.classList.remove("hidden");
+
+      // 헤더 행 선택 드롭다운을 현재 시트 기준으로 항상 갱신해 줍니다.
+      try {
+        const headerRowSelectEl = document.getElementById("headerRowSelect");
+        if (headerRowSelectEl) {
+          const fullRows = (sheetDataMap && currentSheetName && sheetDataMap[currentSheetName])
+            ? sheetDataMap[currentSheetName]
+            : rows;
+          if (fullRows && Array.isArray(fullRows) && fullRows.length > 0) {
+            headerRowSelectEl.innerHTML = "";
+            fullRows.forEach((row, idx) => {
+              const preview = (row || [])
+                .slice(0, 5)
+                .map((v) =>
+                  v === null || v === undefined ? "" : String(v)
+                )
+                .join(" | ");
+              const opt = document.createElement("option");
+              opt.value = String(idx + 1);
+              opt.textContent = preview
+                ? `${idx + 1}행 - ${preview}`
+                : `${idx + 1}행`;
+              if (idx === hIndex) opt.selected = true;
+              headerRowSelectEl.appendChild(opt);
+            });
+            headerRowSelectEl.disabled = false;
+          }
+        }
+      } catch (e) {
+        console.error("헤더 행 선택 갱신 중 오류:", e);
+      }
+    }
+
+function analyzeColumns(header, dataRows) {
+      const colCount = header.length;
+      const rowCount = dataRows.length;
+      const result = [];
+
+      // 셀 값을 숫자/날짜/텍스트/빈값으로 분류하는 헬퍼
+      function classifyValue(value) {
+        if (value === null || value === undefined) return "empty";
+        const s = String(value).trim();
+        if (!s) return "empty";
+
+        if (looksLikeDate(s)) return "date";
+        if (!isNaN(Number(s))) return "numeric";
+        return "text";
+      }
+
+      for (let colIndex = 0; colIndex < colCount; colIndex++) {
+        const colName = header[colIndex] || `열${colIndex + 1}`;
+
+        let emptyCount = 0;
+        let numericCount = 0;
+        let dateCount = 0;
+        let textCount = 0;
+        let typeErrorCount = 0;
+        let dateErrorCount = 0;
+        const uniqueValues = new Set();
+        const kinds = [];
+
+        dataRows.forEach((row) => {
+          const value = row[colIndex];
+          const kind = classifyValue(value);
+          kinds.push(kind);
+
+          if (kind === "empty") {
+            emptyCount += 1;
+            return;
+          }
+
+          uniqueValues.add(value);
+
+          if (kind === "numeric") {
+            numericCount += 1;
+          } else if (kind === "date") {
+            dateCount += 1;
+          } else if (kind === "text") {
+            textCount += 1;
+          }
+        });
+
+        const nonEmptyCount = rowCount - emptyCount;
+        const missingRatio = rowCount > 0 ? emptyCount / rowCount : 0;
+
+        // 지배적인 타입(비율 0.7 이상)을 열 타입으로 사용
+        let inferredType = "text";
+        if (nonEmptyCount > 0) {
+          const numericRatio = numericCount / nonEmptyCount;
+          const dateRatio = dateCount / nonEmptyCount;
+
+          if (numericRatio >= 0.7) {
+            inferredType = "numeric";
+          } else if (dateRatio >= 0.7) {
+            inferredType = "date";
+          }
+        }
+
+        const issues = [];
+
+        // 결측값 비율 이슈
+        if (missingRatio >= 0.1) {
+          const missingCount = emptyCount;
+          const ratioPercent = (missingRatio * 100).toFixed(1);
+          issues.push(`결측값 비율 ${ratioPercent}% (${missingCount}개)`);
+        }
+
+        // 타입 혼합/오류 이슈
+        if (inferredType === "numeric") {
+          let invalidTypeCount = 0;
+          dataRows.forEach((row, rowIdx) => {
+            const kind = kinds[rowIdx];
+            if (kind === "empty") return;
+            if (kind !== "numeric") invalidTypeCount += 1;
+          });
+          typeErrorCount = invalidTypeCount;
+          if (invalidTypeCount > 0) {
+            issues.push(`숫자형 열에 숫자가 아닌 값 ${invalidTypeCount}개`);
+          }
+        } else if (inferredType === "date") {
+          let invalidTypeCount = 0;
+          dataRows.forEach((row, rowIdx) => {
+            const kind = kinds[rowIdx];
+            if (kind === "empty") return;
+            if (kind !== "date") invalidTypeCount += 1;
+          });
+          dateErrorCount = invalidTypeCount;
+          if (invalidTypeCount > 0) {
+            issues.push(`날짜 형식 오류 ${invalidTypeCount}개`);
+          }
+        }
+
+        result.push({
+          index: colIndex + 1,
+          name: colName,
+          inferredType,
+          missingRatio,
+          uniqueCount: uniqueValues.size,
+          typeErrorCount,
+          dateErrorCount,
+          issues
+        });
+      }
+
+      return result;
+    }
+
+    // 날짜처럼 보이는지 간단히 체크
+        // 날짜처럼 보이는지 엄격하게 체크
+    // 지원 형식: YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD / YYYYMMDD
+    
+    // 날짜처럼 보이는지 엄격하게 체크
+    // 지원 형식: YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD / YYYYMMDD
+    function looksLikeDate(value) {
+      if (value === null || value === undefined) return false;
+      const s = String(value).trim();
+      if (!s) return false;
+
+      // 1) 구분자가 있는 형식 (YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD)
+      const m = s.match(/^(\d{4})([-./])(\d{2})\2(\d{2})$/);
+      if (m) {
+        const year = Number(m[1]);
+        const month = Number(m[3]);
+        const day = Number(m[4]);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+        if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+        const dt = new Date(year, month - 1, day);
+        return (
+          dt.getFullYear() === year &&
+          dt.getMonth() === month - 1 &&
+          dt.getDate() === day
+        );
+      }
+
+      // 2) 구분자 없는 8자리 숫자 (YYYYMMDD)
+      if (/^\d{8}$/.test(s)) {
+        const year = Number(s.slice(0, 4));
+        const month = Number(s.slice(4, 6));
+        const day = Number(s.slice(6, 8));
+        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+        if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+        const dt = new Date(year, month - 1, day);
+        return (
+          dt.getFullYear() === year &&
+          dt.getMonth() === month - 1 &&
+          dt.getDate() === day
+        );
+      }
+
+      return false;
+    }
+
+    // 셀 타입 분류(품질 점검용) : 날짜 → 숫자 → 텍스트 순으로 판단
+    function classifyCellForType(value) {
+      if (value === null || value === undefined) return "empty";
+      const s = String(value).trim();
+      if (!s) return "empty";
+      if (looksLikeDate(s)) return "date";
+      if (!isNaN(Number(s))) return "numeric";
+      return "text";
+    }
+
+    // 행 단위 이슈(결측/타입 오류/중복)를 계산하여,
+    // - issueRowIndexes: 이슈가 있는 데이터 행의 인덱스 배열(0-based, header 아래 기준)
+    // - issueMessagesByRow: { [rowIndex]: [메시지, ...] }
+    function computeRowIssues(header, dataRows, columnStats) {
+      const rowIssuesMap = new Map(); // rowIdx -> string[]
+
+      const colCount = header.length;
+      const rowCount = dataRows.length;
+
+      function addIssue(rowIdx, message) {
+        if (!rowIssuesMap.has(rowIdx)) {
+          rowIssuesMap.set(rowIdx, []);
+        }
+        rowIssuesMap.get(rowIdx).push(message);
+      }
+
+      // 1) 결측/타입 오류 이슈
+      for (let c = 0; c < colCount; c++) {
+        const col = columnStats[c];
+        if (!col) continue;
+        const inferredType = col.inferredType;
+        const colIndexLabel = col.index;
+        const colName = col.name || `열${colIndexLabel}`;
+
+        for (let r = 0; r < rowCount; r++) {
+          const row = dataRows[r] || [];
+          const value = row[c];
+          const kind = classifyCellForType(value);
+
+          if (kind === "empty") {
+            // 해당 열이 결측 비율 이슈가 있는 경우에만 결측 이슈로 표시
+            if (col.missingRatio >= 0.1) {
+              addIssue(r, `열 ${colIndexLabel} (${colName}) - 결측값`);
+            }
+            continue;
+          }
+
+          if (inferredType === "numeric" && kind !== "numeric") {
+            addIssue(r, `열 ${colIndexLabel} (${colName}) - 숫자가 아닌 값`);
+          } else if (inferredType === "date" && kind !== "date") {
+            addIssue(r, `열 ${colIndexLabel} (${colName}) - 날짜 형식 오류`);
+          }
+        }
+      }
+
+      const issueRowIndexes = Array.from(rowIssuesMap.keys()).sort((a, b) => a - b);
+      const issueMessagesByRow = {};
+      issueRowIndexes.forEach((rIdx) => {
+        issueMessagesByRow[rIdx] = rowIssuesMap.get(rIdx);
+      });
+
+      return { issueRowIndexes, issueMessagesByRow };
+    }
+
+    // 이슈가 있는 행만 필터링하여 엑셀로 내보내기
+    function handleExportIssueRows() {
+      if (!currentHeader || !currentDataRows || currentDataRows.length === 0) {
+        alert("먼저 파일을 불러와 품질 진단을 실행해 주세요.");
+        return;
+      }
+      if (!currentIssueRowIndexes || currentIssueRowIndexes.length === 0) {
+        alert("이슈가 있는 행이 없습니다.");
+        return;
+      }
+
+      const aoa = [];
+      const headerRow = currentHeader.slice();
+      headerRow.push("품질_이슈"); // 각 행의 이슈 요약
+      aoa.push(headerRow);
+
+      currentIssueRowIndexes.forEach((rowIdx) => {
+        const baseRow = (currentDataRows[rowIdx] || []).slice();
+        const messages = currentIssueMessagesByRow[rowIdx] || [];
+        baseRow.push(messages.join(" / "));
+        aoa.push(baseRow);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "이슈_행_필터");
+
+      const baseName = currentFileName
+        ? currentFileName.replace(/\.xlsx?$/i, "")
+        : "quality_check";
+      const outName = baseName + "_이슈행만.xlsx";
+
+      XLSX.writeFile(wb, outName);
+    }
+
+    // 열별 이슈 요약을 엑셀로 내보내기
+    function handleExportIssueSummary() {
+      if (!currentColumnStats || currentColumnStats.length === 0) {
+        alert("먼저 파일을 불러와 품질 진단을 실행해 주세요.");
+        return;
+      }
+
+      const headerRow = [
+        "열 번호",
+        "열 이름",
+        "추정 타입",
+        "결측값 비율",
+        "타입 오류 개수",
+        "날짜 오류 개수",
+        "이슈 설명"
+      ];
+
+      const aoa = [headerRow];
+
+      currentColumnStats.forEach((col) => {
+        const typeLabel =
+          col.inferredType === "numeric"
+            ? "숫자"
+            : col.inferredType === "date"
+            ? "날짜"
+            : "텍스트";
+
+        const missingPercent = (col.missingRatio * 100).toFixed(1) + "%";
+        const typeErrorCount = col.typeErrorCount || 0;
+        const dateErrorCount = col.dateErrorCount || 0;
+        const issuesText = (col.issues || []).join(" / ");
+
+        aoa.push([
+          col.index,
+          col.name,
+          typeLabel,
+          missingPercent,
+          typeErrorCount,
+          dateErrorCount,
+          issuesText
+        ]);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "열별_이슈_요약");
+
+      const baseName = currentFileName
+        ? currentFileName.replace(/\.xlsx?$/i, "")
+        : "quality_check";
+      const outName = baseName + "_품질진단.xlsx";
+
+      XLSX.writeFile(wb, outName);
+    }
+
+
+
+    // 행 기준 결측 이슈에 사용할 열 선택 UI 갱신
+    function updateRowIssueColumns(header, columnStats) {
+      if (!rowIssueColumnsSelect) return;
+
+      rowIssueColumnsSelect.innerHTML = "";
+      rowIssueColumnIndexes = [];
+
+      if (!header || header.length === 0) return;
+
+      const colCount = header.length;
+
+      for (let i = 0; i < colCount; i++) {
+        const rawName = header[i];
+        const name =
+          rawName === null || rawName === undefined || String(rawName).trim() === ""
+            ? `열${i + 1}`
+            : String(rawName).trim();
+
+        const opt = document.createElement("option");
+        opt.value = String(i);
+
+        const stat = columnStats && columnStats[i];
+        const displayIndex = stat && stat.index != null ? stat.index : i + 1;
+        opt.textContent = `${displayIndex}. ${name}`;
+
+        // 기본 선택: 결측 비율이 100%가 아닌 열만
+        const missingRatio =
+          stat && typeof stat.missingRatio === "number" ? stat.missingRatio : 0;
+        if (missingRatio < 1) {
+          opt.selected = true;
+          rowIssueColumnIndexes.push(i);
+        }
+
+        rowIssueColumnsSelect.appendChild(opt);
+      }
+    }
+
+    // 멀티셀렉트 변경 시 선택된 열 인덱스 갱신
+    function handleRowIssueColumnsChange() {
+      if (!rowIssueColumnsSelect) return;
+      const selected = Array.from(rowIssueColumnsSelect.selectedOptions).map((opt) =>
+        Number(opt.value)
+      );
+      rowIssueColumnIndexes = selected.filter((idx) => Number.isFinite(idx));
+    }
+
+    // 현재 설정(행 기준 결측 열) 기준으로 결측 행 인덱스 계산
+    function getMissingRowIndexes() {
+      if (!currentHeader || !currentDataRows || currentDataRows.length === 0) {
+        return [];
+      }
+
+      const rowCount = currentDataRows.length;
+      let cols =
+        rowIssueColumnIndexes && rowIssueColumnIndexes.length > 0
+          ? rowIssueColumnIndexes
+          : currentHeader.map((_, idx) => idx);
+
+      const indexes = [];
+
+      for (let r = 0; r < rowCount; r++) {
+        const row = currentDataRows[r] || [];
+        let hasMissing = false;
+        for (const c of cols) {
+          const v = row[c];
+          if (v === null || v === undefined || String(v).trim() === "") {
+            hasMissing = true;
+            break;
+          }
+        }
+        if (hasMissing) {
+          indexes.push(r);
+        }
+      }
+
+      return indexes;
+    }
+
+    // 원본 엑셀 서식을 최대한 유지하면서, 결측 행만/결측 행 삭제 결과 워크북 생성
+    // mode: "only" (결측 행만) or "removed" (결측 행 삭제)
+    
+    async function saveBlob(filename, blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = filename || "download.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 500);
+    }
+
+    function cloneWorksheetPreserve(ejWbOut, wsIn, outName) {
+      const wsOut = ejWbOut.addWorksheet(outName, {
+        state: wsIn.state,
+        views: wsIn.views ? wsIn.views.map(v => ({ ...v })) : undefined,
+        properties: wsIn.properties ? { ...wsIn.properties } : undefined,
+        pageSetup: wsIn.pageSetup ? { ...wsIn.pageSetup } : undefined,
+        headerFooter: wsIn.headerFooter ? { ...wsIn.headerFooter } : undefined
+      });
+
+      if (Array.isArray(wsIn.columns) && wsIn.columns.length) {
+        wsOut.columns = wsIn.columns.map(col => ({
+          key: col && col.key,
+          width: typeof col?.width === "number" ? col.width : undefined,
+          hidden: !!(col && col.hidden),
+          outlineLevel: col && col.outlineLevel,
+          style: col && col.style ? { ...col.style } : undefined
+        }));
+      } else {
+        const n = wsIn.columnCount || 1;
+        wsOut.columns = Array.from({ length: n }, () => ({ width: 12 }));
+      }
+
+      const maxRow = wsIn.rowCount || 0;
+      const maxCol = wsIn.columnCount || 0;
+
+      for (let r = 1; r <= maxRow; r++) {
+        const rowIn = wsIn.getRow(r);
+        const rowOut = wsOut.getRow(r);
+
+        if (typeof rowIn.height === "number") rowOut.height = rowIn.height;
+        if (rowIn.outlineLevel) rowOut.outlineLevel = rowIn.outlineLevel;
+
+        for (let c = 1; c <= maxCol; c++) {
+          const src = rowIn.getCell(c);
+          const dst = rowOut.getCell(c);
+
+          dst.value = src.value;
+          if (src.numFmt) dst.numFmt = src.numFmt;
+          if (src.alignment) dst.alignment = { ...src.alignment };
+          if (src.font) dst.font = { ...src.font };
+          if (src.fill) dst.fill = src.fill ? JSON.parse(JSON.stringify(src.fill)) : undefined;
+          if (src.border) dst.border = src.border ? JSON.parse(JSON.stringify(src.border)) : undefined;
+          if (src.protection) dst.protection = { ...src.protection };
+          if (src.hyperlink) dst.hyperlink = src.hyperlink;
+          if (src.note) dst.note = src.note;
+        }
+        if (typeof rowOut.commit === "function") rowOut.commit();
+      }
+
+      const mergeFromModel = wsIn && wsIn.model && wsIn.model.merges;
+      if (Array.isArray(mergeFromModel) && mergeFromModel.length) {
+        mergeFromModel.forEach(rng => {
+          try { wsOut.mergeCells(rng); } catch (e) {}
+        });
+      }
+      const mg = wsIn && wsIn._merges;
+      if (mg) {
+        if (typeof mg.forEach === "function") {
+          mg.forEach((_, key) => { try { wsOut.mergeCells(key); } catch (e) {} });
+        } else {
+          Object.keys(mg).forEach(k => { try { wsOut.mergeCells(k); } catch (e) {} });
+        }
+      }
+      return wsOut;
+    }
+
+    async function buildFilteredWorkbookForMissing(mode) {
+      if (!originalFileData) {
+        alert("원본 엑셀 데이터를 찾을 수 없습니다. 파일을 다시 불러와 주세요.");
+        return null;
+      }
+      if (!currentSheetName) {
+        alert("현재 분석 중인 시트를 찾을 수 없습니다.");
+        return null;
+      }
+
+      const missingIndexes = getMissingRowIndexes();
+      if (!missingIndexes.length) {
+        alert("결측치 이슈가 있는 행이 없습니다.");
+        return null;
+      }
+
+      if (!window.ExcelJS) {
+        alert("ExcelJS 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.");
+        return null;
+      }
+
+      const missingSet = new Set(missingIndexes);
+
+      const ejIn = new ExcelJS.Workbook();
+      try {
+        const buf = originalFileData.buffer.slice(
+          originalFileData.byteOffset,
+          originalFileData.byteOffset + originalFileData.byteLength
+        );
+        await ejIn.xlsx.load(buf);
+      } catch (e) {
+        console.error("ExcelJS 로드 오류:", e);
+        alert("원본 엑셀을 읽는 중 오류가 발생했습니다.");
+        return null;
+      }
+
+      const wsIn = ejIn.getWorksheet(currentSheetName) || ejIn.worksheets[0];
+      if (!wsIn) {
+        alert("원본 시트 정보를 읽을 수 없습니다.");
+        return null;
+      }
+
+      const ejOut = new ExcelJS.Workbook();
+      const wsOut = cloneWorksheetPreserve(ejOut, wsIn, wsIn.name || "sheet1");
+
+      const headerRowIndex1 = currentHeaderRowIndex != null ? currentHeaderRowIndex + 1 : 1;
+      const dataRowCount = currentDataRows.length;
+
+      const rowsToDelete = [];
+      for (let idx = 0; idx < dataRowCount; idx++) {
+        const isMissing = missingSet.has(idx);
+        const rowNumber = headerRowIndex1 + 1 + idx; // 1-based
+        if (mode === "only" && !isMissing) {
+          rowsToDelete.push(rowNumber);
+        }
+        if (mode === "removed" && isMissing) {
+          rowsToDelete.push(rowNumber);
+        }
+      }
+
+      rowsToDelete.sort((a, b) => b - a);
+      rowsToDelete.forEach(r => {
+        try {
+          wsOut.spliceRows(r, 1);
+        } catch (e) {
+          console.warn("행 삭제 중 오류(무시):", e);
+        }
+      });
+
+      return ejOut;
+    }
+// 결측치 있는 행만 엑셀로 내보내기
+    async function handleExportMissingOnly() {
+      if (!currentHeader || !currentDataRows || currentDataRows.length === 0) {
+        alert("먼저 파일을 불러와 품질 진단을 실행해 주세요.");
+        return;
+      }
+
+      const wbOut = await buildFilteredWorkbookForMissing("only");
+      if (!wbOut) return;
+
+      const baseName = currentFileName
+        ? currentFileName.replace(/\.xlsx?$/i, "")
+        : "quality_check";
+      const outName = baseName + "_결측행만.xlsx";
+
+      const buf = await wbOut.xlsx.writeBuffer();
+      await saveBlob(
+        outName,
+        new Blob([buf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        })
+      );
+    }
+
+    // 결측치 있는 행 삭제 후 엑셀로 내보내기
+    async function handleExportMissingRemoved() {
+      if (!currentHeader || !currentDataRows || currentDataRows.length === 0) {
+        alert("먼저 파일을 불러와 품질 진단을 실행해 주세요.");
+        return;
+      }
+
+      const wbOut = await buildFilteredWorkbookForMissing("removed");
+      if (!wbOut) return;
+
+      const baseName = currentFileName
+        ? currentFileName.replace(/\.xlsx?$/i, "")
+        : "quality_check";
+      const outName = baseName + "_결측행제거.xlsx";
+
+      const buf = await wbOut.xlsx.writeBuffer();
+      await saveBlob(
+        outName,
+        new Blob([buf], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        })
+      );
+    }
+
+function renderResultTable(columnStats) {
+      resultTableBody.innerHTML = "";
+
+      columnStats.forEach((col) => {
+        const tr = document.createElement("tr");
+
+        const tdIndex = document.createElement("td");
+        tdIndex.textContent = col.index;
+
+        const tdName = document.createElement("td");
+        tdName.textContent = col.name;
+
+        const tdType = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.classList.add("badge", col.inferredType);
+        let typeLabel = "텍스트";
+        if (col.inferredType === "numeric") typeLabel = "숫자";
+        if (col.inferredType === "date") typeLabel = "날짜";
+        badge.textContent = typeLabel;
+        tdType.appendChild(badge);
+
+        const tdMissing = document.createElement("td");
+        tdMissing.textContent = (col.missingRatio * 100).toFixed(1) + "%";
+
+        const tdUnique = document.createElement("td");
+        tdUnique.textContent = col.uniqueCount;
+
+        const tdIssues = document.createElement("td");
+        if (col.issues.length === 0) {
+          tdIssues.textContent = "특이사항 없음";
+        } else {
+          const issueBadge = document.createElement("span");
+          issueBadge.classList.add("badge", "badge-issue");
+          issueBadge.textContent = col.issues.join(" · ");
+          tdIssues.appendChild(issueBadge);
+        }
+
+        tr.appendChild(tdIndex);
+        tr.appendChild(tdName);
+        tr.appendChild(tdType);
+        tr.appendChild(tdMissing);
+        tr.appendChild(tdUnique);
+        tr.appendChild(tdIssues);
+
+        resultTableBody.appendChild(tr);
+      });
+    }
+
+    function renderIssues(columnStats) {
+      issueListEl.innerHTML = "";
+
+      const allIssues = [];
+
+      columnStats.forEach((col) => {
+        col.issues.forEach((issue) => {
+          allIssues.push(`열 ${col.index} (${col.name}) - ${issue}`);
+        });
+      });
+
+      if (allIssues.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "검출된 이슈가 없습니다. (기본적인 형식 체크 기준)";
+        issueListEl.appendChild(li);
+        return;
+      }
+
+      allIssues.forEach((txt) => {
+        const li = document.createElement("li");
+        li.textContent = txt;
+        issueListEl.appendChild(li);
+      });
+    }
+  
+  });
+</script>
+<div style="position:fixed; top:10px; right:10px; z-index:9999;">
+<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
+    사용가이드
+  </button>
+</div>
+<div id="usageGuideModal" style="
+  display:none;
+  position:fixed;
+  z-index:10000;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  max-width:720px;
+  width:90%;
+  max-height:80%;
+  background:#ffffff;
+  border-radius:6px;
+  box-shadow:0 18px 45px rgba(15,23,42,0.25);
+  padding:18px 22px;
+  box-sizing:border-box;
+  overflow:auto;
+  font-size:13px;
+  line-height:1.6;
+">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<h2 style="margin:0; font-size:16px;">데이터 품질 점검 도구 사용 가이드</h2>
+<button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
+</div>
+<div class="usage-guide-body">
+<p><strong>이 도구는 엑셀 데이터의 품질(결측치, 타입 오류 등)을 자동으로 점검하고 리포트를 만들어 줍니다.</strong></p>
+<ol>
+<li><strong>파일 불러오기</strong><br/>
+    - 품질을 점검할 엑셀 파일을 선택합니다.<br/>
+    - 여러 시트가 있는 경우, 분석할 시트를 선택할 수 있습니다.
+  </li>
+<li><strong>헤더(열 이름) 행 확인</strong><br/>
+    - 자동으로 감지된 헤더 행 번호를 확인합니다.<br/>
+    - 열 이름이 제대로 잡히지 않았다면 행 번호를 조정한 뒤 다시 분석합니다.
+  </li>
+<li><strong>품질 진단 실행</strong><br/>
+    - “품질 진단” 또는 이에 해당하는 분석 버튼을 눌러 점검을 실행합니다.<br/>
+    - 각 열에 대해 다음과 같은 정보를 확인할 수 있습니다.<br/>
+      · 결측값 비율<br/>
+      · 추정 데이터 타입(숫자/날짜/텍스트)<br/>
+      · 타입 오류 개수, 날짜 형식 오류 개수 등
+  </li>
+<li><strong>이슈 행/요약 리포트 활용</strong><br/>
+    - “이슈 행만 엑셀로 내보내기”: 품질 이슈가 있는 행만 따로 저장합니다.<br/>
+    - “열별 이슈 요약 내보내기”: 열 단위로 품질 상태를 정리한 리포트를 생성합니다.<br/>
+    - <em>파일명 예시:</em> <code>원본명_품질진단.xlsx</code> 으로 저장됩니다.
+  </li>
+<li><strong>결측치 처리용 엑셀 만들기</strong><br/>
+    - “결측 행만 내보내기”: 결측치가 있는 행만 모은 엑셀을 생성합니다.<br/>
+    - “결측 행 제거 후 내보내기”: 결측치가 있는 행을 제거한 버전을 만듭니다.<br/>
+    - 이 파일들을 활용해 후속 정제 작업을 진행할 수 있습니다.
+  </li>
+</ol>
+<p><strong>Tip.</strong> 품질 진단 리포트는 데이터 상태를 한눈에 보여주는 요약 보고서입니다. 분석이나 보고서 작성 전에 먼저 품질 진단을 통해 데이터 신뢰도를 확인하세요.</p>
+</div>
+</div>
+<script>
+(function() {
+  const btn = document.getElementById('usageGuideBtn');
+  const modal = document.getElementById('usageGuideModal');
+  const closeBtn = modal ? modal.querySelector('.usage-guide-close') : null;
+  if (btn && modal) {
+    btn.addEventListener('click', () => {
+      modal.style.display = 'block';
+    });
+  }
+  if (closeBtn && modal) {
+    const close = () => { modal.style.display = 'none'; };
+    closeBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>형태 변환·언피벗 도구(v1.2)</title>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<!-- 폰트 (Pretendard) -->
+<link href="https://cdn.jsdelivr.net" rel="preconnect"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+<!-- 라이브러리: SheetJS, ExcelJS -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --bg:#f8fbff;
+    --card:#ffffff;
+    --text:#1f2a44;
+    --muted:#6e7aa6;
+    --brand:#4b7cf3;
+    --brand-soft:#e8f0ff;
+    --accent:#ff9f1c;
+    --border:#e6edff;
+    --radius-lg:6px;
+    --shadow-soft:0 10px 24px rgba(75,124,243,.06);
+  }
+
+  *{
+    box-sizing:border-box;
+  }
+
+  body{
+    margin:0;
+    font-family: Pretendard, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Apple SD Gothic Neo", "Noto Sans KR",
+      "Malgun Gothic", sans-serif;
+    background:linear-gradient(180deg,#f7fbff 0%,#fafdff 100%);
+    color:var(--text);
+  }
+
+  /* 레이아웃 */
+
+  .app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .app-header{
+    padding:24px 16px 8px;
+    text-align:center;
+  }
+
+  .logo{
+    font-size:24px;
+    font-weight:800;
+  }
+
+  .subtitle{
+    color:var(--muted);
+    margin-top:6px;
+    font-size:13px;
+  }
+
+  .container{
+    max-width:1100px;
+    margin:0 auto;
+    padding:0 16px 24px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    align-items:center; /* 카드들을 가운데 정렬 */
+  }
+
+  /* 카드 공통 */
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-soft);
+    padding:18px 18px 16px;
+    width:50vw;          /* 화면의 절반 정도 */
+    max-width:900px;     /* 너무 넓어지지 않도록 상한 */
+    min-width:360px;     /* 너무 좁지 않게 하한 */
+  }
+
+  .section-title{
+    margin:0 0 10px;
+    font-size:16px;
+    font-weight:700;
+  }
+
+  /* 파일 업로드 */
+
+  .upload-section{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .file-label{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .file-label input{
+    display:none;
+  }
+
+  .file-button{
+    background:var(--brand);
+    color:#fff;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+    border:0;
+    box-shadow:0 6px 16px rgba(75,124,243,.25);
+    font-size:13px;
+  }
+
+  .file-button:hover{
+    filter:brightness(.97);
+  }
+
+  .file-hint{
+    color:var(--muted);
+    font-size:12px;
+  }
+
+  .hint{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* 시트 / 헤더 선택 */
+
+  .sheet-section .sheet-select-wrapper{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+  }
+
+  .sheet-select-wrapper label{
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  .sheet-select-wrapper select,
+  .sheet-select-wrapper input[type="number"]{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+    outline:none;
+  }
+
+  .sheet-select-wrapper button{
+    padding:6px 14px;
+    border-radius:6px;
+    border:0;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    background:var(--brand);
+    color:#fff;
+    box-shadow:0 4px 10px rgba(75,124,243,.3);
+  }
+
+  /* 분석 설정 */
+
+  .config-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:14px;
+    margin-top:4px;
+  }
+
+  .config-grid h3{
+    margin:0 0 4px;
+    font-size:14px;
+  }
+
+  /* 체크박스 리스트 전체 폭 고정 */
+  .checkbox-list{
+    border-radius:6px;
+    border:1px solid var(--border);
+    padding:8px 10px;
+    max-height:200px;
+    overflow-y:auto;
+    background:#f8f9ff;
+    width:100%;
+  }
+
+  .checkbox-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:13px;
+    padding:2px 0;
+    cursor:pointer;
+  }
+
+  .checkbox-item input{
+    margin:0;
+  }
+
+  /* 필터 블록 */
+
+  .filter-block{
+    margin-top:12px;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#fff;
+  }
+
+  .filter-block h3{
+    margin:0 0 4px;
+    font-size:14px;
+  }
+
+  .filter-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:4px;
+  }
+
+  .filter-row select,
+  .filter-row input[type="text"]{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+  }
+
+  .filter-enable-label{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* 버튼 */
+
+  .primary-btn{
+    margin-top:12px;
+    padding:8px 16px;
+    border-radius:6px;
+    border:0;
+    font-size:13px;
+    font-weight:800;
+    cursor:pointer;
+    background:var(--accent);
+    color:#fff;
+    box-shadow:0 6px 16px rgba(255,159,28,.4);
+  }
+
+  .primary-btn:hover{
+    filter:brightness(.97);
+  }
+
+  .secondary-btn{
+    padding:6px 12px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#fff;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    color:var(--text);
+  }
+
+  .secondary-btn:hover{
+    background:var(--brand-soft);
+  }
+
+  /* 표 */
+
+  .table-wrapper{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+
+  thead{
+    background:#f0f3ff;
+  }
+
+  th,td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    text-align:right;
+  }
+
+  th:first-child,
+  td:first-child{
+    text-align:left;
+  }
+
+  tr:nth-child(even) td{
+    background:#fafbff;
+  }
+
+  /* 섹션 상단 (제목 + 버튼) */
+
+  .section-header-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    margin-bottom:6px;
+  }
+
+  /* 차트 영역 */
+
+  .detail-section h2{
+    margin-bottom:8px;
+  }
+
+  .chart-header{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-end;
+    gap:10px;
+    margin-bottom:10px;
+  }
+
+  .chart-control{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .chart-control label{
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  .chart-control select{
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#f8f9ff;
+    font-size:13px;
+  }
+
+  /* 그룹 필터 */
+
+  .chart-filter{
+    margin-bottom:8px;
+  }
+
+  .chart-filter-title-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:4px;
+  }
+
+  .chart-filter-toggle-all{
+    padding:4px 10px;
+    font-size:11px;
+  }
+
+  .chart-filter-title{
+    font-size:12px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:4px;
+  }
+
+  .chart-checkbox-list{
+    max-height:120px;
+  }
+
+  /* 값 표시 체크 */
+
+  .chart-toggle{
+    margin-bottom:6px;
+  }
+
+  .chart-toggle label{
+    font-size:12px;
+    color:var(--muted);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  /* 차트 캔버스 : 카드 폭과 동일하게 */
+
+  .chart-wrapper{
+    width:100%;
+    height:320px;
+  }
+
+  /* footer */
+
+  .app-footer{
+    text-align:center;
+    color:#9aa7d1;
+    font-size:12px;
+    padding:12px 16px 20px;
+  }
+
+  /* 공통 */
+
+  .hidden{
+    display:none;
+  }
+
+  /* 모바일 */
+
+  @media (max-width: 768px){
+    .card{
+      width:100%;
+      max-width:100%;
+      min-width:0;
+    }
+  }
+
+/* ──────────────────────────────
+   전북교육청 통일 테마 오버라이드 (내부 도구 공통)
+   - 기능에는 영향을 주지 않고, 색상/여백/타이포만 맞춤
+   ────────────────────────────── */
+:root{
+  --bg:#ffffff;
+  --card:#ffffff;
+  --text:#222222;
+  --muted:#6b7280;
+  --brand:#0056b8;
+  --brand-weak:#e4effb;
+  --border:#d4dbe8;
+}
+
+html, body{
+  height:100%;
+}
+
+body{
+  margin:0;
+  background:#ffffff;
+  color:var(--text);
+  font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+}
+
+/* 상단 헤더 공통 정리 */
+.app-header{
+  padding:20px 16px 12px;
+  margin:0 0 16px;
+  border-bottom:1px solid var(--border);
+  background:#ffffff;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  margin:0;
+  font-size:18px;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  color:#111827;
+}
+
+.app-header .subtitle,
+.app-header p,
+.app-header-description{
+  margin-top:4px;
+  font-size:13px;
+  line-height:1.5;
+  color:var(--muted);
+}
+
+/* 카드/섹션 공통 */
+.card,
+.section-card,
+.panel,
+.box{
+  background:#ffffff;
+  border:1px solid var(--border);
+  border-radius:6px;
+  box-shadow:none;
+}
+
+.section-title,
+.card-title,
+.box-title{
+  margin:0 0 8px;
+  font-size:18px;
+  font-weight:600;
+  color:#111827;
+}
+
+.section-desc,
+.card-desc,
+.box-desc{
+  margin:0 0 10px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* 버튼 공통 */
+button,
+.btn,
+.primary-btn,
+.btn-primary{
+  font-family:inherit;
+}
+
+.btn-primary,
+.primary-btn{
+  background:var(--brand);
+  color:#ffffff;
+  border:1px solid var(--brand);
+  border-radius:6px;
+  padding:8px 14px;
+}
+
+.btn-primary:hover,
+.primary-btn:hover{
+  background:#00479a;
+}
+
+/* 입력 요소 공통 */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+input[type="search"],
+select,
+textarea{
+  font-family:inherit;
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+
+/* 제목 여백 차이 줄이기 (학교명 표준화 등) */
+.app-header-icon{
+  margin-bottom:4px;
+}
+.app-header h1{
+  margin-top:0;
+}
+
+
+/* ── 전북교육청 통일 헤더 테마 (추가 오버라이드) ── */
+html, body{
+  background:#ffffff !important;
+}
+
+.app-header{
+  background:#ffffff !important;
+  padding:20px 16px 12px !important;
+  margin:0 0 16px !important;
+  border-bottom:1px solid #d4dbe8 !important;
+}
+
+.app-header h1,
+.app-header .logo,
+.app-header-title{
+  font-size:24px !important;
+  font-weight:600 !important;
+  letter-spacing:-0.02em;
+  margin:0 !important;
+  color:#111827 !important;
+}
+
+.app-header p,
+.app-header .subtitle,
+.app-header-description{
+  margin-top:4px !important;
+  font-size:13px !important;
+  color:#6b7280 !important;
+}
+
+
+/* 제목 하단 구분선 제거 (전 탭 공통) */
+.app-header{
+  border-bottom:none !important;
+  box-shadow:none !important;
+}
+
+/* 모든 탭 제목 높이 통일 */
+.app-header{
+  padding:20px 0 8px !important;
+  margin:0 auto 8px !important;
+  text-align:center !important;
+}
+
+  .group-options {
+    margin: 8px 0 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #f2f4ff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .group-options-label {
+    font-weight: 600;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .group-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .group-options input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+  }
+
+  .inline-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .field {
+    flex: 1 1 0;
+    min-width: 120px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .small {
+    font-size: 12px;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
+  .mt-8 {
+    margin-top: 8px;
+  }
+
+  .inline-fields select {
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    outline: none;
+    background: #ffffff;
+  }
+
+  .step-row{
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+    margin-top:16px;
+    width:100%;
+  }
+
+  .step-card{
+    flex:1 1 0;
+    min-width:0;
+  }
+
+  @media (max-width:900px){
+    .step-row{
+      flex-direction:column;
+    }
+  }
+
+</style>
+</head>
+<body>
+<div style="position:fixed; top:10px; right:10px; z-index:9999;">
+<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
+      사용가이드
+    </button>
+</div>
+<div class="app">
+<header class="app-header">
+<div class="logo">🔄 형태 변환·언피벗 도구(v1.2)</div>
+<div class="subtitle">
+        넓은 가로형 엑셀 표를 분석에 적합한 세로형(UNPIVOT) 구조로 바꾸는 도구입니다.
+      </div>
+</header>
+<main class="container">
+<!-- 왼쪽: 설정 영역 -->
+<div class="step-row">
+<section class="card upload-section step-card">
+<h2 class="section-title">1. 대상 데이터 파일 업로드</h2>
+<div class="row">
+<label class="field-label" for="upFileInput"></label>
+<label class="file-label">
+<input accept=".xlsx,.xls,.csv" id="upFileInput" type="file"/>
+<span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
+</label>
+</div>
+<div class="inline-fields">
+<div class="field">
+<label for="upSheetSelect">시트 선택</label>
+<select disabled="" id="upSheetSelect">
+<option value="">파일을 먼저 선택하세요</option>
+</select>
+</div>
+<div class="field">
+<label for="upHeaderRow">헤더 행 선택</label>
+<select disabled="" id="upHeaderRow">
+<option value="-1">헤더 없음 (모든 행 데이터)</option>
+</select>
+<p class="small muted mt-8">
+</p>
+</div>
+</div>
+<div class="row">
+<div class="field-label">고정 열 선택 <span class="badge-mini">필수</span></div>
+<div class="chip-group" id="fixedColumns">
+<p class="helper-text">엑셀 파일을 불러오면 선택 가능한 열 목록이 여기에 표시됩니다.</p>
+</div>
+<p class="helper-text">
+            선택한 열은 행마다 그대로 유지되며, 선택하지 않은 열이 세로 방향으로 펼쳐집니다.
+          </p>
+</div>
+<div class="button-row">
+<button class="secondary-btn" id="previewSourceBtn" type="button">원본 미리보기</button>
+<button class="primary-btn" id="runUnpivotBtn" type="button">언피벗 실행</button>
+<button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
+<button class="secondary-btn" disabled="" id="downloadResultBtn" type="button">결과 엑셀 다운로드</button>
+</div>
+<p class="status-text" id="upStatus"></p>
+</section>
+<!-- 오른쪽: 미리보기 영역 -->
+<section class="card result-section step-card">
+<div class="section-header-row">
+<h2 class="section-title">2. 결과 미리보기</h2>
+</div>
+<div class="subsection">
+<div class="subsection-header">
+<h3 class="subsection-title">언피벗 결과 미리보기 (상위 200행)</h3>
+</div>
+<div class="table-wrapper" id="unpivotTableWrapper">
+<table id="unpivotTable">
+<thead></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+<div class="subsection">
+<div class="subsection-header">
+<h3 class="subsection-title">원본 데이터 일부 미리보기</h3>
+<p class="subsection-desc">시트와 헤더 설정이 올바른지 확인할 수 있습니다.</p>
+</div>
+<div class="table-wrapper" id="sourceTableWrapper">
+<table id="sourceTable">
+<thead></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+<div id="usageGuideModal" style="
+    display:none;
+    position:fixed;
+    z-index:10000;
+    left:50%;
+    top:50%;
+    transform:translate(-50%, -50%);
+    max-width:720px;
+    width:90%;
+    max-height:80%;
+    background:#ffffff;
+    border-radius:6px;
+    box-shadow:0 18px 45px rgba(15,23,42,0.25);
+    padding:18px 22px;
+    box-sizing:border-box;
+    overflow:auto;
+    font-size:13px;
+    line-height:1.6;
+  ">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<h2 style="margin:0; font-size:16px;">
+        형태 변환·언피벗 도구 사용 가이드
+      </h2>
+<button class="usage-guide-close" style="
+        padding:4px 12px;
+        font-size:12px;
+        cursor:pointer;
+        border-radius:6px;
+        border:1px solid #cbd5e1;
+        background:#f9fafb;
+        color:#334155;
+      " type="button">
+        닫기
+      </button>
+</div>
+<div class="usage-guide-body">
+<p><strong>
+        이 도구는 가로로 펼쳐진 엑셀 데이터를 세로 형태(언피벗)로 바꿔,
+        분석·집계에 쓰기 좋은 구조로 변환해 주는 도구입니다.
+      </strong></p>
+<ol>
+<li><strong>원본 엑셀 파일 불러오기</strong><br/>
+          - “엑셀 파일 선택” 버튼을 눌러 언피벗할 엑셀 파일을 업로드합니다.<br/>
+          - 시트를 선택한 뒤, <strong>헤더 행</strong>이 맞는지 확인합니다. (열 이름 행)<br/>
+          - 헤더가 없으면 “헤더 없음”을 선택하고, 모든 행을 데이터로 사용할 수 있습니다.
+        </li>
+<li><strong>고정 열 / 언피벗 대상 열 선택</strong><br/>
+          - 언피벗 후에도 그대로 남길 열(예: 학번, 이름, 학교명 등)을 <strong>고정 열</strong>로 선택합니다.<br/>
+          - 점수, 인원수처럼 가로로 여러 열로 있는 값들은 <strong>언피벗 대상 열</strong>로 둡니다.<br/>
+          - 언피벗 실행 시, 고정 열은 그대로 보존되고, 선택된 열들이
+            <code>항목명 열</code>과 <code>값 열</code> 두 열로 길게 펼쳐집니다.
+        </li>
+<li><strong>언피벗 실행 및 결과 확인</strong><br/>
+          - “언피벗 실행” 버튼을 누르면, 선택한 설정에 따라 데이터가 변환됩니다.<br/>
+          - 결과 미리보기 표에서 <strong>고정 열</strong>, <strong>항목명</strong>, <strong>값</strong> 구조로 잘 변환되었는지 확인합니다.<br/>
+          - 값이 없는 셀(빈 칸)은 기본적으로 결과에서 제외됩니다.
+        </li>
+<li><strong>결과 엑셀로 저장</strong><br/>
+          - “언피벗 결과 엑셀 다운로드” 버튼을 눌러 결과를 저장합니다.<br/>
+          - <em>파일명 예시:</em> <code>원본파일명_unpivot.xlsx</code> 와 같이 저장되도록 설정할 수 있습니다.<br/>
+          - 저장된 파일은 이후 통계 요약 리포트, 피벗 테이블, 그래프 작성 등에 바로 활용할 수 있습니다.
+        </li>
+</ol>
+<p><strong>Tip.</strong> 언피벗 전에, 같은 의미의 열이 여러 개 섞여 있거나
+        열 이름이 모호하다면 먼저 열 이름을 정리해 두는 것이 좋습니다.
+        (예: “1학년 점수”, “2학년 점수”처럼 규칙적인 이름일수록 언피벗 후 해석이 쉬워집니다.)
+      </p>
+</div>
+</div>
+<script>
+    let workbook = null;
+    let sheetDataMap = {};
+    let currentSheetName = null;
+    let unpivotResult = [];
+
+    const upFileInput = document.getElementById("upFileInput");
+    const upSheetSelect = document.getElementById("upSheetSelect");
+    const upHeaderRowInput = document.getElementById("upHeaderRow");
+    const fixedColumnsContainer = document.getElementById("fixedColumns");
+    const previewSourceBtn = document.getElementById("previewSourceBtn");
+    const runUnpivotBtn = document.getElementById("runUnpivotBtn");
+    const downloadResultBtn = document.getElementById("downloadResultBtn");
+    const upStatus = document.getElementById("upStatus");
+
+    const sourceTable = document.getElementById("sourceTable");
+    const unpivotTable = document.getElementById("unpivotTable");
+
+    upFileInput.addEventListener("change", handleFileSelect);
+    upSheetSelect.addEventListener("change", handleSheetChange);
+    upHeaderRowInput.addEventListener("change", handleHeaderChange);
+    previewSourceBtn.addEventListener("click", () => renderSourcePreview());
+    runUnpivotBtn.addEventListener("click", runUnpivot);
+    downloadResultBtn.addEventListener("click", downloadResultAsExcel);
+
+    function setStatus(message) {
+      upStatus.textContent = message || "";
+    }
+
+    function handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      setStatus("엑셀 파일을 불러오는 중입니다...");
+      const reader = new FileReader();
+      reader.onload = function (ev) {
+        try {
+          const data = new Uint8Array(ev.target.result);
+          workbook = XLSX.read(data, { type: "array" });
+          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+            alert("시트가 존재하지 않습니다.");
+            return;
+          }
+
+          sheetDataMap = {};
+          workbook.SheetNames.forEach((sheetName) => {
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+            sheetDataMap[sheetName] = rows;
+          });
+
+          initSheetSelect(workbook.SheetNames);
+          const firstSheetName = workbook.SheetNames[0];
+          currentSheetName = firstSheetName;
+          upSheetSelect.value = firstSheetName;
+
+          // 이전 언피벗 결과/미리보기 초기화
+          unpivotResult = [];
+          downloadResultBtn.disabled = true;
+          if (unpivotTable) {
+            const upThead = unpivotTable.querySelector("thead");
+            const upTbody = unpivotTable.querySelector("tbody");
+            if (upThead) upThead.innerHTML = "";
+            if (upTbody) upTbody.innerHTML = "";
+          }
+
+          autoDetectHeaderRow();
+          updateFixedColumns();
+          renderSourcePreview();
+
+          setStatus("파일을 불러왔습니다. 시트, 헤더, 고정 열을 확인한 후 언피벗을 실행하세요.");
+        } catch (err) {
+          console.error(err);
+          alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
+          setStatus("파일을 불러오는 데 실패했습니다.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function initSheetSelect(sheetNames) {
+      upSheetSelect.innerHTML = "";
+      sheetNames.forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        upSheetSelect.appendChild(option);
+      });
+      upSheetSelect.disabled = false;
+    }
+
+    function handleSheetChange() {
+      currentSheetName = upSheetSelect.value;
+
+      // 시트를 바꾸면 이전 언피벗 결과/미리보기를 초기화
+      unpivotResult = [];
+      downloadResultBtn.disabled = true;
+      if (unpivotTable) {
+        const upThead = unpivotTable.querySelector("thead");
+        const upTbody = unpivotTable.querySelector("tbody");
+        if (upThead) upThead.innerHTML = "";
+        if (upTbody) upTbody.innerHTML = "";
+      }
+
+      autoDetectHeaderRow();
+      updateFixedColumns();
+      renderSourcePreview();
+      setStatus(currentSheetName + " 시트가 선택되었습니다.");
+    }
+
+    function getCurrentSheetRows() {
+      if (!currentSheetName) return [];
+      return sheetDataMap[currentSheetName] || [];
+    }
+
+    
+    function autoDetectHeaderRow() {
+      const rows = getCurrentSheetRows();
+      // 초기화: 옵션 비우고 "헤더 없음" 기본 옵션 추가
+      upHeaderRowInput.innerHTML = "";
+      const optNone = document.createElement("option");
+      optNone.value = "-1";
+      optNone.textContent = "헤더 없음 (모든 행 데이터)";
+      upHeaderRowInput.appendChild(optNone);
+
+      if (!rows || rows.length === 0) {
+        upHeaderRowInput.disabled = true;
+        return;
+      }
+
+      // 학교명 표준화 도구와 동일한 방식으로 헤더 행 추정
+      const headerRowIndexZero = findHeaderRowIndex(rows);
+
+      const max = Math.min(rows.length, 50);
+
+      // 각 행 미리보기 텍스트를 포함한 옵션 생성
+      for (let i = 0; i < max; i++) {
+        const row = rows[i] || [];
+        const preview = row
+          .slice(0, 4)
+          .map((c) => (c !== undefined && c !== null ? String(c) : ""))
+          .join(" / ");
+
+        const opt = document.createElement("option");
+        // 셀 선택은 1-based로 표시 (엑셀 행 번호와 맞추기)
+        opt.value = String(i + 1);
+        opt.textContent = `${i + 1}행 - ${preview || "내용 없음"}`;
+        upHeaderRowInput.appendChild(opt);
+      }
+
+      upHeaderRowInput.disabled = false;
+      // 자동으로 추정한 헤더 행을 선택
+      upHeaderRowInput.value = String(headerRowIndexZero + 1);
+    }
+
+
+    // 헤더 행 자동 추정을 위한 보조 함수 (학교명 표준화 도구 로직 참고)
+    function findHeaderRowIndex(rows) {
+      if (!rows || rows.length === 0) return 0;
+
+      const containsKeyword = (cell, keywords) => {
+        if (cell === undefined || cell === null) return false;
+        let s = String(cell).replace(/\s+/g, "").toLowerCase();
+        return keywords.some((k) => s.includes(k));
+      };
+
+      let headerIdx = -1;
+      const maxRows = Math.min(rows.length, 50);
+
+      for (let i = 0; i < maxRows; i++) {
+        const row = rows[i] || [];
+        const hasNonEmpty = row.some(
+          (c) => c !== undefined && c !== null && String(c).trim() !== ""
+        );
+        if (!hasNonEmpty) continue;
+
+        const hasHeaderKeyword = row.some((c) =>
+          containsKeyword(c, ["학교명", "학교 명", "학교코드", "학교 코드"])
+        );
+
+        if (hasHeaderKeyword) {
+          headerIdx = i;
+          break;
+        }
+
+        if (headerIdx === -1) {
+          headerIdx = i;
+        }
+      }
+
+      if (headerIdx === -1) headerIdx = 0;
+      return headerIdx;
+    }
+    function handleHeaderChange() {
+      updateFixedColumns();
+      renderSourcePreview();
+    }
+
+    
+    function getHeaderAndDataRows() {
+      const rows = getCurrentSheetRows();
+      if (!rows || rows.length === 0) return { header: [], dataRows: [] };
+
+      let headerValue = parseInt(upHeaderRowInput.value, 10);
+      if (isNaN(headerValue)) headerValue = -1;
+
+      // 헤더 없음: 모든 행을 데이터로 사용하고, 열 이름은 "열1", "열2" 형태로 생성
+      if (headerValue === -1) {
+        const maxCols = rows.reduce(
+          (acc, r) => Math.max(acc, (r || []).length),
+          0
+        );
+        const header = Array.from({ length: maxCols }, (_, idx) => "열" + (idx + 1));
+        const dataRows = rows.slice();
+        return { header, dataRows };
+      }
+
+      // 일반적인 경우: 선택한 행(1-based)을 헤더로 사용
+      if (headerValue < 1) headerValue = 1;
+      const headerIndexZero = headerValue - 1;
+      const safeIndex = Math.min(headerIndexZero, rows.length - 1);
+
+      const header = (rows[safeIndex] || []).map(
+        (v, idx) => v || "열" + (idx + 1)
+      );
+      const dataRows = rows.slice(safeIndex + 1);
+      return { header, dataRows };
+    }
+
+
+    function updateFixedColumns() {
+      const { header } = getHeaderAndDataRows();
+      fixedColumnsContainer.innerHTML = "";
+
+      if (!header || header.length === 0) {
+        const p = document.createElement("p");
+        p.className = "helper-text";
+        p.textContent = "헤더 행을 찾을 수 없습니다. 헤더 행 번호를 다시 확인해주세요.";
+        fixedColumnsContainer.appendChild(p);
+        return;
+      }
+
+      header.forEach((colName, idx) => {
+        const label = document.createElement("label");
+        label.className = "chip";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = idx;
+
+        // 앞의 1~2개 열은 기본 고정 열로 선택
+        if (idx < 2) checkbox.checked = true;
+
+        const span = document.createElement("span");
+        span.textContent = colName;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        fixedColumnsContainer.appendChild(label);
+      });
+    }
+
+    function renderSourcePreview() {
+      const { header, dataRows } = getHeaderAndDataRows();
+      renderTable(sourceTable, header, dataRows.slice(0, 50));
+    }
+
+    function runUnpivot() {
+      const { header, dataRows } = getHeaderAndDataRows();
+      if (!header || header.length === 0) {
+        alert("헤더 정보를 찾을 수 없습니다. 파일과 헤더 행을 확인해주세요.");
+        return;
+      }
+
+      const checkboxes = fixedColumnsContainer.querySelectorAll("input[type=\"checkbox\"]");
+      const fixedIndexes = [];
+      checkboxes.forEach((cb) => {
+        if (cb.checked) fixedIndexes.push(parseInt(cb.value, 10));
+      });
+
+      if (fixedIndexes.length === 0) {
+        alert("최소 1개 이상의 고정 열을 선택해주세요.");
+        return;
+      }
+
+      const unpivotHeaders = [];
+      fixedIndexes.forEach((idx) => {
+        unpivotHeaders.push(header[idx]);
+      });
+      unpivotHeaders.push("항목");
+      unpivotHeaders.push("값");
+
+      const resultRows = [];
+
+      dataRows.forEach((row) => {
+        const baseValues = fixedIndexes.map((idx) => row[idx] ?? "");
+        header.forEach((colName, colIdx) => {
+          if (fixedIndexes.includes(colIdx)) return;
+          const value = row[colIdx];
+          if (value === null || value === undefined || String(value).trim() === "") return; // skip empty
+          const newRow = [...baseValues, colName, value];
+          resultRows.push(newRow);
+        });
+      });
+
+      if (resultRows.length === 0) {
+        alert("언피벗 결과가 없습니다. 고정 열/데이터를 다시 확인해주세요.");
+        return;
+      }
+
+      unpivotResult = [unpivotHeaders, ...resultRows];
+      renderTable(unpivotTable, unpivotHeaders, resultRows.slice(0, 200));
+      downloadResultBtn.disabled = false;
+      setStatus("언피벗이 완료되었습니다. 결과 엑셀 파일로 다운로드할 수 있습니다.");
+    }
+
+    function renderTable(tableEl, header, rows) {
+      const thead = tableEl.querySelector("thead");
+      const tbody = tableEl.querySelector("tbody");
+      thead.innerHTML = "";
+      tbody.innerHTML = "";
+
+      if (!header || header.length === 0) return;
+
+      const trHead = document.createElement("tr");
+      header.forEach((h) => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
+
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        header.forEach((_, idx) => {
+          const td = document.createElement("td");
+          td.textContent = row[idx] != null ? row[idx] : "";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function downloadResultAsExcel() {
+      if (!unpivotResult || unpivotResult.length === 0) {
+        alert("다운로드할 언피벗 결과가 없습니다.");
+        return;
+      }
+
+      try {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("UNPIVOT_RESULT");
+
+        unpivotResult.forEach((row, rowIndex) => {
+          // 첫 행(헤더)은 그대로 쓰고, 데이터 행은 숫자 모양의 값은 숫자로 변환
+          if (rowIndex === 0) {
+            ws.addRow(row);
+          } else {
+            const converted = row.map((v, colIndex) => {
+              // 여기서는 마지막 열(값 열)을 우선적으로 숫자로 시도 변환
+              if (colIndex === row.length - 1 && typeof v === "string") {
+                const trimmed = v.trim().replace(/,/g, "");
+                if (trimmed !== "" && !isNaN(trimmed)) {
+                  return Number(trimmed);
+                }
+              }
+              return v;
+            });
+            ws.addRow(converted);
+          }
+        });
+
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "unpivot_result.xlsx";
+        a.click();
+
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error(err);
+        alert("엑셀 파일로 저장하는 중 오류가 발생했습니다.");
+      }
+    }
+  
+  // 사용 가이드 모달 제어
+  (function () {
+    const btn = document.getElementById("usageGuideBtn");
+    const modal = document.getElementById("usageGuideModal");
+    const closeBtn = modal ? modal.querySelector(".usage-guide-close") : null;
+
+    if (btn && modal) {
+      btn.addEventListener("click", () => {
+        modal.style.display = "block";
+      });
+    }
+
+    function close() {
+      if (modal) modal.style.display = "none";
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", close);
+    }
+
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) close();
+      });
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "id": "excel_quality_checker",
+  "name": "데이터 품질 점검",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "엑셀 데이터 품질을 점검하는 도구",
+  "order": 40,
+  "enabled": true,
+  "version": "1.2.0",
+  "keywords": []
+}

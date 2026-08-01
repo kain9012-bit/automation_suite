@@ -1,0 +1,14 @@
+{
+  "id": "empty_folder_cleaner",
+  "name": "빈 폴더 정리",
+  "top_tab": "업무 자동화",
+  "type": "internal_python",
+  "entry": "services/empty_folder_cleaner_service.py",
+  "icon": "",
+  "description": "선택한 폴더 아래의 빈 폴더를 찾아 확인 후 정리합니다.",
+  "order": 24,
+  "enabled": true,
+  "version": "2.1.0",
+  "keywords": ["빈 폴더", "폴더 정리", "삭제"]
+}
+

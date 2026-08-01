@@ -1,0 +1,13 @@
+{
+  "id": "hwp_to_pdf_converter",
+  "name": "한글→PDF 변환",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "hwp_to_pdf_converter_entry.py",
+  "icon": "",
+  "description": "HWP/HWPX 파일을 PDF로 일괄 변환합니다.",
+  "order": 40,
+  "enabled": true,
+  "version": "2.2.0",
+  "keywords": []
+}

@@ -1,0 +1,13 @@
+{
+  "id": "excel_split",
+  "name": "엑셀 분할",
+  "top_tab": "엑셀·데이터",
+  "type": "internal_python",
+  "entry": "excel_split_entry.py",
+  "icon": "assets/icon.png",
+  "description": "하나의 엑셀 파일을 여러 파일로 분할하는 도구",
+  "order": 20,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": []
+}

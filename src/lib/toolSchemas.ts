@@ -1,0 +1,272 @@
+import { extraToolSchemas } from "./toolSchemasExtras";
+
+export interface Choice {
+  label: string;
+  value: string;
+}
+
+export interface ToolField {
+  key: string;
+  label: string;
+  type: "text" | "number" | "select" | "checkbox";
+  defaultValue?: string | number | boolean;
+  placeholder?: string;
+  choices?: Choice[];
+}
+
+export interface ToolUiSchema {
+  inputMode: "file" | "folder" | "none";
+  inputLabel: string;
+  multiple: boolean;
+  extensions?: string[];
+  outputMode: "file" | "folder" | "hidden";
+  outputLabel?: string;
+  outputExtension?: string;
+  fields?: ToolField[];
+  destructive?: boolean;
+}
+
+const defaultSchema: ToolUiSchema = {
+  inputMode: "file",
+  inputLabel: "처리할 파일을 선택하세요",
+  multiple: true,
+  outputMode: "file",
+  outputLabel: "저장할 파일",
+};
+
+const schemas: Record<string, Partial<ToolUiSchema>> = {
+  certificate_pdf_collector: {
+    extensions: ["pdf"],
+    outputLabel: "결과 엑셀 파일",
+    outputExtension: "xlsx",
+  },
+  file_inventory: {
+    inputMode: "folder",
+    inputLabel: "현황표를 만들 폴더를 선택하세요",
+    multiple: false,
+    outputLabel: "결과 엑셀 파일",
+    outputExtension: "xlsx",
+    fields: [
+      { key: "recursive", label: "하위 폴더 포함", type: "checkbox", defaultValue: true },
+      {
+        key: "target_mode",
+        label: "포함 대상",
+        type: "select",
+        defaultValue: "파일+폴더",
+        choices: [
+          { label: "파일과 폴더", value: "파일+폴더" },
+          { label: "파일만", value: "파일만" },
+          { label: "폴더만", value: "폴더만" },
+        ],
+      },
+      {
+        key: "extensions",
+        label: "확장자 필터",
+        type: "text",
+        placeholder: "예: pdf, xlsx, hwpx (비우면 전체)",
+      },
+      {
+        key: "exclude_office_temp",
+        label: "Office 임시 파일 제외",
+        type: "checkbox",
+        defaultValue: true,
+      },
+    ],
+  },
+  folder_unpacker: {
+    inputMode: "folder",
+    inputLabel: "파일을 꺼낼 폴더를 선택하세요",
+    multiple: true,
+    outputMode: "hidden",
+    destructive: true,
+    fields: [
+      { key: "recursive", label: "하위 폴더 포함", type: "checkbox", defaultValue: true },
+      {
+        key: "prefix_folder",
+        label: "파일명 앞에 폴더명 붙이기",
+        type: "checkbox",
+        defaultValue: false,
+      },
+    ],
+  },
+  hwp_collector: {
+    extensions: ["hwp", "hwpx"],
+    outputLabel: "취합할 한글 파일",
+    outputExtension: "hwpx",
+  },
+  hwp_to_hwpx_converter: {
+    extensions: ["hwp"],
+    outputMode: "hidden",
+    fields: [
+      {
+        key: "visible",
+        label: "한글 프로그램 처리 화면 표시",
+        type: "checkbox",
+        defaultValue: false,
+      },
+    ],
+  },
+  hwp_to_pdf_converter: {
+    extensions: ["hwp", "hwpx"],
+    outputMode: "folder",
+    outputLabel: "PDF 저장 폴더",
+  },
+  multi_format_pdf_combiner: {
+    extensions: ["pdf", "hwp", "hwpx", "doc", "docx", "ppt", "pptx"],
+    outputLabel: "통합 PDF 파일",
+    outputExtension: "pdf",
+  },
+  pdf_compress: {
+    extensions: ["pdf"],
+    outputLabel: "압축 PDF 파일",
+    outputExtension: "pdf",
+    fields: [
+      {
+        key: "target_mb",
+        label: "목표 용량(MB)",
+        type: "number",
+        defaultValue: 5,
+      },
+    ],
+  },
+  pdf_merge: {
+    extensions: ["pdf"],
+    outputLabel: "취합 PDF 파일",
+    outputExtension: "pdf",
+  },
+  pdf_page_number_adder: {
+    multiple: false,
+    extensions: ["pdf"],
+    outputLabel: "번호가 추가된 PDF",
+    outputExtension: "pdf",
+    fields: [
+      {
+        key: "format_type",
+        label: "번호 형식",
+        type: "select",
+        defaultValue: "숫자",
+        choices: [
+          { label: "숫자", value: "숫자" },
+          { label: "- 숫자 -", value: "- 숫자 -" },
+          { label: "숫자 / 전체", value: "숫자 / 전체" },
+        ],
+      },
+      { key: "start_page", label: "시작 페이지", type: "number", defaultValue: 1 },
+      { key: "start_number", label: "시작 번호", type: "number", defaultValue: 1 },
+      {
+        key: "position",
+        label: "표시 위치",
+        type: "select",
+        defaultValue: "하단 가운데",
+        choices: [
+          { label: "하단 왼쪽", value: "하단 왼쪽" },
+          { label: "하단 가운데", value: "하단 가운데" },
+          { label: "하단 오른쪽", value: "하단 오른쪽" },
+          { label: "상단 왼쪽", value: "상단 왼쪽" },
+          { label: "상단 가운데", value: "상단 가운데" },
+          { label: "상단 오른쪽", value: "상단 오른쪽" },
+        ],
+      },
+      { key: "font_size", label: "글자 크기", type: "number", defaultValue: 10 },
+    ],
+  },
+  pdf_page_organizer: {
+    multiple: false,
+    extensions: ["pdf"],
+    outputMode: "folder",
+    outputLabel: "결과 저장 폴더",
+    fields: [
+      {
+        key: "action",
+        label: "작업",
+        type: "select",
+        defaultValue: "extract",
+        choices: [
+          { label: "페이지 추출", value: "extract" },
+          { label: "페이지 삭제", value: "delete" },
+          { label: "페이지 재배열", value: "reorder" },
+          { label: "PDF 분할", value: "split" },
+        ],
+      },
+      {
+        key: "mode",
+        label: "처리 방식",
+        type: "select",
+        defaultValue: "pages",
+        choices: [
+          { label: "페이지 직접 입력", value: "pages" },
+          { label: "홀수 페이지", value: "odd" },
+          { label: "짝수 페이지", value: "even" },
+          { label: "순서 직접 입력", value: "sequence" },
+          { label: "N페이지마다 분할", value: "every_n" },
+          { label: "지정 페이지에서 분할", value: "at_pages" },
+        ],
+      },
+      {
+        key: "spec",
+        label: "페이지 범위/순서",
+        type: "text",
+        placeholder: "예: 1-3, 5, 8-10",
+      },
+      { key: "number", label: "분할 단위(N)", type: "number", defaultValue: 1 },
+    ],
+  },
+  rename_files: {
+    inputLabel: "이름을 바꿀 파일을 선택하세요",
+    outputMode: "hidden",
+    destructive: true,
+    fields: [
+      {
+        key: "mode",
+        label: "변경 방식",
+        type: "select",
+        defaultValue: "replace",
+        choices: [
+          { label: "문자열 바꾸기", value: "replace" },
+          { label: "앞에 붙이기", value: "prefix" },
+          { label: "뒤에 붙이기", value: "suffix" },
+        ],
+      },
+      { key: "before", label: "바꿀 문자열", type: "text" },
+      { key: "after", label: "새 문자열", type: "text" },
+    ],
+  },
+  zip_batch_extractor: {
+    extensions: ["zip"],
+    outputMode: "folder",
+    outputLabel: "압축 해제 폴더(선택)",
+    fields: [
+      {
+        key: "extract_direct",
+        label: "압축파일명 폴더 없이 바로 풀기",
+        type: "checkbox",
+        defaultValue: false,
+      },
+      {
+        key: "exclude_junk",
+        label: "불필요한 시스템 파일 제외",
+        type: "checkbox",
+        defaultValue: true,
+      },
+      { key: "password", label: "압축 비밀번호", type: "text" },
+    ],
+  },
+};
+
+export function getToolSchema(toolId: string): ToolUiSchema {
+  return {
+    ...defaultSchema,
+    ...(schemas[toolId] ?? {}),
+    ...(extraToolSchemas[toolId] ?? {}),
+  };
+}
+
+export function initialToolOptions(schema: ToolUiSchema) {
+  return Object.fromEntries(
+    (schema.fields ?? []).map((field) => [
+      field.key,
+      field.defaultValue ?? (field.type === "checkbox" ? false : ""),
+    ]),
+  );
+}
+

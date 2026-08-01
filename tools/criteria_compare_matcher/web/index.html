@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>기준·비교 데이터 매칭 도구(v1.0)</title>
+
+  <!-- 공통 폰트: Pretendard (파일명 자동 정리 도우미 v1.5 스타일) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+
+  <!-- 라이브러리 (온라인 CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+    }
+
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    html,body{ height:100%; }
+    body{
+      line-height:1.6;
+      font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    /* 사용가이드 버튼(우상단 고정) */
+    .guide-fab{
+      position:fixed;
+      top:10px;
+      right:10px;
+      z-index:9999;
+    }
+    .guide-fab button{
+      padding:6px 14px;
+      font-size:12px;
+      cursor:pointer;
+      border-radius:6px;
+      border:none;
+      background:#0054a6;
+      color:#ffffff;
+      box-shadow:0 2px 4px rgba(0,0,0,0.18);
+      font-weight:500;
+    }
+
+    /* 가이드 모달 */
+    .modal{
+      display:none;
+      position:fixed;
+      z-index:10000;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%);
+      max-width:760px;
+      width:92%;
+      max-height:80%;
+      background:#ffffff;
+      border-radius:6px;
+      box-shadow:0 18px 45px rgba(15,23,42,0.25);
+      padding:18px 22px;
+      overflow:auto;
+      font-size:13px;
+      line-height:1.6;
+    }
+    .modal-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .modal-header h2{
+      margin:0;
+      font-size:16px;
+    }
+    .modal-close{
+      padding:4px 12px;
+      font-size:12px;
+      cursor:pointer;
+      border-radius:6px;
+      border:1px solid #cbd5e1;
+      background:#f9fafb;
+      color:#334155;
+    }
+
+    /* 앱 컨테이너 */
+    .app{
+      width:100%;
+      margin:0 auto 40px;
+      padding:0 16px 40px;
+    }
+
+    /* 상단 헤더(파일명 자동 정리 도우미 v1.5 스타일) */
+    .app-header{
+      padding:20px 0 8px;
+      margin:0 auto 8px;
+      text-align:center;
+      background:#ffffff;
+    }
+    .app-header h1{
+      margin:0;
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-0.02em;
+      color:#111827;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+    }
+    .logo-badge{
+      width:32px;
+      height:32px;
+      border-radius:6px;
+      background:var(--brand);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      font-weight:700;
+      font-size:16px;
+    }
+    .app-header p{
+      margin-top:4px;
+      font-size:13px;
+      line-height:1.5;
+      color:var(--muted);
+      max-width:760px;
+      margin-left:auto;
+      margin-right:auto;
+    }
+
+    /* 레이아웃 */
+    .layout{
+      display:grid;
+      grid-template-columns:minmax(0, 360px) minmax(0, 1fr);
+      gap:16px;
+      margin:0 auto 16px;
+      max-width:1120px;
+    }
+    @media(max-width:900px){
+      .layout{ grid-template-columns:1fr; }
+      .actions{ align-items:flex-start; width:100%; }
+      .btn-row{ flex-wrap:wrap; }
+    }
+
+    /* 카드 */
+    .card{
+      background:var(--card);
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      box-shadow:none;
+      padding:18px 20px 18px;
+    }
+    .card-title{
+      margin:0 0 8px;
+      font-size:18px;
+      font-weight:600;
+      color:#111827;
+    }
+    .card-desc{
+      margin:0 0 10px;
+      font-size:13px;
+      color:var(--muted);
+    }
+
+    /* 업로드 라벨 */
+    .file-label{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:8px 14px;
+      border-radius:6px;
+      background:var(--brand);
+      color:#fff;
+      font-weight:600;
+      font-size:13px;
+      cursor:pointer;
+      box-shadow:0 6px 16px rgba(0,86,184,.25);
+      margin-bottom:6px;
+    }
+    .file-label input{ display:none; }
+    .sub-hint{ font-size:12px; color:var(--muted); }
+
+    .options{
+      margin-top:12px;
+      padding:10px 10px 10px;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      background:#f9fafb;
+      font-size:12px;
+    }
+    .options-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:6px;
+      align-items:center;
+    }
+    .options-row label{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .options-row input[type="number"]{
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:6px 8px;
+      font-size:12px;
+      width:90px;
+      background:#fff;
+    }
+    .options-row select{
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:6px 8px;
+      font-size:12px;
+      min-width:220px;
+      background:#fff;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+      background:#eff6ff;
+      color:#1d4ed8;
+      border:1px solid #dbeafe;
+    }
+
+    .status{
+      margin-top:8px;
+      font-size:12px;
+      color:var(--muted);
+      white-space:pre-line;
+    }
+
+    /* 우측 카드 헤더 */
+    .table-header-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .table-header-row h2{
+      font-size:18px;
+      font-weight:600;
+      margin:0;
+      color:#111827;
+    }
+    .actions{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:6px;
+    }
+    .btn-row{
+      display:flex;
+      gap:8px;
+      flex-wrap:nowrap;
+    }
+
+    button.primary-btn, button.secondary-btn, button.ghost-btn{
+      font-family:inherit;
+      font-size:12px;
+      padding:7px 12px;
+      border-radius:6px;
+      border:1px solid transparent;
+      cursor:pointer;
+    }
+    button.primary-btn{
+      background:var(--brand);
+      color:#fff;
+      border-color:var(--brand);
+    }
+    button.primary-btn:disabled{ opacity:.5; cursor:not-allowed; }
+    button.primary-btn:hover:not(:disabled){ background:#00479a; }
+
+    button.secondary-btn{
+      background:#fff;
+      color:var(--text);
+      border-color:var(--border);
+    }
+    button.secondary-btn:hover{ background:#f3f4f6; }
+    button.ghost-btn{
+      background:#fff;
+      color:var(--text);
+      border-color:var(--border);
+    }
+    button.ghost-btn:hover{ background:#f3f4f6; }
+
+    /* 키 선택 박스 */
+    .key-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-top:10px;
+    }
+    @media(max-width:900px){ .key-grid{ grid-template-columns:1fr; } }
+    .keybox{
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      background:#fff;
+      padding:10px 10px;
+    }
+    .keybox h3{
+      font-size:14px;
+      font-weight:600;
+      margin:0 0 6px;
+      color:#111827;
+    }
+    .checklist{
+      list-style:none;
+      margin:0;
+      padding:0;
+      max-height:240px;
+      overflow:auto;
+      border-radius:6px;
+    }
+    .check{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding:7px 6px;
+      border-bottom:1px dashed #e5e7eb;
+      font-size:12px;
+    }
+    .check:last-child{ border-bottom:none; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+
+    .progress{
+      margin-top:10px;
+    }
+    .bar{
+      height:10px;
+      background:#eef2f7;
+      border-radius:999px;
+      overflow:hidden;
+      border:1px solid #e5e7eb;
+    }
+    .bar > div{ height:100%; width:0%; background:var(--brand); }
+    .download-note{
+      margin-top:0;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+      text-align:right;
+      max-width:520px;
+    }
+    .tool-footer{
+      max-width:1120px;
+      margin:24px auto 32px;
+      font-size:12px;
+      color:#555;
+      text-align:center;
+    }
+
+    .warn{
+      padding:10px;
+      border:1px solid #fde68a;
+      background:#fffbeb;
+      color:#92400e;
+      border-radius:6px;
+      font-size:12px;
+      white-space:pre-line;
+      margin-top:10px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 우상단 사용가이드 버튼 -->
+  <div class="guide-fab">
+    <button id="usageGuideBtn" type="button">사용가이드</button>
+  </div>
+
+  <!-- 사용가이드 모달 -->
+  <div id="usageGuideModal" class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>사용가이드</h2>
+      <button class="modal-close" id="usageGuideClose" type="button">닫기</button>
+    </div>
+    <div style="color:#334155;">
+      <b>목적</b><br/>
+      - 기준 데이터와 비교 데이터를 선택한 “매칭 키(1개 이상)”로 비교하여, 기준 데이터에 <b>중복값(O/X)</b> 열을 추가합니다.<br/><br/>
+
+      <b>사용 절차</b><br/>
+      1) 기준/비교 파일 업로드<br/>
+      2) 각 파일의 <b>시트 선택</b> (기본: 첫 번째 시트)<br/>
+      3) 자동으로 잡힌 <b>열 제목이 있는 줄</b>이 맞는지 확인 (필요 시 숫자 수정 후 [적용])<br/>
+      4) 기준/비교에서 매칭 키를 1개 이상 선택 (권장: 2개 이상)<br/>
+      5) [실행] → <span class="mono">기준파일명_매칭표시.xlsx</span> 다운로드<br/><br/>
+
+      <b>서식 보존</b><br/>
+      - 기준 데이터(.xlsx)는 <b>ExcelJS</b>로 원본을 불러와 <b>서식을 최대한 유지</b>한 채 열만 추가합니다.<br/>
+      - 새로 추가되는 “중복값” 열은 서식 없이 값(O/X)만 기록됩니다.<br/><br/>
+
+      <b>오프라인 사용</b><br/>
+      - 내부망에서도 사용 가능<br/>
+      - 외부 네트워크 접근 없음(인터넷 비연결/차단 환경) → 데이터가 외부로 전송되지 않음<br/>
+      - 로컬에서만 처리되어 개인정보 노출 위험 최소화<br/><br/>
+
+      <b>문의</b><br/>
+      - 전북특별자치도교육청 정책기획과 빅데이터팀(063-239-3176)
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="app-header">
+      <h1>
+        <span class="logo-badge">M</span>
+        기준·비교 데이터 매칭 도구(v1.0)
+      </h1>
+      <p>기준 데이터와 비교 데이터를 매칭 키로 비교하여, 기준 데이터 파일에 <b>중복값(O/X)</b> 열을 추가한 결과를 다운로드합니다. (로컬 처리)</p>
+    </header>
+
+    <main class="layout">
+      <!-- 왼쪽: 업로드/설정 -->
+      <section class="card">
+        <div class="card-title">1. 파일 업로드 및 설정</div>
+        <p class="card-desc">기준/비교 파일과 시트를 선택한 뒤, “열 제목이 있는 줄”과 매칭 키를 설정합니다.</p>
+
+        <div>
+          <div class="pill" style="margin-bottom:6px;">기준 데이터</div><br/>
+          <label class="file-label">
+            <input id="baseFile" type="file" accept=".xlsx,.xlsm,.csv" />
+            기준 파일 선택
+          </label>
+          <div class="sub-hint" id="baseFileHint">선택된 파일 없음</div>
+
+          <div class="options">
+            <div>기준 데이터 설정</div>
+            <div class="options-row">
+              <label>시트 선택
+                <select id="baseSheet" disabled></select>
+              </label>
+            </div>
+            <div class="options-row">
+              <label>열 제목이 있는 줄
+                <input id="baseTitleRow" type="number" min="1" step="1" value="1"/>
+              </label>
+              <button id="applyBaseTitleRow" class="secondary-btn" type="button">적용</button>
+              <span id="baseAutoHint" class="pill mono">자동: -</span>
+            </div>
+            <div class="sub-hint" style="margin-top:6px;">
+              ※ 기준 파일은 서식을 최대한 유지한 채 “중복값” 열만 추가합니다.
+            </div>
+          </div>
+        </div>
+
+        <div style="height:10px;"></div>
+
+        <div>
+          <div class="pill" style="margin-bottom:6px;">비교 데이터</div><br/>
+          <label class="file-label">
+            <input id="cmpFile" type="file" accept=".xlsx,.xlsm,.csv" />
+            비교 파일 선택
+          </label>
+          <div class="sub-hint" id="cmpFileHint">선택된 파일 없음</div>
+
+          <div class="options">
+            <div>비교 데이터 설정</div>
+            <div class="options-row">
+              <label>시트 선택
+                <select id="cmpSheet" disabled></select>
+              </label>
+            </div>
+            <div class="options-row">
+              <label>열 제목이 있는 줄
+                <input id="cmpTitleRow" type="number" min="1" step="1" value="1"/>
+              </label>
+              <button id="applyCmpTitleRow" class="secondary-btn" type="button">적용</button>
+              <span id="cmpAutoHint" class="pill mono">자동: -</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="status" id="status">대기 중</div>
+
+        <div class="progress">
+          <div class="bar"><div id="progBar"></div></div>
+        </div>
+
+        <div class="warn" id="libWarn" style="display:none;"></div>
+      </section>
+
+      <!-- 오른쪽: 키 선택/실행 -->
+      <section class="card">
+        <div class="table-header-row">
+          <h2>2. 매칭 키 선택 및 실행</h2>
+          <div class="actions">
+            <div class="btn-row">
+              <button id="runBtn" class="primary-btn" disabled>실행</button>
+              <button id="cancelBtn" class="secondary-btn" disabled>중지</button>
+              <button id="resetBtn" class="secondary-btn" type="button">초기화</button>
+            </div>
+            <div class="download-note">다운로드 파일명: <b class="mono">기준파일명_매칭표시.xlsx</b></div>
+          </div>
+        </div>
+
+        <p class="card-desc">각 데이터에서 매칭 키를 1개 이상 선택하세요. (권장: 2개 이상)</p>
+
+        <div class="key-grid">
+          <div class="keybox">
+            <h3>기준 데이터 매칭 키</h3>
+            <div id="baseCols" class="checklist"></div>
+          </div>
+          <div class="keybox">
+            <h3>비교 데이터 매칭 키</h3>
+            <div id="cmpCols" class="checklist"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;" class="sub-hint">
+          ※ .xlsm(매크로 포함) 파일은 저장 과정에서 매크로가 유지되지 않을 수 있습니다. 가능하면 .xlsx 권장
+        </div>
+
+        <div style="margin-top:12px; border-top:1px solid #e5e7eb; padding-top:10px;">
+          <div class="card-title" style="font-size:16px;">요약</div>
+          <pre class="mono" id="summary" style="background:#f9fafb;border:1px solid var(--border);border-radius:6px;padding:10px;white-space:pre-wrap;margin-top:6px;">- 기준 데이터: (미로드)
+- 비교 데이터: (미로드)
+- 선택 시트: (미로드)
+- 열 제목이 있는 줄: (미로드)
+- 선택 키: (미선택)</pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+(() => {
+  // guide modal
+  const usageBtn = document.getElementById("usageGuideBtn");
+  const modal = document.getElementById("usageGuideModal");
+  const closeBtn = document.getElementById("usageGuideClose");
+  usageBtn.addEventListener("click", () => { modal.style.display = "block"; });
+  closeBtn.addEventListener("click", () => { modal.style.display = "none"; });
+  window.addEventListener("keydown", (e) => { if(e.key === "Escape") modal.style.display = "none"; });
+
+  // library checks
+  const hasXLSX = typeof XLSX !== "undefined";
+  const hasExcelJS = typeof ExcelJS !== "undefined";
+  const libWarn = document.getElementById("libWarn");
+  if (!hasXLSX || !hasExcelJS) {
+    libWarn.style.display = "block";
+    libWarn.textContent =
+`라이브러리를 불러오지 못했습니다.
+
+필요 라이브러리:
+- xlsx (SheetJS)
+- exceljs (서식 보존 저장)
+
+[온라인] CDN 접근이 차단되었을 수 있습니다.
+[오프라인] 같은 폴더에 'xlsx.full.min.js', 'exceljs.min.js'를 두고 로컬 로드로 바꿔야 합니다.`;
+  }
+
+  // DOM
+  const baseFile = document.getElementById("baseFile");
+  const cmpFile  = document.getElementById("cmpFile");
+
+  const baseFileHint = document.getElementById("baseFileHint");
+  const cmpFileHint  = document.getElementById("cmpFileHint");
+
+  const baseSheetSel = document.getElementById("baseSheet");
+  const cmpSheetSel  = document.getElementById("cmpSheet");
+
+  const baseTitleRowInput = document.getElementById("baseTitleRow");
+  const cmpTitleRowInput  = document.getElementById("cmpTitleRow");
+  const applyBaseTitleRow = document.getElementById("applyBaseTitleRow");
+  const applyCmpTitleRow  = document.getElementById("applyCmpTitleRow");
+  const baseAutoHint      = document.getElementById("baseAutoHint");
+  const cmpAutoHint       = document.getElementById("cmpAutoHint");
+
+  const baseColsDiv = document.getElementById("baseCols");
+  const cmpColsDiv  = document.getElementById("cmpCols");
+
+  const runBtn    = document.getElementById("runBtn");
+  const cancelBtn = document.getElementById("cancelBtn");
+  const resetBtn  = document.getElementById("resetBtn");
+
+  const statusEl  = document.getElementById("status");
+  const progBar   = document.getElementById("progBar");
+  const summaryEl = document.getElementById("summary");
+
+  let baseData = null; // { headers, rows, titleRow, sheetName, source{buf, wb, sheetNames, autoTitleRowBySheet} }
+  let cmpData  = null;
+  let cancelFlag = false;
+  const DUP_COL = "중복값";
+
+  function setStatus(msg){ statusEl.textContent = msg; }
+  function setProgress(pct){ progBar.style.width = `${Math.max(0, Math.min(100, pct))}%`; }
+
+  function norm(v){
+    if (v === null || v === undefined) return "";
+    let s = String(v);
+    s = s.replace(/\r?\n/g, " ").trim();
+    s = s.replace(/\s+/g, " ");
+    s = s.toUpperCase();
+    return s;
+  }
+  function buildKey(rowObj, keys){
+    const parts = keys.map(k => {
+      let v = norm(rowObj[k]);
+      v = v.replace(/\s+/g, "");
+      v = v.replace(/[‐-‒–—−－]/g, "-");
+      return v;
+    });
+    return parts.join("||");
+  }
+
+  function isMostlyNumber(x){
+    const s = String(x ?? "").trim();
+    if (!s) return false;
+    return /^[0-9.\-/:()]+$/.test(s);
+  }
+  function scoreTitleRow(row){
+    const vals = (row ?? []).map(v => String(v ?? "").trim());
+    const nonEmpty = vals.filter(v => v !== "");
+    if (nonEmpty.length === 0) return -999;
+    const uniq = new Set(nonEmpty.map(v => v.toUpperCase()));
+    const uniqRatio = uniq.size / nonEmpty.length;
+    const numCount = nonEmpty.filter(v => isMostlyNumber(v)).length;
+    const numRatio = numCount / nonEmpty.length;
+    const lenScore = Math.min(nonEmpty.length, 20) / 20;
+    return (lenScore * 1.2) + (uniqRatio * 1.2) + ((1 - numRatio) * 1.0);
+  }
+  function detectTitleRowIndex(aoa, maxScan=30){
+    const scan = Math.min(maxScan, aoa.length);
+    let bestIdx = 0, bestScore = -999;
+    for (let i=0;i<scan;i++){
+      const sc = scoreTitleRow(aoa[i] ?? []);
+      const bias = (i>=1 && i<=6) ? 0.10 : 0;
+      const finalScore = sc + bias;
+      if (finalScore > bestScore){ bestScore = finalScore; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  function headersFromRow(row){
+    const headers = (row ?? []).map(h => String(h ?? "").trim());
+    for (let i=0;i<headers.length;i++) if(!headers[i]) headers[i] = `컬럼${i+1}`;
+    return headers;
+  }
+  function buildRowsFromAOA(aoa, titleRow1){
+    const titleIdx = Math.max(1, parseInt(titleRow1,10) || 1) - 1;
+    const headers = headersFromRow(aoa[titleIdx] ?? []);
+    const rows = [];
+    for (let r=titleIdx+1; r<aoa.length; r++){
+      const arr = aoa[r];
+      if (!arr || arr.every(x => String(x ?? "").trim()==="")) continue;
+      const obj = { __rowIndex1: r+1 };
+      headers.forEach((h, idx)=> obj[h] = arr[idx] ?? "");
+      rows.push(obj);
+    }
+    return { headers, rows, titleRow: titleIdx+1 };
+  }
+
+  function safeStem(filename){
+    const stem = filename.replace(/\.[^.]+$/,"");
+    return stem.replace(/[\\/:*?"<>|]/g, "_").trim() || "기준데이터";
+  }
+
+  function fillSheetSelect(selectEl, sheetNames){
+    selectEl.innerHTML = "";
+    (sheetNames || []).forEach(nm => {
+      const opt = document.createElement("option");
+      opt.value = nm;
+      opt.textContent = nm;
+      selectEl.appendChild(opt);
+    });
+    selectEl.disabled = (sheetNames || []).length <= 1;
+  }
+
+  function getAOAFromWorkbook(wb, sheetName){
+    const ws = wb.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:"" });
+  }
+
+  async function loadXlsxRaw(file){
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:"array" });
+    const sheetNames = wb.SheetNames.slice();
+    return { buf, wb, sheetNames };
+  }
+
+  function getSelectedKeys(div){
+    return [...div.querySelectorAll("input[type=checkbox]:checked")].map(x => x.getAttribute("data-col"));
+  }
+
+  function renderCols(div, headers, group, keepSelected=true){
+    const prev = keepSelected ? new Set(getSelectedKeys(div)) : new Set();
+    div.innerHTML = "";
+    if (!headers || headers.length === 0){
+      div.innerHTML = `<div class="sub-hint">열 목록을 만들 수 없습니다. '열 제목이 있는 줄'을 확인하세요.</div>`;
+      return;
+    }
+    headers.forEach((h, idx)=>{
+      const checked = prev.has(h) ? "checked" : "";
+      const wrap = document.createElement("label");
+      wrap.className = "check";
+      wrap.innerHTML = `<input type="checkbox" id="${group}_${idx}" data-col="${h}" ${checked}><span>${h}</span>`;
+      div.appendChild(wrap);
+    });
+  }
+
+  function bindKeyChangeEvents(){
+    [...baseColsDiv.querySelectorAll("input[type=checkbox]"),
+     ...cmpColsDiv.querySelectorAll("input[type=checkbox]")].forEach(cb => cb.addEventListener("change", setRunEnabled));
+  }
+
+  function canRun(){
+    if (!baseData || !cmpData) return false;
+    const bk = getSelectedKeys(baseColsDiv);
+    const ck = getSelectedKeys(cmpColsDiv);
+    return bk.length >= 1 && ck.length >= 1 && (baseData.rows?.length ?? 0) >= 1;
+  }
+
+  function updateSummary(){
+    const baseName = baseFile.files?.[0]?.name ?? "(미로드)";
+    const cmpName  = cmpFile.files?.[0]?.name ?? "(미로드)";
+    const bk = getSelectedKeys(baseColsDiv);
+    const ck = getSelectedKeys(cmpColsDiv);
+    const baseRowTxt = baseData?.titleRow ? `${baseData.titleRow}행` : "(미로드)";
+    const cmpRowTxt  = cmpData?.titleRow  ? `${cmpData.titleRow}행`  : "(미로드)";
+    const baseSheet  = baseData?.sheetName ?? "(미로드)";
+    const cmpSheet   = cmpData?.sheetName ?? "(미로드)";
+    summaryEl.textContent =
+`- 기준 데이터: ${baseName} (${baseData?.rows?.length ?? 0}행)
+- 비교 데이터: ${cmpName} (${cmpData?.rows?.length ?? 0}행)
+- 선택 시트: 기준 '${baseSheet}' / 비교 '${cmpSheet}'
+- 열 제목이 있는 줄: 기준 ${baseRowTxt} / 비교 ${cmpRowTxt}
+- 기준 키: ${bk.length ? bk.join(", ") : "(미선택)"}
+- 비교 키: ${ck.length ? ck.join(", ") : "(미선택)"}
+- 다운로드 파일명: ${safeStem(baseName)}_매칭표시.xlsx`;
+  }
+
+  function setRunEnabled(){
+    updateSummary();
+    runBtn.disabled = !canRun();
+  }
+
+  async function loadDataset(which){
+    try{
+      setStatus("파일 읽는 중(시트/열 제목 자동 감지)...");
+      setProgress(2);
+
+      const file = (which === "base") ? baseFile.files[0] : cmpFile.files[0];
+      if (!file) return;
+
+      const raw = await loadXlsxRaw(file);
+      const defaultSheet = raw.sheetNames[0];
+
+      const aoa = getAOAFromWorkbook(raw.wb, defaultSheet);
+      const autoTitleRow = detectTitleRowIndex(aoa, 30) + 1;
+      const built = buildRowsFromAOA(aoa, autoTitleRow);
+
+      const data = {
+        headers: built.headers,
+        rows: built.rows,
+        titleRow: built.titleRow,
+        sheetName: defaultSheet,
+        source: {
+          buf: raw.buf,
+          wb: raw.wb,
+          sheetNames: raw.sheetNames,
+          autoTitleRowBySheet: { [defaultSheet]: autoTitleRow }
+        }
+      };
+
+      if (which === "base"){
+        baseData = data;
+        baseFileHint.textContent = file.name;
+        fillSheetSelect(baseSheetSel, raw.sheetNames);
+        baseSheetSel.value = defaultSheet;
+        baseTitleRowInput.value = autoTitleRow;
+        baseAutoHint.textContent = `자동: ${autoTitleRow}행`;
+        renderCols(baseColsDiv, data.headers, "base", false);
+      } else {
+        cmpData = data;
+        cmpFileHint.textContent = file.name;
+        fillSheetSelect(cmpSheetSel, raw.sheetNames);
+        cmpSheetSel.value = defaultSheet;
+        cmpTitleRowInput.value = autoTitleRow;
+        cmpAutoHint.textContent = `자동: ${autoTitleRow}행`;
+        renderCols(cmpColsDiv, data.headers, "cmp", false);
+      }
+
+      bindKeyChangeEvents();
+      setProgress(6);
+      setStatus("로드 완료. 매칭 키를 선택하세요.");
+      setRunEnabled();
+
+    } catch(err){
+      console.error(err);
+      setStatus("오류 발생");
+      setProgress(0);
+      alert("파일 읽기 오류: " + (err?.message ?? err));
+    }
+  }
+
+  function refreshBySheet(which){
+    const data = (which === "base") ? baseData : cmpData;
+    if (!data?.source) return;
+
+    const sel = (which === "base") ? baseSheetSel.value : cmpSheetSel.value;
+    const aoa = getAOAFromWorkbook(data.source.wb, sel);
+
+    let autoTitleRow = data.source.autoTitleRowBySheet?.[sel];
+    if (!autoTitleRow){
+      autoTitleRow = detectTitleRowIndex(aoa, 30) + 1;
+      data.source.autoTitleRowBySheet[sel] = autoTitleRow;
+    }
+
+    const titleInput = (which === "base") ? baseTitleRowInput : cmpTitleRowInput;
+    const hintEl     = (which === "base") ? baseAutoHint : cmpAutoHint;
+    titleInput.value = autoTitleRow;
+    hintEl.textContent = `자동: ${autoTitleRow}행`;
+
+    const built = buildRowsFromAOA(aoa, autoTitleRow);
+
+    const newData = {
+      headers: built.headers,
+      rows: built.rows,
+      titleRow: built.titleRow,
+      sheetName: sel,
+      source: data.source
+    };
+
+    if (which === "base"){
+      baseData = newData;
+      renderCols(baseColsDiv, newData.headers, "base", true);
+    } else {
+      cmpData = newData;
+      renderCols(cmpColsDiv, newData.headers, "cmp", true);
+    }
+
+    bindKeyChangeEvents();
+    setStatus(`시트 변경 적용: ${which==="base" ? "기준" : "비교"} '${sel}'`);
+    setRunEnabled();
+  }
+
+  function applyTitleRow(which){
+    const data = (which === "base") ? baseData : cmpData;
+    if (!data?.source) return;
+
+    const rowVal = (which === "base") ? baseTitleRowInput.value : cmpTitleRowInput.value;
+
+    const aoa = getAOAFromWorkbook(data.source.wb, data.sheetName);
+    const built = buildRowsFromAOA(aoa, rowVal);
+
+    const newData = {
+      headers: built.headers,
+      rows: built.rows,
+      titleRow: built.titleRow,
+      sheetName: data.sheetName,
+      source: data.source
+    };
+
+    if (which === "base"){
+      baseData = newData;
+      renderCols(baseColsDiv, newData.headers, "base", true);
+    } else {
+      cmpData = newData;
+      renderCols(cmpColsDiv, newData.headers, "cmp", true);
+    }
+
+    bindKeyChangeEvents();
+    setStatus(`열 제목 줄 적용 완료: ${which==="base" ? "기준" : "비교"} ${built.titleRow}행`);
+    setRunEnabled();
+  }
+
+  async function downloadWithExcelJS(dupMap, dupColName, outFileName){
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(baseData.source.buf);
+
+    const ws = wb.getWorksheet(baseData.sheetName) || wb.worksheets[0];
+    const titleRow = baseData.titleRow || 1;
+
+    const headerRow = ws.getRow(titleRow);
+    const vals = headerRow.values || [];
+    let lastColFromHeader = 1;
+    for (let i=vals.length-1; i>=1; i--){
+      if (vals[i] !== null && vals[i] !== undefined && String(vals[i]).trim() !== ""){
+        lastColFromHeader = i;
+        break;
+      }
+    }
+    const newCol = Math.max(lastColFromHeader, ws.actualColumnCount || 1) + 1;
+
+    ws.getCell(titleRow, newCol).value = dupColName;
+
+    for (const [rowIndex1, isDup] of dupMap.entries()){
+      ws.getCell(rowIndex1, newCol).value = isDup ? "O" : "X";
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = outFileName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 800);
+  }
+
+  function updateUIAfterReset(){
+    baseFileHint.textContent = "선택된 파일 없음";
+    cmpFileHint.textContent  = "선택된 파일 없음";
+    baseSheetSel.innerHTML = "";
+    cmpSheetSel.innerHTML  = "";
+    baseSheetSel.disabled = true;
+    cmpSheetSel.disabled  = true;
+    baseTitleRowInput.value = 1;
+    cmpTitleRowInput.value  = 1;
+    baseAutoHint.textContent = "자동: -";
+    cmpAutoHint.textContent  = "자동: -";
+    baseColsDiv.innerHTML = "";
+    cmpColsDiv.innerHTML  = "";
+    runBtn.disabled = true;
+    cancelBtn.disabled = true;
+    setProgress(0);
+    setStatus("대기 중");
+    updateSummary();
+  }
+
+  // Bindings
+  baseFile.addEventListener("change", ()=>loadDataset("base"));
+  cmpFile.addEventListener("change", ()=>loadDataset("cmp"));
+  baseSheetSel.addEventListener("change", ()=>refreshBySheet("base"));
+  cmpSheetSel.addEventListener("change", ()=>refreshBySheet("cmp"));
+  applyBaseTitleRow.addEventListener("click", ()=>applyTitleRow("base"));
+  applyCmpTitleRow.addEventListener("click", ()=>applyTitleRow("cmp"));
+
+  resetBtn.addEventListener("click", ()=>{
+    cancelFlag = false;
+    baseData = null; cmpData = null;
+    baseFile.value = ""; cmpFile.value = "";
+    updateUIAfterReset();
+  });
+
+  cancelBtn.addEventListener("click", ()=>{
+    cancelFlag = true;
+    cancelBtn.disabled = true;
+    setStatus("취소 요청됨... (현재 단계 종료 후 중단)");
+  });
+
+  async function yieldToUI(){ return new Promise(r => setTimeout(r, 0)); }
+
+  runBtn.addEventListener("click", async ()=>{
+    if (!canRun()) return;
+
+    cancelFlag = false;
+    cancelBtn.disabled = false;
+    runBtn.disabled = true;
+    setProgress(8);
+
+    try{
+      const bk = getSelectedKeys(baseColsDiv);
+      const ck = getSelectedKeys(cmpColsDiv);
+
+      setStatus("비교 데이터 키 집합 생성 중...");
+      await yieldToUI();
+
+      const cmpSet = new Set();
+      const cmpRows = cmpData.rows;
+
+      for (let i=0;i<cmpRows.length;i++){
+        if (cancelFlag) throw new Error("사용자 취소");
+        const key = buildKey(cmpRows[i], ck);
+        if (key) cmpSet.add(key);
+        if (i % 2000 === 0){
+          setProgress(8 + Math.floor((i / Math.max(1,cmpRows.length)) * 20));
+          await yieldToUI();
+        }
+      }
+
+      setStatus("기준 데이터 매칭(O/X) 계산 중...");
+      await yieldToUI();
+
+      const dupMap = new Map();
+      const baseRows = baseData.rows;
+      let dupCount = 0;
+
+      for (let i=0;i<baseRows.length;i++){
+        if (cancelFlag) throw new Error("사용자 취소");
+        const rowObj = baseRows[i];
+        const key = buildKey(rowObj, bk);
+        const isDup = key && cmpSet.has(key);
+        dupMap.set(rowObj.__rowIndex1, !!isDup);
+        if (isDup) dupCount++;
+        if (i % 2000 === 0){
+          setProgress(30 + Math.floor((i / Math.max(1,baseRows.length)) * 60));
+          setStatus(`기준 데이터 처리 중... (${i}/${baseRows.length})`);
+          await yieldToUI();
+        }
+      }
+
+      setProgress(93);
+      setStatus("기준 파일(서식 유지)에 열 추가 후 다운로드 준비 중...");
+      await yieldToUI();
+
+      let dupColName = DUP_COL;
+      if (baseData.headers.includes(dupColName)){
+        let k=2;
+        while(baseData.headers.includes(`${dupColName}_${k}`)) k++;
+        dupColName = `${dupColName}_${k}`;
+      }
+
+      const baseStem = safeStem(baseFile.files[0].name);
+      const outFileName = `${baseStem}_매칭표시.xlsx`;
+
+      await downloadWithExcelJS(dupMap, dupColName, outFileName);
+
+      setProgress(100);
+      setStatus(`완료! 기준 ${baseRows.length}행 중 중복(O): ${dupCount}행 / 비중복(X): ${baseRows.length-dupCount}행`);
+
+    } catch(err){
+      if ((err?.message ?? "").includes("사용자 취소")){
+        setProgress(0);
+        setStatus("취소됨");
+      } else {
+        console.error(err);
+        setProgress(0);
+        setStatus("오류 발생");
+        alert("처리 오류: " + (err?.message ?? err));
+      }
+    } finally {
+      cancelBtn.disabled = true;
+      setRunEnabled();
+    }
+  });
+
+  updateUIAfterReset();
+})();
+</script>
+</body>
+</html>

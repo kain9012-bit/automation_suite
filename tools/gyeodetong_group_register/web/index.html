@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<title>교육행정데이터통합관리시스템 수신자 그룹 일괄 등록 도우미(v1.1)</title>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet"/>
+<style>
+:root {
+  --bg:#ffffff;
+  --card:#ffffff;
+  --text:#222222;
+  --muted:#6b7280;
+  --brand:#0056b8;
+  --brand-soft:#e4effb;
+  --border:#d4dbe8;
+  --radius-lg:6px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#fff;color:var(--text);font-family:"Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;}
+.app{max-width:1120px;margin:24px auto 40px;padding:0 16px 40px;}
+.app-header{padding:20px 0 8px;text-align:center;border-bottom:none;}
+.app-header .logo{font-size:24px;font-weight:600;letter-spacing:-0.02em;color:#111827;margin:0;}
+.app-header .subtitle{margin-top:4px;font-size:13px;line-height:1.5;color:var(--muted);}
+.main-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:16px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:none;padding:18px 20px 20px;}
+.card.full-width{margin-top:12px;}
+.section-title{margin:0 0 8px;font-size:18px;font-weight:600;color:#111827;}
+.section-desc{margin:0 0 10px;font-size:13px;color:var(--muted);line-height:1.5;}
+.inline-fields{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;align-items:stretch;}
+.field{flex:1 1 0;min-width:180px;}
+.field label{display:block;font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;}
+input[type="text"], textarea, select {
+  width:100%;
+  padding:8px 10px;
+  border-radius:6px;
+  border:1px solid var(--border);
+  font-size:13px;
+  outline:none;
+  background:#fff;
+  color:var(--text);
+}
+textarea{min-height:140px;resize:vertical;line-height:1.35;}
+select:disabled, input:disabled, textarea:disabled{background:#f3f4f6;color:#9ca3af;}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:700;cursor:pointer;color:var(--text);display:inline-flex;align-items:center;gap:6px;}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+.btn.primary:hover{background:#00479a;}
+.btn.primary:disabled{opacity:.5;cursor:default;}
+.btn.secondary:hover{background:var(--brand-soft);}
+.small{font-size:12px;}
+.muted{color:var(--muted);}
+.mt-8{margin-top:8px;}
+.summary-bar{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 10px;padding:10px;border-radius:6px;background:#f4f7ff;border:1px dashed var(--border);}
+.summary-item{min-width:140px;display:flex;flex-direction:column;}
+.summary-item .label{font-size:11px;color:var(--muted);}
+.summary-item .value{font-size:16px;font-weight:700;}
+.value.auto{color:#0a9b64;}
+.value.review{color:#d64747;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;}
+.badge.auto{background:#e5f8f0;color:#0a9b64;}
+.badge.review{background:#ffe7e7;color:#d64747;}
+.table-wrapper{max-height:460px;overflow:auto;border-radius:6px;border:1px solid var(--border);background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{position:sticky;top:0;background:#f4f6ff;z-index:1;}
+th,td{padding:6px 8px;border-bottom:1px solid #eef1ff;text-align:left;vertical-align:top;}
+th{font-weight:700;color:var(--muted);}
+th:nth-child(1),td:nth-child(1){width:44px;text-align:center;}
+.status-auto{color:#0a9b64;font-weight:700;}
+.status-review{color:#d64747;font-weight:700;}
+.actions{margin-top:10px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+.inline-edit{width:100%;padding:4px 6px;font-size:12px;line-height:1.35;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);}
+.inline-edit:focus{outline:2px solid rgba(0,86,184,.15);border-color:var(--brand);}
+
+/* 모달 */
+.manual-overlay{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:40;}
+.manual-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;}
+.manual-modal[hidden], .manual-overlay[hidden]{display:none;}
+.manual-modal-inner{width:min(520px,92vw);background:#fff;border-radius:6px;box-shadow:0 18px 45px rgba(15,23,42,.25);padding:18px 20px 16px;border:1px solid var(--border);}
+.manual-modal-inner h3{margin:0 0 6px;font-size:16px;font-weight:800;}
+.manual-caption{margin:0 0 10px;font-size:13px;color:var(--muted);}
+.manual-candidate-list{max-height:260px;overflow:auto;padding:8px 0;margin-bottom:10px;border-top:1px solid #eef1ff;border-bottom:1px solid #eef1ff;}
+.manual-candidate-item{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;}
+.manual-candidate-item input[type="radio"]{accent-color:var(--brand);}
+.manual-footnote{font-size:11px;color:var(--muted);margin-bottom:10px;}
+.manual-actions{display:flex;justify-content:flex-end;gap:8px;}
+.btn.manual-btn{padding:4px 8px;font-size:11px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="logo">📮 교육행정데이터통합관리시스템 수신자 그룹 일괄 등록 도우미(v1.1)</div>
+    <div class="subtitle">기관명(학교명 포함)을 붙여넣으면, 조직코드를 찾아 <b>A열만 있는 엑셀파일</b>로 내려받을 수 있습니다.</div>
+</header>
+
+  <main class="main-grid">
+<section class="card">
+      <h2 class="section-title">1. 기관명 붙여넣기</h2>
+      <p class="section-desc">
+        엑셀/한글 표에서 기관명이 들어있는 열을 <b>복사 → 아래 칸에 붙여넣기</b> 하세요.
+        (여러 열을 붙여넣어도 각 행의 첫 번째 값만 사용합니다)
+      </p>
+
+      <div class="inline-fields">
+        <div class="field">
+          <label for="pasteArea">기관명 목록 붙여넣기</label>
+          <textarea id="pasteArea" placeholder="예)&#10;전주교육지원청&#10;전주OO초등학교&#10;군산서흥중학교"></textarea>
+          <p class="small muted mt-8">팁: 한글 표를 복사하면 탭(\t)으로 구분되어 들어옵니다.</p>
+        </div>
+        <div class="field" style="max-width:320px;">
+<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn primary" id="runBtn" type="button" disabled>조직코드 생성</button>
+            <button class="btn secondary" id="resetBtn" type="button">입력 지우기</button>
+          </div>
+          <div style="margin-top:10px; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="dedupeChk" checked style="accent-color: var(--brand);"/>
+            <label for="dedupeChk" class="small muted" style="margin:0; cursor:pointer;">중복 제거(조직코드 기준)</label>
+          </div>
+        </div>
+      </div>
+
+      <p class="small muted" id="inputSummary">아직 입력이 없습니다.</p>
+    </section>
+  </main>
+
+  <section class="card full-width">
+    <h2 class="section-title">2. 미리보기(일괄등록 양식)</h2>
+    <p class="section-desc">
+      자동으로 찾은 행은 <span class="badge auto">자동 매칭</span>으로 표시되고,
+      모호하거나 찾지 못한 행은 <span class="badge review">검토 필요</span>로 표시됩니다.
+      <br/>미리보기 표 기능은 기존과 동일하며, 다운로드되는 엑셀은 <b>A열(조직코드)</b>만 생성됩니다.
+    </p>
+
+    <div class="summary-bar">
+      <div class="summary-item">
+        <span class="label">입력 행 수</span>
+        <span class="value" id="totalCount">0</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">자동 매칭</span>
+        <span class="value auto" id="autoCount">0</span>
+      </div>
+      <div class="summary-item">
+        <span class="label">검토 필요</span>
+        <span class="value review" id="reviewCount">0</span>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="resultTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>원본 기관명<br/><span class="small muted">(수정 가능)</span></th>
+            <th>매칭 기관명</th>
+            <th>조직코드</th>
+            <th>상태</th>
+            <th>수동 선택</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="actions">
+      <button class="btn secondary" id="showReviewOnlyBtn" type="button">검토 필요만 보기</button>
+      <button class="btn primary" id="exportBtn" type="button" disabled>엑셀 다운로드</button>
+    </div>
+
+    <p class="small muted mt-8">
+      ※ 다운로드되는 엑셀에는 A열에 조직코드만 순서대로 생성됩니다.
+    </p>
+  </section>
+</div>
+
+<div class="manual-overlay" hidden id="manualOverlay"></div>
+<div class="manual-modal" hidden id="manualModal">
+  <div class="manual-modal-inner">
+    <h3>후보 중 수동 선택</h3>
+    <p class="manual-caption">
+      행 <span id="manualRowIndexLabel"></span> · 원본: <span id="manualOriginalName"></span>
+    </p>
+    <div class="manual-candidate-list" id="manualCandidateList"></div>
+    <div class="manual-footnote">
+      복수 후보가 있는 행은 이 창에서 한 기관을 선택해 <b>수동 확정</b>할 수 있습니다.
+    </div>
+    <div class="manual-actions">
+      <button class="btn secondary" id="manualCancelBtn" type="button">취소</button>
+      <button class="btn primary" disabled id="manualApplyBtn" type="button">수동 확정</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script type="application/json" id="ORG_DATA">
+[{"name": "전북특별자치도교육청", "code": "P100000001", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 대변인", "code": "P100002794", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 정책기획과", "code": "P100002798", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 총무과", "code": "P100000042", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 감사관", "code": "P100000060", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육과", "code": "P100002799", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학교안전과", "code": "P100002800", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 행정과", "code": "P100000044", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 교원인사과", "code": "P100002652", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 예산과", "code": "P100002801", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 재무과", "code": "P100000045", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북교육인권센터", "code": "P100002796", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 교육협력과", "code": "P100002802", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 시설과", "code": "P100000046", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 노사협력과", "code": "P100002807", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 민주시민교육과", "code": "P100002761", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 유초등특수교육과", "code": "P100002803", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 중등교육과", "code": "P100002804", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 문예체건강과", "code": "P100002805", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 창의인재교육과", "code": "P100002806", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청", "code": "P100000108", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청", "code": "P100000097", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청", "code": "P100000128", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청", "code": "P100000141", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청", "code": "P100000154", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청", "code": "P100000165", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청", "code": "P100000176", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청", "code": "P100000190", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청", "code": "P100000204", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청", "code": "P100000224", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청", "code": "P100000235", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청", "code": "P100000246", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청", "code": "P100000272", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청", "code": "P100000288", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육)", "code": "P100000000A1000", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 교육지원과", "code": "P100000098", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 교육지원과", "code": "P100000225", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 교육지원과", "code": "P100000236", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 교육지원과", "code": "P100000289", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 교육지원과", "code": "P100000177", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 교육지원과", "code": "P100000166", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 행정지원과", "code": "P100000159", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 교육지원과", "code": "P100000155", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 행정지원과", "code": "P100000293", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 행정지원과", "code": "P100000102", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 행정지원과", "code": "P100000170", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 행정지원과", "code": "P100000181", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 행정지원과", "code": "P100000240", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 행정지원과", "code": "P100000229", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 교육지원과", "code": "P100000205", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 교육지원과", "code": "P100000142", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 교육지원과", "code": "P100000129", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 교육지원과", "code": "P100000273", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 교육지원과", "code": "P100000109", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 교육지원과", "code": "P100000191", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 생활교육과", "code": "P100002708", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 생활교육과", "code": "P100002709", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 행정지원과", "code": "P100000133", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 행정지원과", "code": "P100000146", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 행정지원과", "code": "P100000195", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 행정지원과", "code": "P100000277", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 학교업무지원센터", "code": "P100002824", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 학교업무지원센터", "code": "P100002825", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 학교업무지원센터", "code": "P100002822", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 학교업무지원센터", "code": "P100002823", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 행정지원과", "code": "P100000212", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 행정지원과", "code": "P100000117", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 학교업무지원센터", "code": "P100002820", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 학교업무지원센터", "code": "P100002821", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 유초등교육과", "code": "P100000248", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 행정지원과", "code": "P100000261", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 재정협력과", "code": "P100000265", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 중등교육과", "code": "P100000252", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 생활교육과", "code": "P100000256", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 시설지원과", "code": "P100000268", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 교육A과(교육)", "code": "P100000000A1011", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 교육B과(교육)", "code": "P100000000A1012", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 교육C0과(교육)", "code": "P100000000A1013", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 관리A과(교육)", "code": "P100000000A1021", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 관리B과(교육)", "code": "P100000000A1022", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 관리C과(교육)", "code": "P100000000A1023", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 교육Z과(교육)", "code": "P100000000A1015", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 학교업무지원센터", "code": "P100002819", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산학생교육문화관", "code": "P100000126", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 익산학생교육문화관", "code": "P100000223", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북특별자치도교육청과학교육원", "code": "P100002612", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 교육연수원", "code": "P100000081", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원", "code": "P100000082", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주학생교육문화관", "code": "P100000088", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청학생수련원", "code": "P100000089", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학생해양수련원", "code": "P100000095", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원학생교육문화관", "code": "P100002015", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 김제학생교육문화관", "code": "P100002626", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 부안학생교육문화관", "code": "P100002627", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 유아교육진흥원", "code": "P100002633", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 교직원수련원", "code": "P100002786", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원학생교육문화관 교육문화과", "code": "P100002565", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청부안학생교육문화관 전북특별자치도교육청부안학생교육문화관 총무과", "code": "P100002629", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청김제학생교육문화관 전북특별자치도교육청김제학생교육문화관 총무과", "code": "P100002628", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청김제학생교육문화관 전북특별자치도교육청김제학생교육문화관 교육문화과", "code": "P100002631", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청부안학생교육문화관 전북특별자치도교육청부안학생교육문화관 교육문화과", "code": "P100002632", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원학생교육문화관 총무과", "code": "P100002564", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청과학교육원 전북특별자치도교육청과학교육원 과학교육부", "code": "P100002613", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청유아교육진흥원 전북특별자치도교육청유아교육진흥원 교육운영과", "code": "P100002669", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청김제학생교육문화관 전북특별자치도교육청김제학생교육문화관 금산분관", "code": "P100002638", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청유아교육진흥원 전북특별자치도교육청유아교육진흥원 석교유아종합학습분원", "code": "P100002672", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산학생교육문화관 총무과", "code": "P100002529", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청유아교육진흥원 전북특별자치도교육청유아교육진흥원 총무과", "code": "P100002668", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 교직원수련원 총무과", "code": "P100002787", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청과학교육원 전북특별자치도교육청과학교육원 총무부", "code": "P100002614", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산학생교육문화관 교육문화과", "code": "P100002535", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원학생교육문화관 운봉분관", "code": "P100002670", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학생수련원 총무부", "code": "P100002527", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학생수련원 학생수련부", "code": "P100002537", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청교육연수원 전북특별자치도교육청교육연수원 교수부", "code": "P100002512", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청유아교육진흥원 전북특별자치도교육청유아교육진흥원 구림유아종합학습분원", "code": "P100002836", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산학생교육문화관 대야분관", "code": "P100002671", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청교육연수원 전북특별자치도교육청교육연수원 운영부", "code": "P100002519", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청학생해양수련원 전북특별자치도교육청학생해양수련원 총무부", "code": "P100002540", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학생해양수련원 학생교육부", "code": "P100002538", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 익산학생교육문화관 교육문화과", "code": "P100002536", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청익산학생교육문화관 전북특별자치도교육청익산학생교육문화관 총무과", "code": "P100002530", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 익산학생교육문화관 함열분관", "code": "P100000222", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주학생교육문화관 총무과", "code": "P100002532", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청전주학생교육문화관 전북특별자치도교육청전주학생교육문화관 교육문화과", "code": "P100002808", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원 미래교육기획부", "code": "P100002531", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청미래교육연구원 전북특별자치도교육청미래교육연구원 미래교육연구부", "code": "P100002533", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청미래교육연구원 전북특별자치도교육청미래교육연구원 미래교육정책연구소", "code": "P100002667", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원 총무부", "code": "P100002539", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원 정보운영실", "code": "P100002818", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원 운영과", "code": "P100002828", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산외국어교육센터", "code": "P100002777", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 전북특별자치도교육청고창도서관", "code": "P100000107", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 전북특별자치도교육청무주도서관", "code": "P100000164", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 전북특별자치도교육청완주도서관", "code": "P100000200", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 전북특별자치도교육청임실도서관", "code": "P100000234", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 전북특별자치도교육청장수도서관", "code": "P100000245", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 전북특별자치도교육청진안도서관", "code": "P100000298", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주영어체험학습센터", "code": "P100002589", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍학생복지회관", "code": "P100000284", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 미래교육연구원 총무과", "code": "P100002827", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창영어체험학습센터", "code": "P100002592", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산영어체험학습센터", "code": "P100002593", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 석포야영장", "code": "P100002552", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 임실영어체험학습센터", "code": "P100002590", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 전북특별자치도교육청순창도서관", "code": "P100000186", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학생해양수련원 총무과", "code": "P100002609", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청교육연수원 전북특별자치도교육청교육연수원 행정연수과", "code": "P100002659", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원영어체험학습센터", "code": "P100002595", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍학생수련원", "code": "P100002554", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청교육연수원 전북특별자치도교육청교육연수원 총무과", "code": "P100002607", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안영어체험학습센터", "code": "P100002594", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 마이종합학습장", "code": "P100002548", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산명화학교", "code": "P100001760", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북기계공업고등학교", "code": "A000003550", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북대학교사범대학부설고등학교", "code": "A000003520", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주선화학교", "code": "P100001766", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 강호항공고등학교", "code": "P100000299", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주유화학교", "code": "P100001767", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 고산고등학교", "code": "P100000300", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주은화학교", "code": "P100001768", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 고창고등학교", "code": "P100000301", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 동암차돌학교", "code": "P100001761", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북맹아학교", "code": "P100001763", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 고창북고등학교", "code": "P100000303", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 자유고등학교", "code": "P100000304", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북푸른학교", "code": "P100001764", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산고등학교", "code": "P100000305", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북혜화학교", "code": "P100001765", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산기계공업고등학교", "code": "P100000306", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한들고등학교", "code": "P100000307", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산동고등학교", "code": "P100000308", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 다솜학교", "code": "P100002577", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산상일고등학교", "code": "P100000309", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한울학교", "code": "P100002576", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산여자고등학교", "code": "P100000310", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산여자상업고등학교", "code": "P100000311", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주자림학교", "code": "P100001769", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산영광여자고등학교", "code": "P100000312", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산제일고등학교", "code": "P100000313", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 덕유샘학교", "code": "P100002839", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산중앙고등학교", "code": "P100000314", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 군산중앙여자고등학교", "code": "P100000315", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 동국대학교사범대학부속금산고등학교", "code": "P100000316", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학력인정군산평화고등학교", "code": "P100002491", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 김제고등학교", "code": "P100000317", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 김제서고등학교", "code": "P100000321", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 김제여자고등학교", "code": "P100000322", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 김제농생명마이스터고등학교", "code": "P100000323", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남성고등학교", "code": "P100000324", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원고등학교", "code": "P100000325", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원용성고등학교", "code": "P100000326", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원서진고등학교", "code": "P100000328", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원여자고등학교", "code": "P100000329", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원제일고등학교", "code": "P100000331", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 남원국악예술고등학교", "code": "P100000332", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 덕암고등학교", "code": "P100000333", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 덕암정보고등학교", "code": "P100000334", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 동계고등학교", "code": "P100000336", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 동암고등학교", "code": "P100000337", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 마령고등학교", "code": "P100000338", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 만경고등학교", "code": "P100000339", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 만경여자고등학교", "code": "P100000340", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 무주고등학교", "code": "P100000342", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 배영고등학교", "code": "P100000344", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 백산고등학교", "code": "P100000345", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 백화고등학교", "code": "P100000346", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 부안고등학교", "code": "P100000348", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북베이커리고등학교", "code": "P100000349", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 부안여자고등학교", "code": "P100000350", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 서림고등학교", "code": "P100000351", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 산서고등학교", "code": "P100000352", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 수소에너지고등학교", "code": "P100000353", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 상산고등학교", "code": "P100000355", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 서영여자고등학교", "code": "P100000356", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학력인정남일고등학교", "code": "P100002493", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 설천고등학교", "code": "P100000357", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 성원고등학교", "code": "P100000358", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 성일고등학교", "code": "P100000359", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 세인고등학교", "code": "P100000360", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주솔내고등학교", "code": "P100000361", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 순창고등학교", "code": "P100000362", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 순창제일고등학교", "code": "P100000363", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 신태인고등학교", "code": "P100000364", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 안성고등학교", "code": "P100000365", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 안천고등학교", "code": "P100000366", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 여산고등학교", "code": "P100000367", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북인공지능고등학교", "code": "P100000369", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북펫고등학교", "code": "P100000372", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주대학교사범대학부설고등학교", "code": "P100000373", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 완산고등학교", "code": "P100000374", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 완산여자고등학교", "code": "P100000376", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 완주고등학교", "code": "P100000377", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 왕신여자고등학교", "code": "P100000378", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 우석고등학교", "code": "P100000380", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북여자고등학교", "code": "P100000381", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 원광고등학교", "code": "P100000382", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 원광여자고등학교", "code": "P100000383", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 원광보건고등학교", "code": "P100000385", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 위도고등학교", "code": "P100000386", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 유일여자고등학교", "code": "P100000387", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 이리고등학교", "code": "P100000388", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 이리공업고등학교", "code": "P100000389", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 이리남성여자고등학교", "code": "P100000390", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 이리여자고등학교", "code": "P100000392", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 이일여자고등학교", "code": "P100000394", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 익산고등학교", "code": "P100000395", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 인상고등학교", "code": "P100000397", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 인월고등학교", "code": "P100000398", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 임실고등학교", "code": "P100000399", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국치즈과학고등학교", "code": "P100000400", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북유니텍고등학교", "code": "P100000401", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 장수고등학교", "code": "P100000402", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전라고등학교", "code": "P100000403", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북과학고등학교", "code": "P100000408", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북외국어고등학교", "code": "P100002489", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북제일고등학교", "code": "P100000410", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북체육고등학교", "code": "P100000411", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전일고등학교", "code": "P100000413", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주고등학교", "code": "P100000414", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주고등학교부설방송통신고등학교", "code": "P100000415", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주공업고등학교", "code": "P100000416", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주근영여자고등학교", "code": "P100000417", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주기전여자고등학교", "code": "P100000419", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주생명과학고등학교", "code": "P100000420", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주제일고등학교", "code": "P100002014", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주성심여자고등학교", "code": "P100000422", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주신흥고등학교", "code": "P100000425", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주여자고등학교", "code": "P100000426", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주여자고등학교부설방송통신고등학교", "code": "P100000427", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주여자상업고등학교", "code": "P100000428", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주영생고등학교", "code": "P100000429", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주예술고등학교", "code": "P100000430", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주중앙여자고등학교", "code": "P100000431", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주한일고등학교", "code": "P100000432", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전주해성고등학교", "code": "P100000433", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 정읍고등학교", "code": "P100000435", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 정읍제일고등학교", "code": "P100000436", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 정읍여자고등학교", "code": "P100000437", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 정주고등학교", "code": "P100000438", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북자동차고등학교", "code": "P100000442", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 지평선고등학교", "code": "P100002634", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 진경여자고등학교", "code": "P100000443", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학력인정진북고등학교", "code": "P100000445", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국기술부사관고등학교", "code": "P100000446", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 진안제일고등학교", "code": "P100000447", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 칠보고등학교", "code": "P100000448", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 태인고등학교", "code": "P100000450", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 푸른꿈고등학교", "code": "P100000452", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 글로벌학산고등학교", "code": "P100000454", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국게임과학고등학교", "code": "P100002471", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국전통문화고등학교", "code": "P100000456", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국경마축산고등학교", "code": "P100000457", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국마사고등학교", "code": "P100002456", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한국한방고등학교", "code": "P100002635", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 한별고등학교", "code": "P100000459", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 함열고등학교", "code": "P100000460", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 함열여자고등학교", "code": "P100000461", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 해리고등학교", "code": "P100000463", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 호남고등학교", "code": "P100000464", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 호남제일고등학교", "code": "P100000465", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학력인정진북고등학교(2년제)", "code": "P100002591", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 학력인정인화고등학교", "code": "P100002578", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 양현고등학교", "code": "P100002706", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청 전북온라인학교", "code": "P100002817", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산새빛유치원", "code": "P100002838", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 가천초등학교", "code": "P100001058", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 가평초등학교", "code": "P100000480", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 갈담초등학교", "code": "P100001308", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 감곡중학교", "code": "P100001582", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 감곡초등학교", "code": "P100001604", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 격포초등학교", "code": "P100000934", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 계남중학교", "code": "P100001345", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 계남초등학교", "code": "P100001352", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 계화중학교", "code": "P100000920", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 고산중학교", "code": "P100001045", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창남중학교", "code": "P100000466", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 공덕초등학교", "code": "P100000700", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 관촌중학교", "code": "P100001298", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 구림중학교", "code": "P100001001", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 구림초등학교", "code": "P100001009", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 금구중학교", "code": "P100000685", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 금마초등학교", "code": "P100001151", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 금지동초등학교", "code": "P100000806", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 금지중학교", "code": "P100000787", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 동향중학교", "code": "P100001709", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 동향초등학교", "code": "P100001721", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무주중학교", "code": "P100000884", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 서전주중학교", "code": "P100001385", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 진북고등공민학교", "code": "P100001770", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 간중초등학교", "code": "P100001059", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 개복유치원", "code": "P100000630", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 계북중학교", "code": "P100001346", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 계북초등학교", "code": "P100001353", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 고부초등학교", "code": "P100001605", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고수초등학교", "code": "P100000481", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창북중학교", "code": "P100000467", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 관촌초등학교", "code": "P100001311", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 광활초등학교", "code": "P100000701", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 괴목초등학교", "code": "P100000893", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 구이중학교", "code": "P100001046", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산남중학교", "code": "P100000545", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 금과초등학교", "code": "P100001010", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 금지초등학교", "code": "P100000807", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 남성중학교", "code": "P100001127", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원용성중학교", "code": "P100000790", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 동국대학교사범대학부속금산중학교", "code": "P100000686", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 마령중학교", "code": "P100001710", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 마령초등학교", "code": "P100001722", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무풍중학교", "code": "P100000886", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 백산중학교", "code": "P100000921", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 삼계중학교", "code": "P100001299", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 완산중학교", "code": "P100001386", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 고부중학교", "code": "P100001584", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창꿈푸른유치원", "code": "P100002558", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창남초등학교", "code": "P100000482", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 관행유치원", "code": "P100001215", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 구천초등학교", "code": "P100000894", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산금강중학교", "code": "P100002501", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 금구초등학교", "code": "P100000702", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 금성중학교", "code": "P100000687", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원교룡초등학교", "code": "P100000805", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원중학교", "code": "P100000791", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 낭산초등학교", "code": "P100001153", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 대리초등학교", "code": "P100001313", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 동계중학교", "code": "P100001003", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 동계초등학교", "code": "P100001013", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 백운중학교", "code": "P100001711", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 백운초등학교", "code": "P100001723", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 번암중학교", "code": "P100001347", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 번암초등학교", "code": "P100001358", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 변산서중학교", "code": "P100000922", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 부남중학교", "code": "P100000887", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 삼기중학교", "code": "P100001128", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 섬진중학교", "code": "P100001300", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 자유중학교", "code": "P100000468", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주금암초등학교", "code": "P100001423", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주우아중학교", "code": "P100001387", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 개정초등학교", "code": "P100000571", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창중학교", "code": "P100000469", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창초등학교", "code": "P100000484", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 곰소초등학교", "code": "P100000937", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 교암초등학교", "code": "P100001607", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산대성중학교", "code": "P100000562", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 그린유치원", "code": "P100001482", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원대산초등학교", "code": "P100000823", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원하늘중학교", "code": "P100000792", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 다송초등학교", "code": "P100001154", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 덕치초등학교", "code": "P100001314", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 동산초등학교", "code": "P100001014", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 배영중학교", "code": "P100001585", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 변산중학교", "code": "P100000923", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 복흥중학교", "code": "P100001004", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 부귀중학교", "code": "P100001712", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 부귀초등학교", "code": "P100001724", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 산서중학교", "code": "P100001348", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 산서초등학교", "code": "P100001360", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼례중학교", "code": "P100001048", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼우초등학교", "code": "P100001061", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 설천중학교", "code": "P100000888", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 성당중학교", "code": "P100001129", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 성수중학교", "code": "P100001301", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주금평초등학교", "code": "P100001424", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주우전중학교", "code": "P100001388", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 고산초등학교", "code": "P100001062", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 공음중학교", "code": "P100000470", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 공음초등학교", "code": "P100000485", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산경포초등학교", "code": "P100000574", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산동산중학교", "code": "P100002500", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 금산초등학교", "code": "P100000704", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 기전대부설유치원", "code": "P100001483", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원도통초등학교", "code": "P100000810", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원한빛중학교", "code": "P100000793", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 망성초등학교", "code": "P100001155", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무주중앙초등학교", "code": "P100000897", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 보안중학교", "code": "P100000924", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 복흥초등학교", "code": "P100001015", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 산외중학교", "code": "P100001586", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 삼계초등학교", "code": "P100001316", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼우중학교", "code": "P100001049", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 송풍초등학교", "code": "P100001727", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 수남초등학교", "code": "P100001361", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 순창북중학교", "code": "P100001005", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 안성중학교", "code": "P100000889", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 안천중학교", "code": "P100001713", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 여산중학교", "code": "P100001130", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 오수중학교", "code": "P100001303", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 장계중학교", "code": "P100001349", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전라중학교", "code": "P100001390", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주기린초등학교", "code": "P100001425", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 학력인정남일초등학교", "code": "P100002547", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 한들중학교", "code": "P100000690", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 구이초등학교", "code": "P100001064", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산구암초등학교", "code": "P100000575", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산동원중학교", "code": "P100002004", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제검산초등학교", "code": "P100000705", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제중앙중학교", "code": "P100000691", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원서원초등학교", "code": "P100000814", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 낭주중학교", "code": "P100000925", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 내장초등학교", "code": "P100001608", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 대강중학교", "code": "P100000794", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 대산초등학교", "code": "P100000486", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 대성중학교", "code": "P100000471", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무주초등학교", "code": "P100000898", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 미륵초등학교", "code": "P100001156", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 상관중학교", "code": "P100001050", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 새솔중학교", "code": "P100001006", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 성수초등학교", "code": "P100001318", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 소성중학교", "code": "P100001587", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 순창옥천유치원", "code": "P100001034", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 순창중앙초등학교", "code": "P100001017", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 안천초등학교", "code": "P100001728", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 왕궁중학교", "code": "P100001132", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 용담중학교", "code": "P100001714", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 장수중학교", "code": "P100001350", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 적상중학교", "code": "P100000890", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주남초등학교", "code": "P100001426", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산금광초등학교", "code": "P100000576", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제동초등학교", "code": "P100000706", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제중학교", "code": "P100000692", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 남관초등학교", "code": "P100001065", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 능교초등학교", "code": "P100001609", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 대아초등학교", "code": "P100000487", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 동북초등학교", "code": "P100000941", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무풍초등학교", "code": "P100000899", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 보절중학교", "code": "P100000795", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 부안중학교", "code": "P100000926", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 삼기초등학교", "code": "P100001157", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 상하중학교", "code": "P100000472", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 소양중학교", "code": "P100001051", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 순창중학교", "code": "P100001007", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 순창초등학교", "code": "P100001018", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용안중학교", "code": "P100001133", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 임실동중학교", "code": "P100001305", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전일중학교", "code": "P100001393", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주대성초등학교", "code": "P100001427", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 주천중학교", "code": "P100001716", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 천천중학교", "code": "P100001351", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 학력인정남일중학교", "code": "P100002492", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산나운초등학교", "code": "P100000577", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산산북중학교", "code": "P100000547", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제북초등학교", "code": "P100000707", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원왕치초등학교", "code": "P100000817", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 다솔유치원", "code": "P100001486", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 다솜유치원", "code": "P100001220", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 대덕초등학교", "code": "P100001066", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 대흥초등학교", "code": "P100001611", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 덕암중학교", "code": "P100000694", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 동진초등학교", "code": "P100000944", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 동호초등학교", "code": "P100000489", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 부남초등학교", "code": "P100000900", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 산내중학교", "code": "P100000796", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 삼남중학교", "code": "P100000927", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 석불초등학교", "code": "P100001158", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 성내중학교", "code": "P100000473", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 시산초등학교", "code": "P100001019", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 신태인중학교", "code": "P100001588", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 신평초등학교", "code": "P100001320", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 쌍치중학교", "code": "P100001008", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 오천초등학교", "code": "P100001730", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 완주중학교", "code": "P100001053", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 웅포중학교", "code": "P100001134", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 장계초등학교", "code": "P100001365", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주곤지중학교", "code": "P100002466", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주대정초등학교", "code": "P100002478", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 지사중학교", "code": "P100001306", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진성중학교", "code": "P100001717", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산남초등학교", "code": "P100000578", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산서흥중학교", "code": "P100000548", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제중앙초등학교", "code": "P100000708", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원용성초등학교", "code": "P100000835", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원참사랑유치원", "code": "P100000854", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 덕일성유치원", "code": "P100001487", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 덕천초등학교", "code": "P100001612", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 동상초등학교", "code": "P100001067", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 만경여자중학교", "code": "P100000695", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 매산초등학교", "code": "P100000490", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 부당초등학교", "code": "P100000901", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 상서중학교", "code": "P100000928", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 송동중학교", "code": "P100000797", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 신림중학교", "code": "P100000474", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 쌍치초등학교", "code": "P100001020", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 오수초등학교", "code": "P100001322", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 왕신여자중학교", "code": "P100001589", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 외궁초등학교", "code": "P100001731", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 원광여자중학교", "code": "P100001135", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 장수초등학교", "code": "P100001366", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주근영중학교", "code": "P100001395", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주덕일초등학교", "code": "P100001428", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안여자중학교", "code": "P100001718", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 청웅중학교", "code": "P100001307", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산내흥초등학교", "code": "P100000579", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산바다유치원", "code": "P100002457", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산월명중학교", "code": "P100000553", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제초등학교", "code": "P100000710", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원월락초등학교", "code": "P100000818", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 동양초등학교", "code": "P100001068", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 만경중학교", "code": "P100000696", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 무장초등학교", "code": "P100000491", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 백룡초등학교", "code": "P100000947", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 성당초등학교", "code": "P100001160", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 심원중학교", "code": "P100000475", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용A초등학교(교육)", "code": "P100000000A1201", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 옥천초등학교", "code": "P100001022", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 운암초등학교", "code": "P100001323", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 운주중학교", "code": "P100001055", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 원광중학교", "code": "P100001136", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 위도중학교", "code": "P100000929", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 이평중학교", "code": "P100001590", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 장승초등학교", "code": "P100001733", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 전주교육대학교군산부설초등학교", "code": "A000003522", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주교육대학교전주부설초등학교", "code": "A000003525", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주기린중학교", "code": "P100001383", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주덕진초등학교", "code": "P100001429", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안중학교", "code": "P100001719", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 천천초등학교", "code": "P100001368", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 학력인정인화중학교", "code": "P100002579", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산동초등학교", "code": "P100000580", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산영광중학교", "code": "P100000551", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 난산초등학교", "code": "P100000711", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원중앙초등학교", "code": "P100000819", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 동신초등학교", "code": "P100001614", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 마암초등학교", "code": "P100001324", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 백산초등학교", "code": "P100000948", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 봉남중학교", "code": "P100000697", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉동초등학교", "code": "P100001069", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 봉암초등학교", "code": "P100000492", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 설천초등학교", "code": "P100000903", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 성북초등학교", "code": "P100001162", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 솔밭왓앤와이영재유치원", "code": "P100001491", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 아산중학교", "code": "P100000476", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 아영중학교", "code": "P100000799", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 유등초등학교", "code": "P100001024", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리남성여자중학교", "code": "P100001126", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 입암중학교", "code": "P100001592", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 전북체육중학교", "code": "P100002557", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주기전중학교", "code": "P100001396", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주동북초등학교", "code": "P100001431", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 조림초등학교", "code": "P100001734", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 고창부안초등학교", "code": "P100000493", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산문화초등학교", "code": "P100000581", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산자양중학교", "code": "P100000554", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 남양초등학교", "code": "P100000712", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원초등학교", "code": "P100000820", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 백암초등학교", "code": "P100001616", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 변산초등학교", "code": "P100000949", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 안성초등학교", "code": "P100000904", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 영선중학교", "code": "P100000477", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 용북중학교", "code": "P100000800", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 용지중학교", "code": "P100000698", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리남중학교", "code": "P100001137", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 인계초등학교", "code": "P100001025", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 임실기림초등학교", "code": "P100001325", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주남중학교", "code": "P100001397", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주동신초등학교", "code": "P100001432", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 전주예술중학교", "code": "P100001056", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정산중학교", "code": "P100001593", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 줄포중학교", "code": "P100000931", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산미성초등학교", "code": "P100002498", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산제일중학교", "code": "P100000555", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 대강초등학교", "code": "P100000822", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 만경초등학교", "code": "P100000713", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 보성초등학교", "code": "P100001618", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉서초등학교", "code": "P100001071", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 상하초등학교", "code": "P100000495", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 운봉중학교", "code": "P100000802", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리동중학교", "code": "P100001138", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 임실초등학교", "code": "P100001327", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도장수교육지원청 장수한사랑유치원", "code": "P100002727", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 적상초등학교", "code": "P100000905", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 적성초등학교", "code": "P100001026", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주덕일중학교", "code": "P100001398", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주동초등학교", "code": "P100001433", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정우중학교", "code": "P100001594", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 주천초등학교", "code": "P100001737", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 지평선중학교", "code": "P100002455", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 하서중학교", "code": "P100000932", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 한샘유치원", "code": "P100001493", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 해리중학교", "code": "P100000478", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 화산중학교", "code": "P100001057", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산산북초등학교", "code": "P100000582", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 덕과초등학교", "code": "P100000824", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 또래유치원", "code": "P100001663", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 백구초등학교", "code": "P100000715", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉서중학교", "code": "P100002581", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉성초등학교", "code": "P100001072", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 부안남초등학교", "code": "P100000952", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 북면초등학교", "code": "P100001619", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 샘고을중학교", "code": "P100001595", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 여산초등학교", "code": "P100001166", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리북중학교", "code": "P100001139", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 인월중학교", "code": "P100000803", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주덕진중학교", "code": "P100001399", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주문학초등학교", "code": "P100002572", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 지사초등학교", "code": "P100001328", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안중앙초등학교", "code": "P100001741", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 청하중학교", "code": "P100000699", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 팔덕초등학교", "code": "P100001027", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 흥덕중학교", "code": "P100000479", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산서초등학교", "code": "P100000583", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산우리별유치원", "code": "P100000640", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산중앙중학교", "code": "P100000557", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도무주교육지원청 무주반디유치원", "code": "P100002686", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 백석초등학교", "code": "P100000716", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 보절초등학교", "code": "P100000827", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 부안동초등학교", "code": "P100000953", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 비봉초등학교", "code": "P100001073", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 산외초등학교", "code": "P100001620", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 영만초등학교", "code": "P100001167", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리영등중학교", "code": "P100001141", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주동중학교", "code": "P100001400", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주만성초등학교", "code": "P100001434", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍중학교", "code": "P100001596", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안초등학교", "code": "P100001742", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 청웅초등학교", "code": "P100001329", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도순창교육지원청 풍산초등학교", "code": "P100001028", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산서해초등학교", "code": "P100000584", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산유치원", "code": "P100002646", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산중학교", "code": "P100000558", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 벧엘유치원", "code": "P100001230", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 벽량초등학교", "code": "P100000717", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 부안초등학교", "code": "P100000954", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 사매초등학교", "code": "P100000829", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 서신초등학교", "code": "P100001622", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 아이리더유치원", "code": "P100001498", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 오산남초등학교", "code": "P100001168", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리중학교", "code": "P100001142", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 임실둥지유치원", "code": "P100002715", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주만수초등학교", "code": "P100002506", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서곡중학교", "code": "P100002453", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정일중학교", "code": "P100001597", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도임실교육지원청 학력인정인화초등학교", "code": "P100002580", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산진포중학교", "code": "P100000559", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 봉남초등학교", "code": "P100000719", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 비사벌유치원", "code": "P100001231", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 산내초등학교", "code": "P100000813", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼례동초등학교", "code": "P100001075", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 성내초등학교", "code": "P100000500", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 소룡초등학교", "code": "P100000585", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 소성초등학교", "code": "P100001623", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 오산초등학교", "code": "P100001169", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 용진중학교", "code": "P100001054", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이일여자중학교", "code": "P100001143", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주문정초등학교", "code": "P100001435", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서신중학교", "code": "P100001401", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도진안교육지원청 진안마이꿈유치원", "code": "P100002685", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 칠보중학교", "code": "P100001598", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산수송초등학교", "code": "P100000586", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 부안해오름유치원", "code": "P100002544", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 부용초등학교", "code": "P100000720", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 비사벌유치원", "code": "P100001501", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 뽀뽀뽀유치원", "code": "P100001232", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 산동초등학교", "code": "P100000830", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼례중앙초등학교", "code": "P100001076", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 성송초등학교", "code": "P100000501", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 수곡초등학교", "code": "P100001624", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 영전초등학교", "code": "P100000956", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 왕궁남초등학교", "code": "P100001170", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산부송중학교", "code": "P100002541", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주미산초등학교", "code": "P100001436", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서중학교", "code": "P100001402", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주솔내유치원", "code": "P100002837", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 학력인정군산평화중학교", "code": "P100002490", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산신흥초등학교", "code": "P100000587", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 나포중학교", "code": "P100000561", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 보영유치원", "code": "P100002460", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 빛나라유치원", "code": "P100001502", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 뽀뽀뽀유치원", "code": "P100000987", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼례초등학교", "code": "P100001077", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 송동초등학교", "code": "P100000831", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 신림초등학교", "code": "P100000502", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 신태인초등학교", "code": "P100001627", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 왕궁초등학교", "code": "P100001171", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 우덕초등학교", "code": "P100000957", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산부천중학교", "code": "P100002575", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주반월초등학교", "code": "P100001437", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주성심여자중학교", "code": "P100001403", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 태인중학교", "code": "P100001600", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산용문초등학교", "code": "P100000588", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 뽀뽀뽀유치원", "code": "P100001503", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 상관초등학교", "code": "P100001078", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 새나래유치원", "code": "P100000647", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 성덕초등학교", "code": "P100000722", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 성만유치원", "code": "P100000765", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 수지초등학교", "code": "P100000832", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용D초등학교(교육)", "code": "P100000000A1204", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 영산초등학교", "code": "P100001629", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 왕북초등학교", "code": "P100001172", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 위도초등학교", "code": "P100000959", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산중학교", "code": "P100001144", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주북일초등학교", "code": "P100001438", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주솔빛중학교", "code": "P100001404", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 학산중학교", "code": "P100001601", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산월명초등학교", "code": "P100000589", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제성모유치원", "code": "P100000766", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 소양서초등학교", "code": "P100001079", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 심원초등학교", "code": "P100000504", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 심창초등학교", "code": "P100000726", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 아영초등학교", "code": "P100000833", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 영원초등학교", "code": "P100001630", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 옥구중학교", "code": "P100000566", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용남초등학교", "code": "P100001173", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산어양중학교", "code": "P100002472", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주북초등학교", "code": "P100001439", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주신흥중학교", "code": "P100001405", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 호남중학교", "code": "P100001603", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산중앙초등학교", "code": "P100000590", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 상아유치원", "code": "P100001505", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 샛별유치원", "code": "P100001236", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 소양초등학교", "code": "P100001080", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 아산초등학교", "code": "P100000505", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 오동초등학교", "code": "P100000834", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 용동초등학교", "code": "P100000727", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용북초등학교", "code": "P100001174", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산지원중학교", "code": "P100001145", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 임피중학교", "code": "P100000567", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 전북동화중학교", "code": "P100002636", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주삼천남초등학교", "code": "P100001440", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주양지중학교", "code": "P100001406", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산지곡초등학교", "code": "P100000591", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 상원프리유치원", "code": "P100002008", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 송광초등학교", "code": "P100001081", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 옹동초등학교", "code": "P100001632", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용산초등학교", "code": "P100001175", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 용지초등학교", "code": "P100000729", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 운봉초등학교", "code": "P100000837", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주삼천초등학교", "code": "P100001441", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주온고을중학교", "code": "P100001407", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 주산초등학교", "code": "P100000964", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 진경여자중학교", "code": "P100001146", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 회현중학교", "code": "P100000569", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산진포초등학교", "code": "P100002499", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 동아유치원", "code": "P100000654", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 새봄유치원", "code": "P100001506", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 용봉초등학교", "code": "P100001082", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용성초등학교", "code": "P100001176", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 원평초등학교", "code": "P100000730", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서곡초등학교", "code": "P100001442", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용소중학교", "code": "P100002467", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 줄포초등학교", "code": "P100000966", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 함라중학교", "code": "P100001147", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 해리초등학교", "code": "P100000510", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산초등학교", "code": "P100000592", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 새싹유치원", "code": "P100001507", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 용안초등학교", "code": "P100001177", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 원천초등학교", "code": "P100000840", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서문초등학교", "code": "P100001443", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용흥중학교", "code": "P100002480", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 창북초등학교", "code": "P100000967", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 함열여자중학교", "code": "P100001148", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 흥덕초등학교", "code": "P100000512", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산풍문초등학교", "code": "P100000593", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 운주초등학교", "code": "P100001084", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 월성초등학교", "code": "P100000732", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 이백초등학교", "code": "P100000841", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 이평초등학교", "code": "P100001636", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전북중학교", "code": "P100001409", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서신초등학교", "code": "P100001444", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 하서초등학교", "code": "P100000968", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 함열중학교", "code": "P100001149", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 새싹유치원", "code": "P100000658", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 웅포초등학교", "code": "P100001179", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 월촌초등학교", "code": "P100000733", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 이서초등학교", "code": "P100001086", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 인월초등학교", "code": "P100000842", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 입암초등학교", "code": "P100001637", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서원초등학교", "code": "P100001445", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주신일중학교", "code": "P100001411", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 해성초등학교", "code": "P100000594", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도부안교육지원청 행안초등학교", "code": "P100000969", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 황등중학교", "code": "P100001150", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산흥남초등학교", "code": "P100000595", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 반야유치원", "code": "P100000659", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 석정유치원", "code": "P100001510", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리계문초등학교", "code": "P100001180", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 이성초등학교", "code": "P100001087", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서일초등학교", "code": "P100001446", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주중앙중학교", "code": "P100001412", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정남초등학교", "code": "P100001638", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 종정초등학교", "code": "P100000734", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 주생초등학교", "code": "P100000845", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도고창교육지원청 중앙유치원", "code": "P100000541", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도남원교육지원청 남원노암초등학교", "code": "P100000809", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 신광유치원", "code": "P100001244", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리고현초등학교", "code": "P100001181", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주서천초등학교", "code": "P100001447", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주중학교", "code": "P100001413", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정우초등학교", "code": "P100001639", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 청명초등학교", "code": "P100001088", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제제일유치원", "code": "P100000776", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 나포초등학교", "code": "P100000598", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 소망유치원", "code": "P100001512", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용B초등학교(교육)", "code": "P100000000A1202", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리남창초등학교", "code": "P100001182", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주송북초등학교", "code": "P100001448", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주평화중학교", "code": "P100002464", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍남초등학교", "code": "P100001640", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 죽산초등학교", "code": "P100000736", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 청완초등학교", "code": "P100001089", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 당북초등학교", "code": "P100000599", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리남초등학교", "code": "P100001183", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주송원초등학교", "code": "P100001449", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주풍남중학교", "code": "P100001415", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍동초등학교", "code": "P100001641", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 진봉초등학교", "code": "P100000737", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 태봉초등학교", "code": "P100001090", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 대야남초등학교", "code": "P100000600", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 송림유치원", "code": "P100001514", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리동남초등학교", "code": "P100001184", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주송천초등학교", "code": "P100001450", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주아중중학교", "code": "P100002465", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍북초등학교", "code": "P100001642", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 청운초등학교", "code": "P100000738", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 화산초등학교", "code": "P100001091", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 대야초등학교", "code": "P100000601", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리동북초등학교", "code": "P100001185", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주신동초등학교", "code": "P100001451", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주해성중학교", "code": "P100001416", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍서초등학교", "code": "P100001643", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 청하초등학교", "code": "P100000740", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 김제중앙유치원", "code": "P100000780", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉서유치원", "code": "P100002585", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 용진초등학교", "code": "P100001083", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리동산초등학교", "code": "P100001186", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주신성초등학교", "code": "P100001452", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주호성중학교", "code": "P100001417", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍수성초등학교", "code": "P100001644", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 초처초등학교", "code": "P100000741", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 봉동유치원", "code": "P100002503", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리동초등학교", "code": "P100001187", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주아중초등학교", "code": "P100001453", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효문중학교", "code": "P100001418", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정일초등학교", "code": "P100001645", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 치문초등학교", "code": "P100000742", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산성심유치원", "code": "P100000667", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 무지개재능유치원", "code": "P100002469", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리마한초등학교", "code": "P100001188", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주양지초등학교", "code": "P100001454", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효정중학교", "code": "P100001420", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍초등학교", "code": "P100002462", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 황강초등학교", "code": "P100000743", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 문창초등학교", "code": "P100000605", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리모현초등학교", "code": "P100001189", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주완산서초등학교", "code": "P100001455", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 칠보초등학교", "code": "P100001646", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 황산초등학교", "code": "P100000744", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 명작유치원", "code": "P100002692", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 미룡초등학교", "code": "P100000606", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 엔젤유치원", "code": "P100001521", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리백제초등학교", "code": "P100001190", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주완산초등학교", "code": "P100001456", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 태인초등학교", "code": "P100001647", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 발산초등학교", "code": "P100000607", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 예일유치원", "code": "P100002011", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리부송초등학교", "code": "P100001191", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주여울초등학교", "code": "P100002463", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주오송중학교", "code": "P100002583", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 한솔초등학교", "code": "P100002543", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도김제교육지원청 해바라기유치원", "code": "P100002470", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용C초등학교(교육)", "code": "P100000000A1203", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 우석대학교부설유치원", "code": "P100001523", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리부천초등학교", "code": "P100001192", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주오송초등학교", "code": "P100002507", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주우림중학교", "code": "P100002574", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 오렌지동화나라유치원", "code": "P100002496", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리북일초등학교", "code": "P100001193", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용덕초등학교", "code": "P100001457", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 둔산유치원", "code": "P100002734", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 서수초등학교", "code": "P100000610", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리북초등학교", "code": "P100001194", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용소초등학교", "code": "P100002468", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리삼성초등학교", "code": "P100001195", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주덕일중학교부설방송통신중학교", "code": "P100002713", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용와초등학교", "code": "P100002479", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리서초등학교", "code": "P100001196", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 이화유치원", "code": "P100002009", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주용흥초등학교", "code": "P100001458", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 한옥숲유치원", "code": "P100002721", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 별숲유치원", "code": "P100002720", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 성산초등학교", "code": "P100000613", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리석암초등학교", "code": "P100001197", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 인후유치원", "code": "P100001526", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주우림초등학교", "code": "P100002573", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 술산초등학교", "code": "P100000615", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 원광유치원", "code": "P100000677", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리송학초등학교", "code": "P100001198", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주우전초등학교", "code": "P100001459", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 정읍연지유치원", "code": "P100001699", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리신동초등학교", "code": "P100001199", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주원동초등학교", "code": "P100001460", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리신흥초등학교", "code": "P100001200", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주인봉초등학교", "code": "P100001461", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 즐거운유치원", "code": "P100002495", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산신풍초등학교", "code": "P100000618", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 삼봉유치원", "code": "P100002783", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리영등초등학교", "code": "P100001202", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주인후초등학교", "code": "P100001462", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용E초등학교(교육)", "code": "P100000000A1205", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도완주교육지원청 운곡마루유치원", "code": "P100002826", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리중앙초등학교", "code": "P100001203", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주장동초등학교", "code": "P100001463", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 중앙유치원", "code": "P100001702", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 초록빛유치원", "code": "P100002647", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리초등학교", "code": "P100001204", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주전라초등학교", "code": "P100001464", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 파란나무유치원", "code": "P100000680", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 오봉초등학교", "code": "P100000621", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리팔봉초등학교", "code": "P100001205", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주전일초등학교", "code": "P100001465", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 옥구초등학교", "code": "P100000622", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 원광대학교사범대학부속유치원", "code": "P100002007", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산궁동초등학교", "code": "P100002454", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주조촌초등학교", "code": "P100001466", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 옥봉초등학교", "code": "P100000623", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산어양초등학교", "code": "P100001201", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주중산초등학교", "code": "P100001467", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 크레용유치원", "code": "P100002546", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 옥산초등학교", "code": "P100000624", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산옥야초등학교", "code": "P100002502", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주만성중학교", "code": "P100002742", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주중앙초등학교", "code": "P100001468", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 호원대학교부속유치원", "code": "P100002473", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산초등학교", "code": "P100001206", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주중인초등학교", "code": "P100001469", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산한벌초등학교", "code": "P100002542", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 임피초등학교", "code": "P100000626", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주지곡초등학교", "code": "P100001470", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 아이세상유치원", "code": "P100002665", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도정읍교육지원청 예본성광유치원", "code": "P100002461", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주진북초등학교", "code": "P100001471", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 창오초등학교", "code": "P100000627", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 천서초등학교", "code": "P100001207", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주초등학교", "code": "P100001472", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 춘포초등학교", "code": "P100001208", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 일곱빛깔무지개유치원", "code": "P100002664", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주초포초등학교", "code": "P100001473", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 함라초등학교", "code": "P100001209", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 회현초등학교", "code": "P100000629", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산푸른솔초등학교", "code": "P100002606", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 숲속유치원", "code": "P100002663", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주팔복초등학교", "code": "P100001474", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 함열초등학교", "code": "P100001210", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주평화초등학교", "code": "P100001475", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 푸른숲유치원", "code": "P100002679", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 황등초등학교", "code": "P100001212", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 세움아이유치원", "code": "P100002680", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주풍남초등학교", "code": "P100001476", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주화정중학교", "code": "P100002744", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 황등남초등학교", "code": "P100001211", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리성심유치원", "code": "P100001242", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주양현중학교", "code": "P100002770", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주한들초등학교", "code": "P100001477", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 흥왕초등학교", "code": "P100001213", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주온빛중학교", "code": "P100002699", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주화산초등학교", "code": "P100001478", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효림초등학교", "code": "P100001479", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 이른아침유치원", "code": "P100002694", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효문초등학교", "code": "P100001480", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효자초등학교", "code": "P100001481", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 이리유치원", "code": "P100001278", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 하랑유치원", "code": "P100002712", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산중앙유치원", "code": "P100002717", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산가온초등학교", "code": "P100002735", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주온빛초등학교", "code": "P100002714", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주홍산초등학교", "code": "P100002725", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 제일유치원", "code": "P100001281", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주하가초등학교", "code": "P100002738", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 천일유치원", "code": "P100001285", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주새연초등학교", "code": "P100002737", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주화정초등학교", "code": "P100002748", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산미장초등학교", "code": "P100002582", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산아리울초등학교", "code": "P100002673", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주풍남유치원", "code": "P100001562", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 새만금초등학교", "code": "P100002690", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 한서유치원", "code": "P100001288", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 한솔유치원", "code": "P100001289", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주효천초등학교", "code": "P100002745", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 제이그림나라유치원", "code": "P100002571", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 현대유치원", "code": "P100001293", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 호반유치원", "code": "P100001294", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산도담유치원", "code": "P100002781", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 청강유치원", "code": "P100001568", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산가람유치원", "code": "P100002789", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주자연초등학교", "code": "P100002771", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 초록빛유치원", "code": "P100001570", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주양현초등학교", "code": "P100002732", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 크레용재능유치원", "code": "P100001572", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 하나유치원", "code": "P100001575", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산유치원", "code": "P100002601", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 한솔유치원", "code": "P100001576", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 영등파랑유치원", "code": "P100002600", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 아이캔몬테소리유치원", "code": "P100002599", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 무녀도초등학교", "code": "P100000604", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 아이사랑유치원", "code": "P100002598", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 혜화유치원", "code": "P100002545", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 J프랜드유치원", "code": "P100002597", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 가나유치원", "code": "P100002013", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도군산교육지원청 군산금빛초등학교", "code": "P100002788", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 별초롱유치원", "code": "P100002605", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 하버드유치원", "code": "P100002604", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 미르유치원", "code": "P100002697", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 아이빛유치원", "code": "P100002718", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 동광유치원", "code": "P100002723", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 아이들세상유치원", "code": "P100002617", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 서전주유치원", "code": "P100002616", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 예일킨더유치원", "code": "P100002641", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 큰동그라미유치원", "code": "P100002642", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산맑은샘유치원", "code": "P100002751", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 해뜰유치원", "code": "P100002644", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 루소의숲유치원", "code": "P100002645", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 상원리나유치원", "code": "P100002650", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 효원유치원", "code": "P100002662", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 자연아이숲유치원", "code": "P100002677", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 알프스유치원", "code": "P100002678", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산부송유치원", "code": "P100002774", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 활짝핀유치원", "code": "P100002682", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 미래유치원", "code": "P100002683", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주유치원", "code": "P100002696", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주온샘유치원", "code": "P100002695", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 예대유치원", "code": "P100002704", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 이튼유치원", "code": "P100002711", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 민족사관유치원", "code": "P100002710", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주아름유치원", "code": "P100002739", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 하가정원유치원", "code": "P100002707", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 우성유치원", "code": "P100002719", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 폴유치원", "code": "P100002724", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 올리브유치원", "code": "P100002010", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주홍산유치원", "code": "P100002768", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주새솔유치원", "code": "P100002775", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 꿈을담는유치원", "code": "P100002661", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주새뜰유치원", "code": "P100002778", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주푸른샘유치원", "code": "P100002780", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주성현유치원", "code": "P100002779", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주문정유치원", "code": "P100002755", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 전주늘품유치원", "code": "P100002756", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도전주교육지원청 다다예술유치원", "code": "P100001516", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용A중학교(교육)", "code": "P100000000A1101", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 전북가상중학교", "code": "P10000XXXX", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용B중학교(교육)", "code": "P100000000A1102", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용C중학교(교육용)", "code": "P100000000A1103", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용D중학교(교육)", "code": "P100000000A1104", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용E중학교(교육)", "code": "P100000000A1105", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용D유치원(교육)", "code": "P100000000A1304", "kind": "NS", "regOffice": "P100000001"}, {"name": "연수용교육지원청(교육) 연수용E유치원(교육)", "code": "P100000000A1305", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도익산교육지원청 익산솜리유치원", "code": "P100002769", "kind": "NS", "regOffice": "P100000001"}, {"name": "전북특별자치도교육청  전북특별자치도교육행정심판위원회", "code": "P100002816", "kind": "NS", "regOffice": "P100000001"}]
+</script>
+
+<script>
+let ORGS = [];
+let ORG_INDEX = new Map();
+let ORG_RAW = [];
+
+function normalizeName(s){
+  if(!s) return "";
+  return String(s)
+    .trim()
+    .toLowerCase()
+    .replace(/\(.*?\)/g,"")
+    .replace(/\[.*?\]/g,"")
+    .replace(/\{.*?\}/g,"")
+    .replace(/[\s\u00A0\u200B\uFEFF]+/g,"")
+    .replace(/[·・ㆍ\.,\-_/\\]/g,"")
+    .replace(/(전라북도|전북특별자치도)/g,"전북");
+}
+
+function buildIndex(list){
+  ORG_RAW = Array.isArray(list) ? list : [];
+  ORG_INDEX = new Map();
+  for(const o of ORG_RAW){
+    const nn = normalizeName(o.name);
+    if(!nn) continue;
+    const arr = ORG_INDEX.get(nn) || [];
+    arr.push(o);
+    ORG_INDEX.set(nn, arr);
+  }
+  ORGS = ORG_RAW;
+      "내장 기관 수: " + ORG_RAW.length.toLocaleString() + "개 · (업데이트: 기관 데이터 엑셀/JSON 업로드 가능)";
+}
+
+function loadEmbeddedOrgData(){
+  try {
+    const txt = document.getElementById("ORG_DATA").textContent.trim();
+    const parsed = JSON.parse(txt);
+    buildIndex(parsed);
+  } catch(e) {
+    console.error(e);
+      }
+}
+
+let parsedRows = [];
+let results = [];
+let showReviewOnly = false;
+
+const pasteArea = document.getElementById("pasteArea");
+const runBtn = document.getElementById("runBtn");
+const inputSummary = document.getElementById("inputSummary");
+runBtn.disabled = true;
+inputSummary.textContent = "아직 입력이 없습니다.";
+
+function parseClipboardText(text){
+  const lines = String(text||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split(/\n/);
+  const rows = [];
+  for(const line of lines){
+    const t = line.trimEnd();
+    if(!t.trim()) continue;
+    const cols = t.split(/\t/).map(x=>x.trim());
+    rows.push({cols});
+  }
+  return rows;
+}
+
+pasteArea.addEventListener("input", () => {
+  parsedRows = parseClipboardText(pasteArea.value);
+  const has = parsedRows.length > 0;
+  runBtn.disabled = !has;
+  inputSummary.textContent = has ? ("입력 행: " + parsedRows.length + "개") : "아직 입력이 없습니다.";
+});function findCandidates(inputName){
+  const norm = normalizeName(inputName);
+  if(!norm) return [];
+  if(ORG_INDEX.has(norm)) return ORG_INDEX.get(norm);
+
+  const cand = [];
+  for(const o of ORGS){
+    const nn = normalizeName(o.name);
+    if(!nn) continue;
+    if(nn.includes(norm) || norm.includes(nn)) cand.push(o);
+    if(cand.length >= 50) break;
+  }
+  return cand;
+}
+
+function decideBest(cands, inputOriginal){
+  if(cands.length === 0) return {status:"review", chosen:null, candidates:[]};
+  if(cands.length === 1) return {status:"auto", chosen:cands[0], candidates:cands};
+
+  const normInput = normalizeName(inputOriginal || "");
+  const scored = cands.map(o=>{
+    const nn = normalizeName(o.name);
+    const ends = (normInput && nn.endsWith(normInput)) ? 0 : 1;
+    const extra = Math.max(0, nn.length - (normInput ? normInput.length : 0));
+    const len = nn.length;
+    return {o, ends, extra, len};
+  });
+
+  scored.sort((a,b)=>{
+    if(a.ends !== b.ends) return a.ends - b.ends;
+    if(a.extra !== b.extra) return a.extra - b.extra;
+    return a.len - b.len;
+  });
+
+  const best = scored[0];
+  const second = scored[1];
+  const confident =
+    (best.ends === 0 && (second.ends === 1 || best.extra < second.extra)) ||
+    (best.ends === second.ends && best.extra + 1 < second.extra);
+
+  if(confident){
+    return {status:"auto", chosen:best.o, candidates:cands};
+  }
+  return {status:"review", chosen:null, candidates:cands};
+}
+
+const tbody = document.querySelector("#resultTable tbody");
+const totalCountEl = document.getElementById("totalCount");
+const autoCountEl  = document.getElementById("autoCount");
+const reviewCountEl= document.getElementById("reviewCount");
+const exportBtn = document.getElementById("exportBtn");
+
+function updateSummary(){
+  totalCountEl.textContent = String(results.length);
+  const a = results.filter(r=>r.status==="auto").length;
+  const rv = results.filter(r=>r.status!=="auto").length;
+  autoCountEl.textContent = String(a);
+  reviewCountEl.textContent = String(rv);
+  exportBtn.disabled = results.length === 0;
+}
+
+function rematchRow(row){
+  row.normalized = normalizeName(row.original);
+  const cands = findCandidates(row.original);
+  const d = decideBest(cands, row.original);
+  row.candidates = d.candidates || [];
+  if(d.status==="auto" && d.chosen){
+    row.status = "auto";
+    row.toName = d.chosen.name;
+    row.toCode = d.chosen.code;
+    row.toKind = d.chosen.kind;
+  } else {
+    row.status = "review";
+    if(row.candidates.length===1){
+      row.toName = row.candidates[0].name;
+      row.toCode = row.candidates[0].code;
+      row.toKind = row.candidates[0].kind;
+    } else {
+      row.toName = row.toName || "";
+      row.toCode = row.toCode || "";
+      row.toKind = row.toKind || "";
+    }
+  }
+}
+
+function renderTable(){
+  tbody.innerHTML = "";
+  const view = showReviewOnly ? results.filter(r=>r.status!=="auto") : results;
+
+  for(const row of view){
+    const tr = document.createElement("tr");
+
+    const tdIdx = document.createElement("td");
+    tdIdx.textContent = row.idx;
+    tr.appendChild(tdIdx);
+
+    const tdOrig = document.createElement("td");
+    const origInput = document.createElement("input");
+    origInput.className = "inline-edit";
+    origInput.value = row.original || "";
+    let composing = false;
+    origInput.addEventListener("compositionstart", ()=>{ composing = true; });
+    origInput.addEventListener("compositionend", ()=>{ composing = false; row.original = origInput.value; });
+    origInput.addEventListener("input", ()=>{ if(composing) return; row.original = origInput.value; });
+    origInput.addEventListener("keydown", (e)=>{ if(e.key === "Enter"){ e.preventDefault(); origInput.blur(); } });
+    origInput.addEventListener("blur", ()=>{
+      row.original = origInput.value;
+      rematchRow(row);
+      updateSummary();
+      renderTable();
+    });
+    tdOrig.appendChild(origInput);
+    tr.appendChild(tdOrig);
+
+    const tdName = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.className = "inline-edit";
+    nameInput.value = row.toName || "";
+    nameInput.addEventListener("input", ()=>{ row.toName = nameInput.value; });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdCode = document.createElement("td");
+    const codeInput = document.createElement("input");
+    codeInput.className = "inline-edit";
+    codeInput.value = row.toCode || "";
+    codeInput.addEventListener("input", ()=>{ row.toCode = codeInput.value; });
+    tdCode.appendChild(codeInput);
+    tr.appendChild(tdCode);
+
+    const tdStatus = document.createElement("td");
+    tdStatus.innerHTML = row.status==="auto"
+      ? '<span class="status-auto">자동 매칭</span>'
+      : '<span class="status-review">검토 필요</span>';
+    tr.appendChild(tdStatus);
+
+    const tdManual = document.createElement("td");
+    if(row.candidates && row.candidates.length>1){
+      const b=document.createElement("button");
+      b.className="btn manual-btn";
+      b.textContent = "후보 선택";
+      b.addEventListener("click", ()=> openManualModal(row));
+      tdManual.appendChild(b);
+      const hint=document.createElement("div");
+      hint.className="small muted";
+      hint.style.marginTop="4px";
+      hint.textContent = "후보 " + row.candidates.length + "개";
+      tdManual.appendChild(hint);
+    } else {
+      tdManual.innerHTML = '<span class="small muted">-</span>';
+    }
+    tr.appendChild(tdManual);
+
+    tbody.appendChild(tr);
+  }
+}
+
+runBtn.addEventListener("click", ()=>{
+  const dedupe = document.getElementById("dedupeChk") ? document.getElementById("dedupeChk").checked : true;
+
+  const base = [];
+  for(const r of parsedRows){
+    let v = "";
+    for(const c of (r.cols || [])){
+      const t = String(c||"").trim();
+      if(t){ v = t; break; }
+    }
+    if(!v) continue;
+    base.push(v);
+  }
+
+  results = base.map((original, i)=>{
+    const row = {
+      idx: i+1,
+      original: original,
+      toName:"",
+      toCode:"",
+      toKind:"",
+      status:"review",
+      candidates:[]
+    };
+    rematchRow(row);
+    return row;
+  });
+
+  if(dedupe){
+    const seenCode = new Set();
+    const deduped = [];
+    for(const row of results){
+      const code = String(row.toCode || "").trim();
+      if(code){
+        if(seenCode.has(code)) continue;
+        seenCode.add(code);
+      }
+      deduped.push(row);
+    }
+    results = deduped.map((r, idx)=>{ r.idx = idx+1; return r; });
+  }
+
+  showReviewOnly = false;
+  document.getElementById("showReviewOnlyBtn").textContent = "검토 필요만 보기";
+  updateSummary();
+  renderTable();
+});
+
+document.getElementById("resetBtn").addEventListener("click", ()=> location.reload());
+
+document.getElementById("showReviewOnlyBtn").addEventListener("click", ()=>{
+  showReviewOnly = !showReviewOnly;
+  document.getElementById("showReviewOnlyBtn").textContent = showReviewOnly ? "전체 보기" : "검토 필요만 보기";
+  renderTable();
+});
+
+// ---- 수동 선택 모달 ----
+const manualOverlay = document.getElementById("manualOverlay");
+const manualModal = document.getElementById("manualModal");
+const manualCandidateList = document.getElementById("manualCandidateList");
+const manualRowIndexLabel = document.getElementById("manualRowIndexLabel");
+const manualOriginalName = document.getElementById("manualOriginalName");
+const manualApplyBtn = document.getElementById("manualApplyBtn");
+const manualCancelBtn = document.getElementById("manualCancelBtn");
+
+let manualTargetRow = null;
+let manualSelectedIdx = -1;
+
+function openManualModal(row){
+  manualTargetRow = row;
+  manualSelectedIdx = -1;
+  manualApplyBtn.disabled = true;
+  manualRowIndexLabel.textContent = row.idx;
+  manualOriginalName.textContent = row.original || "";
+
+  manualCandidateList.innerHTML = "";
+  row.candidates.forEach((c, idx)=>{
+    const item = document.createElement("div");
+    item.className = "manual-candidate-item";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "manualPick";
+    radio.addEventListener("change", ()=>{
+      manualSelectedIdx = idx;
+      manualApplyBtn.disabled = false;
+    });
+    const label = document.createElement("label");
+    label.textContent = c.name + "  (코드: " + c.code + " / 구분: " + c.kind + ")";
+    item.appendChild(radio);
+    item.appendChild(label);
+    manualCandidateList.appendChild(item);
+  });
+
+  manualOverlay.hidden = false;
+  manualModal.hidden = false;
+}
+
+function closeManualModal(){
+  manualOverlay.hidden = true;
+  manualModal.hidden = true;
+  manualTargetRow = null;
+  manualSelectedIdx = -1;
+}
+
+manualCancelBtn.addEventListener("click", closeManualModal);
+manualOverlay.addEventListener("click", closeManualModal);
+
+manualApplyBtn.addEventListener("click", ()=>{
+  if(!manualTargetRow) return;
+  const c = (manualTargetRow.candidates || [])[manualSelectedIdx];
+  if(!c) return;
+  manualTargetRow.toName = c.name;
+  manualTargetRow.toCode = c.code;
+  manualTargetRow.toKind = c.kind;
+  manualTargetRow.status = "auto";
+  closeManualModal();
+  updateSummary();
+  renderTable();
+});
+
+// ---- 엑셀 다운로드 ----
+function makeFileName(){
+  return "조직코드_일괄등록.xlsx";
+}
+
+exportBtn.addEventListener("click", async ()=>{
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("조직코드");
+
+  ws.addRow(["조직코드"]);
+  for(const r of results){
+    ws.addRow([r.toCode || ""]);
+  }
+
+  ws.getColumn(1).width = 20;
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = makeFileName();
+  a.click();
+  setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+});
+
+loadEmbeddedOrgData();
+
+// ---- 사용가이드 모달 ----
+const guideBtn = document.getElementById("guideBtn");
+const guideOverlay = document.getElementById("guideOverlay");
+const guideModal = document.getElementById("guideModal");
+const guideCloseBtn = document.getElementById("guideCloseBtn");
+
+function openGuide(){
+  if(!guideOverlay || !guideModal) return;
+  guideOverlay.hidden = false;
+  guideModal.hidden = false;
+}
+function closeGuide(){
+  if(!guideOverlay || !guideModal) return;
+  guideOverlay.hidden = true;
+  guideModal.hidden = true;
+}
+if(guideBtn) guideBtn.addEventListener("click", openGuide);
+if(guideOverlay) guideOverlay.addEventListener("click", closeGuide);
+if(guideCloseBtn) guideCloseBtn.addEventListener("click", closeGuide);
+
+</script>
+
+<div style="position:fixed; top:10px; right:10px; z-index:9999;">
+  <button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
+    사용가이드
+  </button>
+</div>
+
+<div id="usageGuideModal" style="
+  display:none;
+  position:fixed;
+  z-index:10000;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -50%);
+  max-width:720px;
+  width:90%;
+  max-height:80%;
+  background:#ffffff;
+  border-radius:6px;
+  box-shadow:0 18px 45px rgba(15,23,42,0.25);
+  padding:18px 22px;
+  box-sizing:border-box;
+  overflow:auto;
+  font-size:13px;
+  line-height:1.6;
+">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <h2 style="margin:0; font-size:16px;">수신자 그룹 일괄 등록 도우미 사용 가이드</h2>
+    <button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
+  </div>
+  <div class="usage-guide-body">
+    <p><strong>이 도구는 기관명(학교명 포함)을 기준으로 조직코드를 찾아, A열만 있는 엑셀파일을 만들어 주는 도구입니다.</strong></p>
+    <ol>
+      <li><strong>기관명 붙여넣기</strong><br/>
+        - 엑셀/한글 표에서 기관명이 있는 열을 복사해 <em>기관명 목록 붙여넣기</em> 칸에 붙여넣습니다.
+      </li>
+      <li><strong>조직코드 생성</strong><br/>
+        - <em>조직코드 생성</em> 버튼을 누르면 기관명과 조직코드가 자동 매칭됩니다.
+      </li>
+      <li><strong>검토 필요 행 처리</strong><br/>
+        - 빨간 <span class="badge review">검토 필요</span>는 표에서 직접 수정하거나 <em>후보 선택</em>으로 확정합니다.
+      </li>
+      <li><strong>엑셀 다운로드</strong><br/>
+        - <em>엑셀 다운로드</em>를 눌러 A열 조직코드 파일(.xlsx)을 저장합니다.
+      </li>
+    </ol>
+    <p class="small muted" style="margin-top:8px;">
+      ※ <strong>중복 제거(조직코드 기준)</strong>: 같은 기관이 반복되면 1개만 남깁니다.
+    </p>
+  </div>
+</div>
+<script>
+  (function(){
+    const btn = document.getElementById("usageGuideBtn");
+    const modal = document.getElementById("usageGuideModal");
+    const closes = Array.from(document.querySelectorAll(".usage-guide-close"));
+    function open(){ if(modal) modal.style.display="block"; }
+    function close(){ if(modal) modal.style.display="none"; }
+    if(btn) btn.addEventListener("click", open);
+    closes.forEach(b=> b.addEventListener("click", close));
+    // modal 바깥 클릭 닫기(간단)
+    document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") close(); });
+    if(modal){
+      modal.addEventListener("click", (e)=>{
+        // 내부 클릭은 무시
+        if(e.target === modal) close();
+      });
+    }
+  })();
+</script>
+
+</body>
+</html>

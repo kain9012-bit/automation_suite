@@ -1,0 +1,13 @@
+{
+  "id": "gyeodetong_group_register",
+  "name": "교데통 수신그룹",
+  "top_tab": "업무 자동화",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "assets/icon.png",
+  "description": "K-에듀파인 개인수신그룹을 일괄 등록하는 도구",
+  "order": 30,
+  "enabled": true,
+  "version": "1.1.0",
+  "keywords": []
+}

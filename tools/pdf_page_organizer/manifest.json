@@ -1,0 +1,13 @@
+{
+  "id": "pdf_page_organizer",
+  "name": "PDF 페이지 정리",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "pdf_page_organizer_entry.py",
+  "icon": "",
+  "description": "PDF 페이지 추출, 삭제, 분할, 재배열을 수행합니다.",
+  "order": 60,
+  "enabled": true,
+  "version": "2.2.0",
+  "keywords": []
+}

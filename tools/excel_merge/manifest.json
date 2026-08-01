@@ -1,0 +1,13 @@
+{
+  "id": "excel_merge",
+  "name": "엑셀 병합",
+  "top_tab": "엑셀·데이터",
+  "type": "internal_python",
+  "entry": "excel_merge_entry.py",
+  "icon": "assets/icon.png",
+  "description": "여러 개의 엑셀 파일을 하나로 병합하는 도구",
+  "order": 10,
+  "enabled": true,
+  "version": "1.3.0",
+  "keywords": []
+}

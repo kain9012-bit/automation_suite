@@ -1,0 +1,138 @@
+.settings-card {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.settings-card .secondary-button {
+  white-space: nowrap;
+}
+
+.update-message {
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  color: var(--text);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .settings-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-card > .secondary-button,
+  .settings-card > .switch,
+  .settings-card > .status-chip {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.settings-card-stack {
+  align-items: start;
+}
+
+.settings-card-stack > div:nth-child(2) {
+  width: 100%;
+}
+
+.setting-toggles {
+  display: grid;
+  gap: 0;
+  margin-top: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.setting-toggles > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-toggles > label > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.setting-toggles b { color: var(--text); font-size: 12px; }
+.setting-toggles small { color: var(--muted); font-size: 10px; }
+
+.switch i {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: .2s ease;
+}
+
+.hotkey-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hotkey-box {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 148px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hotkey-box.is-capturing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.hotkey-reset {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.hotkey-hint {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  color: var(--accent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.switch input:checked + i {
+  background: var(--accent);
+}
+
+.switch input:checked + i::after {
+  transform: translateX(16px);
+}
+
+.switch i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: .2s ease;
+}

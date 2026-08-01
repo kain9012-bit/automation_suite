@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>워드클라우드 생성 도구(v1.0)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --danger:#b42318;
+      --danger-soft:#fef3f2;
+      --success:#067647;
+      --success-soft:#ecfdf3;
+      --warning:#b54708;
+      --warning-soft:#fffaeb;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{
+      width:1648px;
+      margin:0 auto;
+      padding:24px 16px 24px;
+    }
+
+    header{text-align:center;margin-bottom:16px;}
+    header h1{
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-0.02em;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      color:#111827;
+    }
+    .logo-badge{
+      width:32px;height:32px;border-radius:6px;background:var(--brand);
+      display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;
+    }
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+
+    .three-panel{
+      display:grid;
+      grid-template-columns:500px 500px 600px;
+      gap:16px;
+      align-items:start;
+    }
+
+    .panel{
+      background:var(--card);
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      box-shadow:var(--shadow-soft);
+      padding:14px;
+      height:700px;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      overflow:hidden;
+    }
+
+    .panel-title{font-size:18px;font-weight:600;margin-bottom:10px;flex:none;}
+    .panel-body{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:hidden;}
+
+    label{font-size:12px;color:#374151;font-weight:600;display:block;margin-bottom:6px;}
+    textarea, input[type="number"], select{
+      width:100%;padding:8px 10px;border-radius:6px;border:1px solid var(--border);
+      background:#fff;color:#111827;font-size:13px;outline:none;
+    }
+    textarea{height:340px;resize:none;line-height:1.6;}
+    textarea:focus, input:focus, select:focus{border-color:#8ab4f8;}
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+    .btn-primary, .btn-secondary, .btn-danger{
+      border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;
+    }
+    .btn-primary{background:var(--brand);color:#fff;border:none;}
+    .btn-primary:hover{background:var(--brand-dark);}
+    .btn-secondary{background:#fff;color:#111827;border:1px solid var(--border);}
+    .btn-secondary:hover{background:#f8fafc;}
+    .btn-danger{background:#fff;color:var(--danger);border:1px solid #f1b8b1;padding:6px 10px;}
+    .btn-danger:hover{background:#fff5f4;}
+
+    .status{
+      min-height:42px;padding:10px 12px;border-radius:6px;font-size:12px;line-height:1.55;display:none;flex:none;
+    }
+    .status.show{display:block;}
+    .status.success{background:var(--success-soft);color:var(--success);border:1px solid #abefc6;}
+    .status.warning{background:var(--warning-soft);color:var(--warning);border:1px solid #fedf89;}
+    .status.error{background:var(--danger-soft);color:var(--danger);border:1px solid #f1b8b1;}
+
+    .summary-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      flex:none;
+    }
+    .summary-card{border:1px solid var(--border);border-radius:6px;background:#fff;padding:10px;min-height:76px;}
+    .summary-label{font-size:12px;color:var(--muted);margin-bottom:4px;}
+    .summary-value{font-size:18px;font-weight:700;color:#111827;}
+
+    .panel-two-grid{
+      display:grid;
+      grid-template-columns:1fr 150px;
+      gap:12px;
+      flex:1;
+      min-height:0;
+    }
+
+    .keyword-list-wrap, .option-wrap{
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:#fff;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .subhead{
+      padding:10px 12px;
+      border-bottom:1px solid #eef2f7;
+      font-size:12px;
+      font-weight:700;
+      color:#374151;
+      flex:none;
+      background:#f8fafc;
+    }
+    .keyword-list{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+    }
+    .keyword-item{
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) 58px 52px;
+      gap:8px;
+      align-items:center;
+      padding:8px 10px;
+      border-bottom:1px solid #eef2f7;
+    }
+    .keyword-item:last-child{border-bottom:none;}
+    .keyword-word{font-size:13px;font-weight:600;color:#111827;word-break:break-word;}
+    .freq-badge{
+      display:inline-flex;align-items:center;justify-content:center;
+      min-height:28px;padding:0 8px;border-radius:999px;background:var(--brand-soft);
+      color:var(--brand);font-size:12px;font-weight:700;
+    }
+    .keyword-empty{padding:18px 14px;font-size:13px;color:var(--muted);line-height:1.7;}
+
+    .option-scroll{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding:10px;
+    }
+    .field{margin-bottom:10px;}
+    .palette-preview{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+    .palette-dot{width:16px;height:16px;border-radius:50%;border:1px solid rgba(0,0,0,.08);}
+
+    .canvas-wrap{
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:#fff;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      flex:1;
+      min-height:0;
+      overflow:hidden;
+    }
+    .canvas-box{
+      flex:1;
+      min-height:0;
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:#fff;
+      overflow:auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:8px;
+    }
+    canvas{max-width:100%;height:auto;display:block;border-radius:4px;}
+
+    .footer{margin-top:10px;font-size:11px;color:var(--muted);text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">W</span>
+        워드클라우드 생성 도구(v1.0)
+      </h1>
+      <p>텍스트를 입력하고 키워드를 정리한 뒤, 원하는 모양과 옵션으로 워드클라우드를 생성합니다.</p>
+    </header>
+
+    <div class="three-panel">
+      <section class="panel">
+        <div class="panel-title">1. 데이터 입력 및 키워드 추출</div>
+        <div class="panel-body">
+          <div>
+            <label for="sourceText">입력 데이터</label>
+            <textarea id="sourceText" placeholder="분석할 문장을 입력하거나 붙여넣으세요.
+예) 학생 교육 프로그램 만족도 조사 결과, 수업 참여도와 진로체험 만족도가 높게 나타났습니다."></textarea>
+          </div>
+
+          <div class="actions">
+            <button class="btn-primary" id="extractBtn">키워드 추출</button>
+            <button class="btn-secondary" id="sampleBtn">예시 불러오기</button>
+            <button class="btn-secondary" id="resetAllBtn">전체 초기화</button>
+          </div>
+
+          <div id="extractStatus" class="status"></div>
+
+          <div class="summary-grid">
+            <div class="summary-card">
+              <div class="summary-label">추출 키워드 수</div>
+              <div class="summary-value" id="keywordCount">0</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">전체 등장 횟수</div>
+              <div class="summary-value" id="totalFrequency">0</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">표시 예정 수</div>
+              <div class="summary-value" id="visibleCount">0</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">생성 상태</div>
+              <div class="summary-value" id="renderState">대기</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">2. 키워드 편집 및 생성 옵션</div>
+        <div class="panel-body">
+          <div class="panel-two-grid">
+            <div class="keyword-list-wrap">
+              <div class="subhead">키워드 목록</div>
+              <div id="keywordList" class="keyword-list">
+                <div class="keyword-empty">먼저 1단계에서 텍스트를 입력하고 키워드를 추출하세요.</div>
+              </div>
+            </div>
+
+            <div class="option-wrap">
+              <div class="subhead">생성 옵션</div>
+              <div class="option-scroll">
+                <div class="field">
+                  <label for="topCount">표시할 키워드 수</label>
+                  <input id="topCount" type="number" min="1" value="100" />
+                </div>
+                <div class="field">
+                  <label for="minFrequency">최소 빈도</label>
+                  <input id="minFrequency" type="number" min="1" max="99" value="1" />
+                </div>
+                <div class="field">
+                  <label for="themeSelect">색상 테마</label>
+                  <select id="themeSelect">
+                    <option value="multi" selected>다채로운 색상</option>
+                    <option value="blue">블루</option>
+                    <option value="green">그린</option>
+                    <option value="warm">웜톤</option>
+                    <option value="purple">퍼플</option>
+                    <option value="mono">모노톤</option>
+                  </select>
+                  <div id="palettePreview" class="palette-preview"></div>
+                </div>
+                <div class="field">
+                  <label for="shapeSelect">워드클라우드 모양</label>
+                  <select id="shapeSelect">
+                    <option value="ellipse" selected>타원형</option>
+                    <option value="rectangle">사각형</option>
+                    <option value="diamond">마름모</option>
+                    <option value="heart">하트형</option>
+                    <option value="circle">원형</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="bgSelect">배경</label>
+                  <select id="bgSelect">
+                    <option value="transparent" selected>투명</option>
+                    <option value="white">흰색</option>
+                    <option value="soft">연한 회색</option>
+                    <option value="navy">짙은 남색</option>
+                  </select>
+                </div>
+                <div class="actions">
+                  <button class="btn-primary" id="generateBtn">워드클라우드 생성</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="renderStatus" class="status"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">3. 결과 확인</div>
+        <div class="panel-body">
+          <div class="actions">
+            <button class="btn-secondary" id="copyImageBtn">이미지 복사</button>
+            <button class="btn-secondary" id="downloadBtn">PNG 다운로드</button>
+          </div>
+
+          <div class="canvas-wrap">
+            <div class="canvas-box">
+              <canvas id="wordCanvas" width="1200" height="800"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      keywords: [],
+      filteredKeywords: [],
+      lastRendered: false,
+      renderNonce: 0,
+      shapeMaskCache: {}
+    };
+
+    const THEMES = {
+      multi: ['#0056b8', '#0f9d58', '#db4437', '#f4b400', '#7e57c2', '#00acc1', '#ef6c00', '#5c6bc0'],
+      blue: ['#0056b8', '#3778c7', '#5b95d6', '#89b5e8', '#234c8f'],
+      green: ['#067647', '#23955b', '#43b37a', '#7fd39f', '#0b5d3b'],
+      warm: ['#b54708', '#d17b28', '#e6a049', '#f1bc74', '#8f3b05'],
+      purple: ['#6e3cbc', '#8d5bd1', '#a57ae0', '#c1a6ef', '#4f2a8d'],
+      mono: ['#111827', '#374151', '#4b5563', '#6b7280', '#9ca3af']
+    };
+
+    const BG_STYLES = {
+      transparent: 'transparent',
+      white: '#ffffff',
+      soft: '#f8fafc',
+      navy: '#0f172a'
+    };
+
+    const STOPWORDS = new Set([
+      '그리고','그러나','하지만','또한','대한','위한','관련','통한','이번','해당','이후','등의','등을','등은','등에','에서','으로','이다','있다','없는','하는','하기','했다','하게','하면','하며','되어','된다','경우','정도','때문','통해','대해','각각','모든','전체','우리','저희','그냥','정말','매우','가장','조금','많이','너무','같은','이런','저런','그런','결과','조사','사항','내용','자료','정보','부분','기능','사용','활용','업무','도구','생성','입력','편집','확인','표시','삭제','선택','추가','다운로드','복사','텍스트','키워드','워드클라우드','wordcloud','word','cloud',
+      'the','and','for','with','from','that','this','are','was','were','have','has','had','not','you','your','into','over','more','most','will','than','then','when','where','while','about'
+    ]);
+
+    const PARTICLES = ['으로부터','으로서','으로써','이라서','라서','에게서','까지는','까지도','에서는','에서만','에게는','에게도','처럼','만큼','보다도','부터는','까지','부터','에서','에게','한테','라고','하고','이며','이랑','랑','처럼','마저','조차','밖에','마다','만의','만','도','은','는','이','가','을','를','에','의','와','과','로','으로','라','야'];
+    const ENDINGS = ['했습니다','합니다','하였다','됐습니다','됩니다','되었다','하면서','하여서','해서','하며','하면','하는','하기','하다','되다','이다','있다','없다','같다','였던','했던','하는데','했는데','되는데','한다면','한다는','되어서','되면서','되도록','라고요','네요','어요','아요','습니다','ㅂ니다'];
+
+    const sourceTextEl = document.getElementById('sourceText');
+    const extractStatusEl = document.getElementById('extractStatus');
+    const renderStatusEl = document.getElementById('renderStatus');
+    const keywordListEl = document.getElementById('keywordList');
+    const keywordCountEl = document.getElementById('keywordCount');
+    const totalFrequencyEl = document.getElementById('totalFrequency');
+    const visibleCountEl = document.getElementById('visibleCount');
+    const renderStateEl = document.getElementById('renderState');
+    const topCountEl = document.getElementById('topCount');
+    const minFrequencyEl = document.getElementById('minFrequency');
+    const themeSelectEl = document.getElementById('themeSelect');
+    const shapeSelectEl = document.getElementById('shapeSelect');
+    const bgSelectEl = document.getElementById('bgSelect');
+    const palettePreviewEl = document.getElementById('palettePreview');
+    const canvas = document.getElementById('wordCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function showStatus(target, type, message){
+      target.className = `status show ${type}`;
+      target.textContent = message;
+    }
+
+    function clearStatus(target){
+      target.className = 'status';
+      target.textContent = '';
+    }
+
+    function escapeHtml(value){
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(value){
+      return String(value).replace(/"/g, '&quot;');
+    }
+
+    function stripParticlesAndEndings(token){
+      let value = token;
+      for(const suffix of PARTICLES){
+        if(value.length > suffix.length + 1 && value.endsWith(suffix)){
+          value = value.slice(0, -suffix.length);
+          break;
+        }
+      }
+      for(const suffix of ENDINGS){
+        if(value.length > suffix.length + 1 && value.endsWith(suffix)){
+          value = value.slice(0, -suffix.length);
+          break;
+        }
+      }
+      return value;
+    }
+
+    function normalizeToken(token){
+      let value = String(token || '').trim();
+      if(!value) return '';
+      value = value.replace(/^['"“”‘’()\[\]{}<>]+|['"“”‘’()\[\]{}<>.,!?;:]+$/g, '');
+      value = value.toLowerCase();
+      value = stripParticlesAndEndings(value);
+      return value.trim();
+    }
+
+    function isValidKeyword(token){
+      if(!token) return false;
+      if(STOPWORDS.has(token)) return false;
+      if(/^[0-9]+$/.test(token) && token.length < 2) return false;
+      if(/^[a-z]$/i.test(token)) return false;
+      if(/^[가-힣]$/.test(token)) return false;
+      if(token.length < 2) return false;
+      if(/^[\-_.]+$/.test(token)) return false;
+      return /[0-9a-z가-힣]/i.test(token);
+    }
+
+    function extractKeywords(text){
+      const rawTokens = String(text || '')
+        .replace(/[\r\n\t]+/g, ' ')
+        .split(/[^0-9A-Za-z가-힣]+/)
+        .filter(Boolean);
+
+      const freqMap = new Map();
+      for(const raw of rawTokens){
+        const token = normalizeToken(raw);
+        if(!isValidKeyword(token)) continue;
+        freqMap.set(token, (freqMap.get(token) || 0) + 1);
+      }
+
+      return Array.from(freqMap.entries())
+        .map(([word, count]) => ({ word, count }))
+        .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word, 'ko'));
+    }
+
+    function updateSummary(){
+      keywordCountEl.textContent = String(state.keywords.length);
+      totalFrequencyEl.textContent = String(state.keywords.reduce((sum, item) => sum + item.count, 0));
+      visibleCountEl.textContent = String(state.filteredKeywords.length);
+      renderStateEl.textContent = state.lastRendered ? '완료' : '대기';
+    }
+
+    function renderKeywordList(){
+      if(!state.filteredKeywords.length){
+        keywordListEl.innerHTML = '<div class="keyword-empty">표시할 키워드가 없습니다.</div>';
+        return;
+      }
+
+      keywordListEl.innerHTML = state.filteredKeywords.map(item => `
+        <div class="keyword-item">
+          <div class="keyword-word">${escapeHtml(item.word)}</div>
+          <div><span class="freq-badge">${item.count}</span></div>
+          <div><button class="btn-danger" data-word="${escapeAttr(item.word)}">삭제</button></div>
+        </div>
+      `).join('');
+
+      keywordListEl.querySelectorAll('.btn-danger').forEach(btn => {
+        btn.addEventListener('click', () => removeKeyword(btn.dataset.word));
+      });
+    }
+
+    function applyFilters(){
+      const topCount = Math.max(1, Number(topCountEl.value) || 100);
+      const minFrequency = Math.max(1, Math.min(99, Number(minFrequencyEl.value) || 1));
+      topCountEl.value = topCount;
+      minFrequencyEl.value = minFrequency;
+
+      state.filteredKeywords = state.keywords
+        .filter(item => item.count >= minFrequency)
+        .slice(0, topCount);
+
+      renderKeywordList();
+      updateSummary();
+
+      if(state.lastRendered){
+        generateWordCloud(true);
+      }
+    }
+
+    function removeKeyword(word){
+      const shouldRerender = state.lastRendered;
+      state.keywords = state.keywords.filter(item => item.word !== word);
+      state.lastRendered = false;
+      state.renderNonce = 0;
+      applyFilters();
+      if(shouldRerender && !state.lastRendered){
+        generateWordCloud(true);
+      }else{
+        showStatus(renderStatusEl, 'warning', `‘${word}’ 키워드를 삭제했습니다.`);
+      }
+    }
+
+    function updatePalettePreview(){
+      const palette = THEMES[themeSelectEl.value] || THEMES.multi;
+      palettePreviewEl.innerHTML = palette.map(color => `<span class="palette-dot" style="background:${color}"></span>`).join('');
+    }
+
+    function drawEmptyCanvas(){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 28px Malgun Gothic';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('워드클라우드가 여기에 표시됩니다.', canvas.width / 2, canvas.height / 2 - 10);
+      ctx.font = '400 18px Malgun Gothic';
+      ctx.fillText('생성 버튼을 누르면 결과가 표시됩니다.', canvas.width / 2, canvas.height / 2 + 28);
+    }
+
+    function buildShapePath(targetCtx, shape, width, height){
+      const cx = width / 2;
+      const cy = height / 2;
+      targetCtx.beginPath();
+      if(shape === 'rectangle'){
+        targetCtx.roundRect(46, 46, width - 92, height - 92, 22);
+        return;
+      }
+      if(shape === 'diamond'){
+        targetCtx.moveTo(cx, 42);
+        targetCtx.lineTo(width - 52, cy);
+        targetCtx.lineTo(cx, height - 42);
+        targetCtx.lineTo(52, cy);
+        targetCtx.closePath();
+        return;
+      }
+      if(shape === 'circle'){
+        const r = Math.min(width, height) / 2 - 48;
+        targetCtx.arc(cx, cy, r, 0, Math.PI * 2);
+        return;
+      }
+      if(shape === 'heart'){
+        const topCurveHeight = height * 0.22;
+        targetCtx.moveTo(cx, height * 0.89);
+        targetCtx.bezierCurveTo(cx - width * 0.30, height * 0.74, width * 0.03, height * 0.48, width * 0.09, height * 0.25);
+        targetCtx.bezierCurveTo(width * 0.13, height * 0.06, cx - width * 0.12, height * 0.03, cx, topCurveHeight);
+        targetCtx.bezierCurveTo(cx + width * 0.12, height * 0.03, width * 0.87, height * 0.06, width * 0.91, height * 0.25);
+        targetCtx.bezierCurveTo(width * 0.97, height * 0.48, cx + width * 0.30, height * 0.74, cx, height * 0.89);
+        targetCtx.closePath();
+        return;
+      }
+      targetCtx.ellipse(cx, cy, width * 0.42, height * 0.34, 0, 0, Math.PI * 2);
+    }
+
+    function getShapeMask(shape){
+      const key = `${shape}_${canvas.width}_${canvas.height}`;
+      if(state.shapeMaskCache[key]) return state.shapeMaskCache[key];
+      const off = document.createElement('canvas');
+      off.width = canvas.width;
+      off.height = canvas.height;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.clearRect(0, 0, off.width, off.height);
+      offCtx.fillStyle = '#000';
+      buildShapePath(offCtx, shape, off.width, off.height);
+      offCtx.fill();
+      const data = offCtx.getImageData(0, 0, off.width, off.height).data;
+      const mask = { width: off.width, height: off.height, data };
+      state.shapeMaskCache[key] = mask;
+      return mask;
+    }
+
+    function pointInMask(mask, x, y){
+      const xi = Math.max(0, Math.min(mask.width - 1, Math.round(x)));
+      const yi = Math.max(0, Math.min(mask.height - 1, Math.round(y)));
+      const idx = (yi * mask.width + xi) * 4 + 3;
+      return mask.data[idx] > 20;
+    }
+
+    function rectFitsShape(rect, shape){
+      const mask = getShapeMask(shape);
+      const sampleXs = [0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92];
+      const sampleYs = [0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92];
+      for(const sx of sampleXs){
+        for(const sy of sampleYs){
+          const x = rect.x + rect.w * sx;
+          const y = rect.y + rect.h * sy;
+          if(!pointInMask(mask, x, y)) return false;
+        }
+      }
+      return true;
+    }
+
+    function intersectsAny(rect, placed){
+      return placed.some(item => !(
+        rect.x + rect.w + 4 < item.x ||
+        rect.x - 4 > item.x + item.w ||
+        rect.y + rect.h + 4 < item.y ||
+        rect.y - 4 > item.y + item.h
+      ));
+    }
+
+    function drawShapePath(shape){
+      buildShapePath(ctx, shape, canvas.width, canvas.height);
+    }
+
+    function getShapeConfig(shape){
+      switch(shape){
+        case 'rectangle': return { radiusStep: 2.1, angleStep: 0.19, margin: 42, jitter: 16 };
+        case 'diamond': return { radiusStep: 1.8, angleStep: 0.18, margin: 40, jitter: 14 };
+        case 'circle': return { radiusStep: 1.7, angleStep: 0.17, margin: 40, jitter: 12 };
+        case 'heart': return { radiusStep: 1.45, angleStep: 0.15, margin: 34, jitter: 10 };
+        case 'ellipse':
+        default: return { radiusStep: 1.6, angleStep: 0.16, margin: 38, jitter: 12 };
+      }
+    }
+
+    function seededRandom(seed){
+      let t = seed >>> 0;
+      return function(){
+        t += 0x6D2B79F5;
+        let r = Math.imul(t ^ (t >>> 15), t | 1);
+        r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function generateLayout(words, shape, nonce){
+      const placed = [];
+      const maxFreq = Math.max(...words.map(item => item.count));
+      const minFreq = Math.min(...words.map(item => item.count));
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const cfg = getShapeConfig(shape);
+      const maxRadius = Math.min(canvas.width, canvas.height) * 0.48;
+      const rand = seededRandom((Date.now() & 0xffffffff) ^ (nonce * 2654435761 >>> 0) ^ (shape.length * 131));
+      const renderWords = words.map(item => ({ ...item, sortKey: rand() }))
+        .sort((a, b) => b.count - a.count || a.sortKey - b.sortKey);
+
+      renderWords.forEach((word, i) => {
+        const ratio = maxFreq === minFreq ? 1 : (word.count - minFreq) / (maxFreq - minFreq);
+        const fontSize = Math.max(16, Math.round(16 + ratio * 68));
+        const rotateChance = (shape === 'rectangle' || shape === 'diamond') ? 0.18 : 0.08;
+        const rotate = (rand() < rotateChance && word.word.length <= 5) ? -Math.PI / 2 : 0;
+        ctx.font = `700 ${fontSize}px Malgun Gothic`;
+        const metrics = ctx.measureText(word.word);
+        const textW = Math.ceil(metrics.width);
+        const textH = Math.ceil(fontSize * 0.95);
+        const w = rotate === 0 ? textW : textH;
+        const h = rotate === 0 ? textH : textW;
+
+        let found = null;
+        const startAngle = rand() * Math.PI * 2;
+        const angleDir = rand() > 0.5 ? 1 : -1;
+        for(let step = 0; step < 9000; step++){
+          const angle = startAngle + angleDir * step * cfg.angleStep;
+          const radius = 2 + step * cfg.radiusStep;
+          if(radius > maxRadius) break;
+          const jitterX = (rand() - 0.5) * cfg.jitter;
+          const jitterY = (rand() - 0.5) * cfg.jitter;
+          const x = Math.round(centerX + Math.cos(angle) * radius + jitterX - w / 2);
+          const y = Math.round(centerY + Math.sin(angle) * radius + jitterY - h / 2);
+          const rect = { x, y, w, h, fontSize, rotate, word: word.word, count: word.count };
+          if(x < cfg.margin || y < cfg.margin || x + w > canvas.width - cfg.margin || y + h > canvas.height - cfg.margin) continue;
+          if(!rectFitsShape(rect, shape)) continue;
+          if(intersectsAny(rect, placed)) continue;
+          found = rect;
+          break;
+        }
+        if(found) placed.push(found);
+      });
+
+      return placed;
+    }
+
+    function drawWords(layout, theme, background, shape){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      drawShapePath(shape);
+      ctx.clip();
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      layout.forEach((item, index) => {
+        ctx.save();
+        ctx.translate(item.x + item.w / 2, item.y + item.h / 2);
+        ctx.rotate(item.rotate);
+        ctx.font = `700 ${item.fontSize}px Malgun Gothic`;
+        ctx.fillStyle = theme[index % theme.length];
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.word, 0, 0);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
+    function generateWordCloud(isAuto = false){
+      const words = state.filteredKeywords.slice();
+      if(!words.length){
+        showStatus(renderStatusEl, 'warning', '표시할 키워드가 없습니다. 먼저 키워드를 추출하거나 조건을 조정하세요.');
+        return;
+      }
+
+      const theme = THEMES[themeSelectEl.value] || THEMES.multi;
+      const bg = BG_STYLES[bgSelectEl.value] || '#ffffff';
+      const shape = shapeSelectEl.value;
+      state.renderNonce += 1;
+      const layout = generateLayout(words, shape, state.renderNonce);
+
+      if(!layout.length){
+        showStatus(renderStatusEl, 'error', '워드클라우드를 배치하지 못했습니다. 표시할 키워드 수를 줄이거나 최소 빈도를 올린 뒤 다시 시도하세요.');
+        state.lastRendered = false;
+        updateSummary();
+        return;
+      }
+
+      drawWords(layout, theme, bg, shape);
+      state.lastRendered = true;
+      updateSummary();
+      showStatus(renderStatusEl, 'success', isAuto ? `조건 변경을 반영하여 워드클라우드를 다시 그렸습니다. 총 ${layout.length}개 키워드를 배치했습니다.` : `워드클라우드를 생성했습니다. 총 ${layout.length}개 키워드를 배치했습니다.`);
+    }
+
+    async function copyCanvasImage(){
+      if(!state.lastRendered){
+        showStatus(renderStatusEl, 'warning', '먼저 워드클라우드를 생성하세요.');
+        return;
+      }
+      try{
+        if(!navigator.clipboard || typeof ClipboardItem === 'undefined'){
+          showStatus(renderStatusEl, 'warning', '이 환경에서는 이미지 복사가 제한됩니다. PNG 다운로드를 사용하세요.');
+          return;
+        }
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showStatus(renderStatusEl, 'success', '워드클라우드 이미지를 클립보드에 복사했습니다.');
+      }catch(error){
+        showStatus(renderStatusEl, 'warning', '이미지 복사에 실패했습니다. PNG 다운로드를 사용하세요.');
+      }
+    }
+
+    function downloadCanvas(){
+      if(!state.lastRendered){
+        showStatus(renderStatusEl, 'warning', '먼저 워드클라우드를 생성하세요.');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = 'wordcloud.png';
+      link.click();
+      showStatus(renderStatusEl, 'success', 'PNG 파일 다운로드를 시작했습니다.');
+    }
+
+    function runExtract(){
+      const text = sourceTextEl.value.trim();
+      if(!text){
+        state.keywords = [];
+        state.filteredKeywords = [];
+        state.lastRendered = false;
+        renderKeywordList();
+        updateSummary();
+        drawEmptyCanvas();
+        showStatus(extractStatusEl, 'warning', '분석할 텍스트를 먼저 입력하세요.');
+        clearStatus(renderStatusEl);
+        return;
+      }
+      state.keywords = extractKeywords(text);
+      state.lastRendered = false;
+      state.renderNonce = 0;
+      applyFilters();
+      drawEmptyCanvas();
+      clearStatus(renderStatusEl);
+      if(!state.keywords.length){
+        showStatus(extractStatusEl, 'warning', '추출된 키워드가 없습니다. 다른 문장을 넣어 다시 시도하세요.');
+        return;
+      }
+      showStatus(extractStatusEl, 'success', `키워드 ${state.keywords.length}개를 추출했습니다.`);
+    }
+
+    function loadSample(){
+      sourceTextEl.value = [
+        '전북교육청 학생 참여형 수업 운영 결과, 프로젝트 수업과 진로체험 만족도가 높게 나타났습니다.',
+        '학생들은 협업 활동, 발표 활동, 진로 탐색 프로그램에 대한 만족 응답을 많이 보였습니다.',
+        '교원들은 수업 참여도, 실습 중심 활동, 맞춤형 지원 확대가 필요하다고 응답했습니다.',
+        '학부모는 진로체험, 독서교육, 예술교육, 디지털 활용 수업 확대를 기대하고 있습니다.'
+      ].join('\n');
+      showStatus(extractStatusEl, 'success', '예시 문장을 불러왔습니다.');
+    }
+
+    function resetAll(){
+      sourceTextEl.value = '';
+      topCountEl.value = 100;
+      minFrequencyEl.value = 1;
+      themeSelectEl.value = 'multi';
+      shapeSelectEl.value = 'ellipse';
+      bgSelectEl.value = 'white';
+      state.keywords = [];
+      state.filteredKeywords = [];
+      state.lastRendered = false;
+      state.renderNonce = 0;
+      clearStatus(extractStatusEl);
+      clearStatus(renderStatusEl);
+      updatePalettePreview();
+      renderKeywordList();
+      updateSummary();
+      drawEmptyCanvas();
+    }
+
+    document.getElementById('extractBtn').addEventListener('click', runExtract);
+    document.getElementById('sampleBtn').addEventListener('click', loadSample);
+    document.getElementById('resetAllBtn').addEventListener('click', resetAll);
+    document.getElementById('generateBtn').addEventListener('click', generateWordCloud);
+    document.getElementById('copyImageBtn').addEventListener('click', copyCanvasImage);
+    document.getElementById('downloadBtn').addEventListener('click', downloadCanvas);
+    themeSelectEl.addEventListener('change', () => { updatePalettePreview(); if(state.lastRendered){ generateWordCloud(true); } });
+    topCountEl.addEventListener('input', () => { applyFilters(); });
+    minFrequencyEl.addEventListener('input', () => { applyFilters(); });
+    shapeSelectEl.addEventListener('change', () => { if(state.lastRendered){ generateWordCloud(true); } });
+    bgSelectEl.addEventListener('change', () => { if(state.lastRendered){ generateWordCloud(true); } });
+
+    updatePalettePreview();
+    renderKeywordList();
+    updateSummary();
+    drawEmptyCanvas();
+  </script>
+</body>
+</html>

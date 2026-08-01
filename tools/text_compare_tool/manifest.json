@@ -1,0 +1,13 @@
+{
+  "id": "text_compare_tool",
+  "name": "텍스트 비교",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "원본 텍스트와 수정된 텍스트를 비교합니다.",
+  "order": 30,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["텍스트", "비교", "문장비교", "수정비교"]
+}

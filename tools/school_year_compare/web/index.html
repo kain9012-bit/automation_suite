@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>연도별 학교 데이터 비교 취합 도구(v1.0)</title>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#ffffff;
+      --panel:#ffffff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --border:#dbe2ef;
+      --soft:#f8fafc;
+      --brand:#0054a6;
+      --warnbg:#fffbeb;
+      --warnbd:#fde68a;
+      --r:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Pretendard","Malgun Gothic",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);}
+    .mono{font-family:ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;}
+
+    .guide-btn{position:fixed;right:14px;top:14px;z-index:9999;}
+    .guide-btn button{padding:6px 14px;font-size:12px;cursor:pointer;border-radius:6px;border:none;background:var(--brand);color:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:800;}
+    #guideModal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.28);padding:18px;overflow:auto;}
+    #guideModal .panel{max-width:920px;margin:40px auto;background:#fff;border-radius:6px;box-shadow:0 18px 45px rgba(15,23,42,0.25);padding:18px 22px;}
+    #guideModal .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+    #guideModal h2{margin:0;font-size:16px;font-weight:900;}
+    #guideClose{border:none;background:transparent;font-size:22px;cursor:pointer;line-height:1;}
+
+    .top{max-width:1240px;margin:0 auto;padding:18px 18px 10px;text-align:center;}
+    .title{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;}
+    .badge{width:34px;height:34px;border-radius:6px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;}
+    h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-0.2px;}
+    .subtitle{margin:8px auto 0;max-width:980px;font-size:13px;color:var(--muted);line-height:1.5;}
+
+    .wrap{max-width:1240px;margin:0 auto;padding:10px 18px 30px;}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+    .card + .card{margin-top:14px;}
+    .card h3{margin:0 0 8px 0;font-size:18px;font-weight:600;}
+    .card p{margin:0 0 12px 0;color:var(--muted);font-size:12.5px;line-height:1.45;}
+
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+    .row.mt10{margin-top:10px;}
+    .btn-primary{background:var(--brand);color:#fff;border:none;border-radius:6px;padding:10px 12px;font-weight:900;cursor:pointer;font-size:13px;box-shadow:0 8px 16px rgba(0,84,166,0.18);}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;}
+    .btn{background:#fff;border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-weight:900;cursor:pointer;font-size:13px;}
+    .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+    .muted{color:var(--muted);}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:900;}
+
+    .table-wrap{border:1px solid var(--border);border-radius:6px;overflow:auto;background:#fff;margin-top:10px;}
+    table{border-collapse:collapse;width:100%;min-width:1040px;}
+    th,td{border-bottom:1px solid #edf2f7;padding:10px 10px;font-size:12px;vertical-align:middle;white-space:nowrap;}
+    th{background:#f8fafc;font-weight:900;}
+    tr:last-child td{border-bottom:none}
+
+    input[type="text"],input[type="number"],select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:#fff;}
+    .mini{padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:900;font-size:12px;}
+    .del{width:34px;height:34px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:900;}
+
+    .progress{height:10px;background:#eef2f7;border-radius:6px;overflow:hidden;border:1px solid var(--border);margin-top:10px;}
+    .progress>div{height:100%;width:0%;background:var(--brand);}
+    .status{margin-top:8px;font-size:12px;color:var(--muted);white-space:pre-line;}
+
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+    @media(max-width:980px){.split{grid-template-columns:1fr}}
+    .box{border:1px solid var(--border);border-radius:6px;background:#fff;padding:12px;}
+    .box h4{margin:0 0 6px 0;font-size:13px;font-weight:900;}
+    .tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+    .tools button{padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:900;font-size:12px;}
+    .tools button:hover{background:#f3f4f6}
+    .checklist{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--soft);}
+    .check{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed #e5e7eb;font-size:12px;}
+    .check:last-child{border-bottom:none}
+
+    .summary{border:1px solid var(--border);border-radius:6px;background:var(--soft);padding:12px;font-size:12px;line-height:1.6;white-space:pre-line;margin-top:12px;}
+    .warn{margin-top:10px;padding:10px 12px;border:1px solid var(--warnbd);background:var(--warnbg);color:#92400e;border-radius:6px;font-size:12px;white-space:pre-line;}
+    .footer{margin-top:16px;text-align:center;color:var(--muted);font-size:12px;}
+  </style>
+</head>
+
+<body>
+  <div class="guide-btn"><button id="guideOpen" type="button">사용가이드</button></div>
+
+  <div id="guideModal" role="dialog" aria-modal="true">
+    <div class="panel">
+      <div class="head">
+        <h2>사용가이드</h2>
+        <button id="guideClose" type="button">×</button>
+      </div>
+<div style="color:#334155;font-size:13px;line-height:1.65;">
+  <p><b>이 도구는</b> 연도별 학교 데이터를 <b>학교명</b> 기준으로 취합하여, 연도별 값이 나란히 비교되도록 엑셀을 생성합니다. (로컬 처리)</p>
+
+  <p><b>1) 사용 전 준비(중요)</b></p>
+  <ul>
+    <li>본 도구는 학교코드가 아닌 <b>‘학교명’</b>으로 매칭합니다.</li>
+    <li>학교명이 조금이라도 다르면(띄어쓰기/약칭/오탈자/부설 표기 등) <b>다른 학교로 인식</b>될 수 있습니다.</li>
+    <li>가능하면 먼저 <b>표준 학교명으로 정리(표준화)</b>한 뒤 사용하면 정확도가 크게 올라갑니다.
+      <div style="margin-top:4px;color:#64748b;font-size:12px;">
+        예: “효천초”, “전주효천초” → "전주효천초등학교" 표준학교명으로 통일
+      </div>
+    </li>
+  </ul>
+
+  <p><b>2) 모드 안내</b></p>
+  <ul>
+    <li><b>모드 A(여러 파일)</b>: 연도별 파일을 여러 개 올려 비교 취합</li>
+    <li><b>모드 B(한 파일·시트 비교)</b>: 한 파일 안의 여러 시트를 연도별 자료로 보고 비교 취합
+      <div style="margin-top:4px;color:#64748b;font-size:12px;">
+        시트명(또는 파일명)에 2024 같은 연도가 있으면 자동 인식되며, 필요 시 연도 칸에서 수정할 수 있습니다.
+      </div>
+    </li>
+  </ul>
+
+  <p><b>3) 사용 절차</b></p>
+  <ol>
+    <li>모드를 선택하고, 파일(또는 단일 파일)을 추가합니다.</li>
+    <li>각 데이터의 <b>연도 / 시트 / 열 제목 줄 / 학교명 열</b>이 맞는지 확인합니다.</li>
+    <li><b>고정 항목 / 비교 항목</b>을 체크합니다.</li>
+    <li><b>[실행(취합)]</b>을 눌러 결과 엑셀(.xlsx)을 다운로드합니다.</li>
+  </ol>
+
+  <p><b>4) 항목 선택 규칙</b></p>
+  <ul>
+    <li><b>고정 항목(1번만 생성)</b>: 학교급/설립/지역처럼 연도와 무관하게 1개만 있으면 되는 항목
+      <div style="margin-top:4px;color:#64748b;font-size:12px;">
+        값은 최신 연도 값 우선, 최신이 비어있으면 다른 연도 값으로 보충합니다.
+      </div>
+    </li>
+    <li><b>비교 항목(연도별 열 생성)</b>: 실적치처럼 연도별로 비교할 항목
+      <div style="margin-top:4px;color:#64748b;font-size:12px;">
+        결과 열 이름: 항목명_연도 (예: 만족도_2024, 만족도_2025)
+      </div>
+    </li>
+    <li>어떤 항목이 특정 연도에만 존재하면 <b>그 연도 열만 생성</b>됩니다(불필요한 빈 열 생성 방지).</li>
+  </ul>
+
+  <p><b>5) 유의사항</b></p>
+  <ul>
+    <li>동일 학교가 여러 번 나오면 마지막 행 값이 사용될 수 있습니다.</li>
+    <li>열 제목에 숨은 공백(NBSP 등)이 있어도 자동 정규화하여 인식합니다.</li>
+    <li>본 도구는 서버 업로드 없이 <b>브라우저(로컬)</b>에서만 처리됩니다.</li>
+  </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="top">
+    <div class="title">
+      <div class="badge">Y</div>
+      <h1>연도별 학교 데이터 비교 취합 도구(v1.0)</h1>
+    </div>
+    <div class="subtitle">학교명 기준으로 연도별 데이터(파일/시트)를 취합해 비교할 수 있도록 엑셀로 출력합니다. (로컬 처리)</div>
+  </div>
+
+  <div class="wrap">
+    <!-- 1) Data load -->
+    <div class="card">
+      <h3>1. 데이터 불러오기</h3>
+      <p>모드를 선택한 뒤 데이터를 추가하고, 각 항목(연도/시트/열 제목 줄/학교명 열)을 확인하세요.</p>
+
+      <div id="libWarn" class="warn" style="display:none;"></div>
+
+      <div class="row">
+        <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);font-weight:900;">
+          <input type="radio" name="mode" value="files" id="modeFiles" checked />
+          모드 A: 여러 파일
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);font-weight:900;">
+          <input type="radio" name="mode" value="sheets" id="modeSheets" />
+          모드 B: 한 파일(시트 비교)
+        </label>
+      </div>
+
+      <div id="modeA" class="row mt10">
+        <input id="fileInputMulti" type="file" accept=".xlsx,.xlsm,.csv" multiple style="display:none;" />
+        <button id="addBtnMulti" class="btn-primary" type="button">연도별 파일 추가</button>
+        <div class="muted" id="fileHintMulti" style="font-size:12px;">선택된 파일 없음</div>
+      </div>
+
+      <div id="modeB" class="row mt10" style="display:none;">
+        <input id="fileInputOne" type="file" accept=".xlsx,.xlsm" style="display:none;" />
+        <button id="addBtnOne" class="btn-primary" type="button">단일 파일 선택(시트 비교)</button>
+        <div class="muted" id="fileHintOne" style="font-size:12px;">선택된 파일 없음</div>
+        <div class="muted" style="font-size:12px;">※ 시트명/파일명에 2024 같은 연도가 있으면 자동 인식</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:34%;">파일/시트</th>
+              <th style="width:10%;">연도</th>
+              <th style="width:16%;">시트</th>
+              <th style="width:18%;">열 제목 줄</th>
+              <th style="width:16%;">학교명 열</th>
+              <th style="width:6%;">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6" class="muted">아직 추가된 데이터가 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+<div class="progress"><div id="prog"></div></div>
+      <div class="status" id="status">대기 중</div>
+
+      
+    </div>
+
+    <!-- 2) Column selection -->
+    <div class="card">
+      <h3>2. 항목 선택 및 요약</h3>
+      <p>고정 항목은 1번만 생성, 비교 항목은 연도별 열(항목명_연도)로 생성됩니다. (검색/추천 없음)</p>
+
+      <div class="row mt10">
+        <button id="run" class="btn-primary" disabled>실행(취합)</button>
+        <button id="cancel" class="btn" disabled>중지</button>
+        <button id="reset" class="btn" type="button">초기화</button>
+        <span class="muted" style="font-size:12px;">다운로드: <span class="mono">학교데이터_연도비교_20260130.xlsx</span></span>
+      </div>
+
+      <div class="split">
+        <div class="box">
+          <h4>고정 항목(1번만)</h4>
+          <div class="tools">
+            <button type="button" id="fixedAll">전체 선택</button>
+            <button type="button" id="fixedNone">전체 해제</button>
+          </div>
+          <div id="fixedList" class="checklist"></div>
+          <div class="muted" style="margin-top:8px;font-size:12px;">값은 <b>최신 연도</b>를 우선 사용합니다.</div>
+        </div>
+
+        <div class="box">
+          <h4>비교 항목(연도별 열)</h4>
+          <div class="tools">
+            <button type="button" id="cmpAll">전체 선택</button>
+            <button type="button" id="cmpNone">전체 해제</button>
+          </div>
+          <div id="cmpList" class="checklist"></div>
+        </div>
+      </div>
+
+      <div class="summary mono" id="summary">- 데이터: (없음)
+- 연도: (없음)
+- 선택 시트: (없음)
+- 학교명 열: (미설정)
+- 고정 항목: (미선택)
+- 비교 항목: (미선택)</div>
+
+      </div>
+  </div>
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+  // ===== Guide =====
+  const guideOpen = document.getElementById("guideOpen");
+  const guideModal = document.getElementById("guideModal");
+  const guideClose = document.getElementById("guideClose");
+  guideModal.style.display = "none";
+  guideOpen.addEventListener("click", () => guideModal.style.display = "block");
+  guideClose.addEventListener("click", () => guideModal.style.display = "none");
+  guideModal.addEventListener("click", (e) => { if (e.target === guideModal) guideModal.style.display = "none"; });
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") guideModal.style.display = "none"; });
+
+  // ===== Lib check =====
+  const libWarn = document.getElementById("libWarn");
+  if (typeof XLSX === "undefined" || typeof ExcelJS === "undefined") {
+    libWarn.style.display = "block";
+    libWarn.textContent =
+`라이브러리를 불러오지 못했습니다.
+
+필요 라이브러리:
+- xlsx (SheetJS)
+- exceljs (출력)
+
+[오프라인] xlsx.full.min.js / exceljs.min.js를 로컬로 넣고 script를 로컬로 바꿔야 합니다.`;
+  }
+
+  // ===== DOM =====
+  const modeFiles = document.getElementById("modeFiles");
+  const modeSheets = document.getElementById("modeSheets");
+  const modeA = document.getElementById("modeA");
+  const modeB = document.getElementById("modeB");
+
+  const fileInputMulti = document.getElementById("fileInputMulti");
+  const addBtnMulti = document.getElementById("addBtnMulti");
+  const fileHintMulti = document.getElementById("fileHintMulti");
+
+  const fileInputOne = document.getElementById("fileInputOne");
+  const addBtnOne = document.getElementById("addBtnOne");
+  const fileHintOne = document.getElementById("fileHintOne");
+
+  const tbody = document.getElementById("tbody");
+const run = document.getElementById("run");
+  const cancel = document.getElementById("cancel");
+  const reset = document.getElementById("reset");
+  const prog = document.getElementById("prog");
+  const statusEl = document.getElementById("status");
+  const summaryEl = document.getElementById("summary");
+
+  const fixedList = document.getElementById("fixedList");
+  const cmpList = document.getElementById("cmpList");
+  const fixedAllBtn = document.getElementById("fixedAll");
+  const fixedNoneBtn = document.getElementById("fixedNone");
+  const cmpAllBtn = document.getElementById("cmpAll");
+  const cmpNoneBtn = document.getElementById("cmpNone");
+
+  // ===== State =====
+  let cancelFlag = false;
+  let seq = 1;
+  let items = [];          // datasets
+  let fixedCols = new Set();
+  let compareCols = new Set();
+  let allCols = [];
+
+  // ===== helpers =====
+  const setStatus = (msg) => statusEl.textContent = msg;
+  const setProgress = (p) => prog.style.width = Math.max(0, Math.min(100, p)) + "%";
+
+  const guessYearFromText = (text) => {
+    const m = String(text).match(/(20\d{2})/);
+    return m ? m[1] : "";
+  };
+
+  const normalizeSchoolName = (v) => {
+    if (v === null || v === undefined) return "";
+    let s = String(v).trim();
+    s = s.replace(/\s+/g, "");
+    s = s.replace(/[‐-‒–—−－]/g, "-");
+    return s;
+  };
+
+  const isMostlyNumber = (x) => {
+    const s = String(x ?? "").trim();
+    if (!s) return false;
+    return /^[0-9.\-/:()]+$/.test(s);
+  };
+
+  const scoreTitleRow = (row) => {
+    const vals = (row ?? []).map(v => String(v ?? "").trim());
+    const nonEmpty = vals.filter(v => v !== "");
+    if (nonEmpty.length === 0) return -999;
+    const uniq = new Set(nonEmpty.map(v => v.toUpperCase()));
+    const uniqRatio = uniq.size / nonEmpty.length;
+    const numCount = nonEmpty.filter(v => isMostlyNumber(v)).length;
+    const numRatio = numCount / nonEmpty.length;
+    const lenScore = Math.min(nonEmpty.length, 20) / 20;
+    return (lenScore * 1.2) + (uniqRatio * 1.2) + ((1 - numRatio) * 1.0);
+  };
+
+  const detectTitleRowIndex = (aoa, maxScan=30) => {
+    const scan = Math.min(maxScan, aoa.length);
+    let bestIdx = 0, bestScore = -999;
+    for (let i=0;i<scan;i++) {
+      const sc = scoreTitleRow(aoa[i] ?? []);
+      const bias = (i>=1 && i<=6) ? 0.10 : 0;
+      const finalScore = sc + bias;
+      if (finalScore > bestScore) { bestScore = finalScore; bestIdx = i; }
+    }
+    return bestIdx;
+  };
+
+  const headersFromRow =(row) => {
+    const headers = (row ?? []).map(h => {
+      let s = String(h ?? "");
+      // NBSP/zero-width 제거 + 공백 정규화
+      s = s.replace(/\u00a0/g, " ").replace(/\u200b/g, "").replace(/\ufeff/g, "");
+      s = s.replace(/\s+/g, " ").trim();
+      return s;
+    });
+    // 빈 헤더 보정 + 중복 헤더 방지(동일명은 _2, _3)
+    const seen = new Map();
+    for (let i = 0; i < headers.length; i++) {
+      let name = headers[i];
+      if (!name) name = "컬럼" + (i + 1);
+      const key = name.toUpperCase();
+      const cnt = (seen.get(key) || 0) + 1;
+      seen.set(key, cnt);
+      headers[i] = (cnt === 1) ? name : (name + "_" + cnt);
+    }
+    return headers;
+  };
+
+
+  const guessSchoolCol = (headers) => {
+    if (!headers?.length) return "";
+    const pri = headers.find(h => h.replace(/\s+/g,"").includes("학교명"));
+    if (pri) return pri;
+    const sec = headers.find(h => /학교/.test(h) && !/학교급|학교구분|학교유형/.test(h));
+    if (sec) return sec;
+    return headers[0];
+  };
+
+  const buildRowsFromAOA = (aoa, titleRow1, headers) => {
+    const titleIdx = Math.max(1, parseInt(titleRow1,10) || 1) - 1;
+    const hdr = headers ?? headersFromRow(aoa[titleIdx] ?? []);
+    const rows = [];
+    for (let r=titleIdx+1; r<aoa.length; r++) {
+      const arr = aoa[r];
+      if (!arr || arr.every(x => String(x ?? "").trim()==="")) continue;
+      const obj = {};
+      hdr.forEach((h, idx)=> obj[h] = arr[idx] ?? "");
+      rows.push(obj);
+    }
+    return rows;
+  };
+
+  const union = (arrs) => {
+    const out = [];
+    const seen = new Set();
+    for (const a of arrs) for (const x of a) if (!seen.has(x)) { seen.add(x); out.push(x); }
+    return out;
+  };
+const getAOAFromWorkbook = (wb, sheetName) => {
+    const ws = wb.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:"" });
+  };
+
+  const loadDatasetForItem = async (it) => {
+    const aoa = getAOAFromWorkbook(it.wb, it.sheetName);
+    it.aoa = aoa;
+    const autoIdx0 = detectTitleRowIndex(aoa, 30);
+    it.autoTitleRow = autoIdx0 + 1;
+    if (!it.titleRow) it.titleRow = it.autoTitleRow;
+    it.headers = headersFromRow(aoa[(it.titleRow||it.autoTitleRow)-1] ?? aoa[autoIdx0] ?? []);
+    if (!it.keyCol) it.keyCol = guessSchoolCol(it.headers);
+    it.rows = buildRowsFromAOA(aoa, it.titleRow, it.headers);
+  };
+
+  const updateSummary = () => {
+    const years = items.map(it => it.year || "(미입력)");
+    const sheets = items.map(it => (it.year||"?") + ":" + it.sheetName);
+    summaryEl.textContent =
+`- 데이터: ${items.length ? items.length+"개" : "(없음)"}
+- 연도: ${items.length ? years.join(", ") : "(없음)"}
+- 선택 시트: ${items.length ? sheets.join(" / ") : "(없음)"}
+- 학교명 열: ${items.length ? "파일/시트별 선택" : "(미설정)"}
+- 고정 항목: ${fixedCols.size ? [...fixedCols].join(", ") : "(미선택)"}
+- 비교 항목: ${compareCols.size ? [...compareCols].join(", ") : "(미선택)"}`;
+  };
+
+  const updateRunEnabled = () => {
+    const okItems = items.length >= 2 && items.every(it => it.year && it.sheetName && it.keyCol && it.titleRow);
+    const okCols = (fixedCols.size + compareCols.size) > 0;
+    run.disabled = !(okItems && okCols);
+  };
+
+  const renderColLists = () => {
+    const renderList = (container, selectedSet, otherSet) => {
+      container.innerHTML = "";
+      if (allCols.length === 0) {
+        container.innerHTML = '<div class="muted" style="font-size:12px;">(항목 없음)</div>';
+        return;
+      }
+      for (const col of allCols) {
+        const safeId = "c_" + col.replace(/[^a-zA-Z0-9가-힣_]/g, "_");
+        const row = document.createElement("div");
+        row.className = "check";
+        row.innerHTML = `<input type="checkbox" id="${safeId}" data-col="${col}"><label for="${safeId}">${col}</label>`;
+        const cb = row.querySelector("input");
+        cb.checked = selectedSet.has(col);
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            selectedSet.add(col);
+            otherSet.delete(col);
+          } else {
+            selectedSet.delete(col);
+          }
+          // overlap 제거
+          for (const c of fixedCols) if (compareCols.has(c)) compareCols.delete(c);
+          renderColLists();
+          updateSummary();
+          updateRunEnabled();
+        });
+        container.appendChild(row);
+      }
+    };
+    renderList(fixedList, fixedCols, compareCols);
+    renderList(cmpList, compareCols, fixedCols);
+  };
+
+  const refreshAllCols = () => {
+    const lists = items.map(it => it.headers.filter(h => h !== it.keyCol));
+    allCols = union(lists);
+
+    // keep only existing
+    fixedCols = new Set([...fixedCols].filter(c => allCols.includes(c)));
+    compareCols = new Set([...compareCols].filter(c => allCols.includes(c)));
+    for (const c of fixedCols) if (compareCols.has(c)) compareCols.delete(c);
+
+    // default init: all -> compare
+    if (fixedCols.size === 0 && compareCols.size === 0) {
+      allCols.forEach(c => compareCols.add(c));
+    }
+
+    renderColLists();
+    updateSummary();
+    updateRunEnabled();
+  };
+
+  const renderTable = () => {
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">아직 추가된 데이터가 없습니다.</td></tr>';
+      refreshAllCols();
+      return;
+    }
+    tbody.innerHTML = "";
+    for (const it of items) {
+      const tr = document.createElement("tr");
+
+      const tdName = document.createElement("td");
+      tdName.innerHTML = `<b>${it.label}</b>`;
+      tr.appendChild(tdName);
+
+      const tdYear = document.createElement("td");
+      tdYear.innerHTML = `<input type="text" class="mono" data-id="${it.id}" data-field="year" value="${it.year||""}" placeholder="2024">`;
+      tr.appendChild(tdYear);
+
+      const tdSheet = document.createElement("td");
+      const sel = document.createElement("select");
+      sel.dataset.id = it.id; sel.dataset.field = "sheetName";
+      (it.sheetNames || []).forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s; opt.textContent = s;
+        if (s === it.sheetName) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      tdSheet.appendChild(sel);
+      tr.appendChild(tdSheet);
+
+      const tdTR = document.createElement("td");
+      tdTR.innerHTML =
+        `<div style="display:flex; gap:8px; align-items:center;">
+          <input type="number" min="1" class="mono" style="width:86px;" data-id="${it.id}" data-field="titleRow" value="${it.titleRow}">
+          <button class="mini" data-id="${it.id}" data-action="applyTitle">적용</button>
+        </div><div class="muted">자동: ${it.autoTitleRow}행</div>`;
+      tr.appendChild(tdTR);
+
+      const tdKey = document.createElement("td");
+      const selK = document.createElement("select");
+      selK.dataset.id = it.id; selK.dataset.field = "keyCol";
+      it.headers.forEach(h => {
+        const opt = document.createElement("option");
+        opt.value = h; opt.textContent = h;
+        if (h === it.keyCol) opt.selected = true;
+        selK.appendChild(opt);
+      });
+      tdKey.appendChild(selK);
+      tr.appendChild(tdKey);
+
+      const tdDel = document.createElement("td");
+      const del = document.createElement("button");
+      del.className = "del";
+      del.textContent = "×";
+      del.title = "삭제";
+      del.dataset.id = it.id;
+      del.dataset.action = "remove";
+      tdDel.appendChild(del);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    }
+    refreshAllCols();
+  };
+
+  const clearAll = () => {
+    cancelFlag = false;
+    seq = 1;
+    items = [];
+    fixedCols = new Set();
+    compareCols = new Set();
+    allCols = [];
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">아직 추가된 데이터가 없습니다.</td></tr>';
+    fixedList.innerHTML = "";
+    cmpList.innerHTML = "";
+    fileHintMulti.textContent = "선택된 파일 없음";
+    fileHintOne.textContent = "선택된 파일 없음";
+    setProgress(0);
+    setStatus("대기 중");
+    updateSummary();
+    run.disabled = true;
+    cancel.disabled = true;
+  };
+
+  const setMode = (mode) => {
+    if (mode === "files") { modeA.style.display = ""; modeB.style.display = "none"; }
+    else { modeA.style.display = "none"; modeB.style.display = ""; }
+    clearAll();
+  };
+
+  // mode switch
+  modeFiles.addEventListener("change", () => { if (modeFiles.checked) setMode("files"); });
+  modeSheets.addEventListener("change", () => { if (modeSheets.checked) setMode("sheets"); });
+
+  // add files/sheets
+  const addFilesAsItems = async (files) => {
+    setProgress(5);
+    setStatus("파일 읽는 중...");
+    for (const f of files) {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type:"array" });
+      const sheetNames = wb.SheetNames.slice();
+      const sheetName = sheetNames[0];
+
+      const it = {
+        id: String(seq++),
+        label: f.name,
+        wb, buf,
+        sheetNames, sheetName,
+        year: guessYearFromText(f.name),
+        titleRow: 0, autoTitleRow: 1,
+        headers: [], keyCol: "", rows: [], aoa: []
+      };
+      await loadDatasetForItem(it);
+      items.push(it);
+    }
+    setProgress(0);
+    setStatus("로드 완료. 설정을 확인하세요.");
+    renderTable();
+  };
+
+  const addOneFileAsSheets = async (file) => {
+    setProgress(5);
+    setStatus("파일 읽는 중(시트 분해)...");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type:"array" });
+    const sheetNames = wb.SheetNames.slice();
+    for (const s of sheetNames) {
+      const it = {
+        id: String(seq++),
+        label: `${file.name} :: ${s}`,
+        wb, buf,
+        sheetNames, sheetName: s,
+        year: guessYearFromText(s) || guessYearFromText(file.name),
+        titleRow: 0, autoTitleRow: 1,
+        headers: [], keyCol: "", rows: [], aoa: []
+      };
+      await loadDatasetForItem(it);
+      items.push(it);
+    }
+    setProgress(0);
+    setStatus("로드 완료. 설정을 확인하세요.");
+    renderTable();
+  };
+
+  addBtnMulti.addEventListener("click", () => fileInputMulti.click());
+  fileInputMulti.addEventListener("change", async (e) => {
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
+    fileHintMulti.textContent = files.length + "개 파일 선택됨";
+    await addFilesAsItems(files);
+    fileInputMulti.value = "";
+  });
+
+  addBtnOne.addEventListener("click", () => fileInputOne.click());
+  fileInputOne.addEventListener("change", async (e) => {
+    const file = (e.target.files || [])[0];
+    if (!file) return;
+    fileHintOne.textContent = file.name;
+    await addOneFileAsSheets(file);
+    fileInputOne.value = "";
+  });
+
+  // table events
+  tbody.addEventListener("change", async (e) => {
+    const el = e.target;
+    const id = el.dataset.id;
+    const field = el.dataset.field;
+    if (!id || !field) return;
+    const it = items.find(x => x.id === id);
+    if (!it) return;
+
+    if (field === "year") {
+      it.year = String(el.value||"").trim();
+      updateSummary(); updateRunEnabled();
+      return;
+    }
+    if (field === "sheetName") {
+      it.sheetName = el.value;
+      await loadDatasetForItem(it);
+      renderTable();
+      return;
+    }
+    if (field === "keyCol") {
+      it.keyCol = el.value;
+      renderTable();
+      return;
+    }
+    if (field === "titleRow") {
+      it.titleRow = Math.max(1, parseInt(el.value,10) || 1);
+      it.headers = headersFromRow(it.aoa[it.titleRow-1] ?? []);
+      if (!it.headers.includes(it.keyCol)) it.keyCol = guessSchoolCol(it.headers);
+      it.rows = buildRowsFromAOA(it.aoa, it.titleRow, it.headers);
+      renderTable();
+      return;
+    }
+  });
+
+  tbody.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+    const it = items.find(x => x.id === id);
+    if (!it) return;
+
+    if (action === "remove") {
+      items = items.filter(x => x.id !== id);
+      renderTable();
+      return;
+    }
+    if (action === "applyTitle") {
+      it.titleRow = Math.max(1, parseInt(it.titleRow,10) || 1);
+      it.headers = headersFromRow(it.aoa[it.titleRow-1] ?? []);
+      if (!it.headers.includes(it.keyCol)) it.keyCol = guessSchoolCol(it.headers);
+      it.rows = buildRowsFromAOA(it.aoa, it.titleRow, it.headers);
+      renderTable();
+      return;
+    }
+  });
+
+  // selectors: tools
+  fixedAllBtn.addEventListener("click", () => {
+    allCols.forEach(c => { fixedCols.add(c); compareCols.delete(c); });
+    renderColLists(); updateSummary(); updateRunEnabled();
+  });
+  fixedNoneBtn.addEventListener("click", () => {
+    fixedCols = new Set();
+    renderColLists(); updateSummary(); updateRunEnabled();
+  });
+  cmpAllBtn.addEventListener("click", () => {
+    allCols.forEach(c => { compareCols.add(c); fixedCols.delete(c); });
+    renderColLists(); updateSummary(); updateRunEnabled();
+  });
+  cmpNoneBtn.addEventListener("click", () => {
+    compareCols = new Set();
+    renderColLists(); updateSummary(); updateRunEnabled();
+  });
+
+  // reset/cancel
+  reset.addEventListener("click", clearAll);
+  cancel.addEventListener("click", () => {
+    cancelFlag = true;
+    cancel.disabled = true;
+    setStatus("취소 요청됨... (현재 단계 종료 후 중단)");
+  });
+
+  // export
+  const chooseFixedValue = (yearsDesc, perYearMap, schoolKey, col) => {
+    for (const y of yearsDesc) {
+      const m = perYearMap.get(y);
+      if (!m) continue;
+      const r = m.get(schoolKey);
+      const v = r ? r[col] : "";
+      if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+    }
+    for (const y of yearsDesc) {
+      const m = perYearMap.get(y);
+      if (!m) continue;
+      const r = m.get(schoolKey);
+      return r ? (r[col] ?? "") : "";
+    }
+    return "";
+  };
+
+  const downloadResult = async (headers, rows, filename) => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("연도비교");
+    ws.addRow(headers);
+    ws.getRow(1).font = { bold:true };
+    ws.views = [{ state:"frozen", xSplit:1, ySplit:1 }];
+    ws.autoFilter = { from:{row:1,column:1}, to:{row:1,column:headers.length} };
+    for (const r of rows) ws.addRow(r);
+
+    ws.columns.forEach((col) => {
+      let maxLen = 10;
+      col.eachCell({ includeEmpty: true }, (cell) => {
+        const v = cell.value;
+        const s = (v === null || v === undefined) ? "" : String(v);
+        maxLen = Math.max(maxLen, Math.min(30, s.length + 2));
+      });
+      col.width = Math.min(30, maxLen);
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 800);
+  };
+
+  run.addEventListener("click", async () => {
+    if (items.length < 2) return;
+
+    cancelFlag = false;
+    cancel.disabled = false;
+    run.disabled = true;
+    setProgress(5);
+    setStatus("취합 준비 중...");
+
+    try {
+      const years = items.map(x => x.year).filter(Boolean);
+      const dupYears = years.filter((y,i) => years.indexOf(y) !== i);
+      if (dupYears.length) throw new Error("연도 값이 중복됩니다: " + [...new Set(dupYears)].join(", "));
+
+      const sortedItems = [...items].sort((a,b) => (a.year||"").localeCompare(b.year||""));
+      const yearsSorted = sortedItems.map(x => x.year);
+      const yearsDesc = [...yearsSorted].slice().sort((a,b) => (b||"").localeCompare(a||""));
+
+      const perYearMap = new Map();
+            const colsByYear = new Map();
+const displayName = new Map();
+      const allSchoolKeys = new Set();
+for (let idx=0; idx<sortedItems.length; idx++) {
+        if (cancelFlag) throw new Error("사용자 취소");
+        const it = sortedItems[idx];
+        setStatus("데이터 읽는 중: " + it.year + " (" + (idx+1) + "/" + sortedItems.length + ")");
+        setProgress(10 + Math.floor((idx / sortedItems.length) * 20));
+
+        const m = new Map();
+        for (const r of it.rows) {
+          const sk = normalizeSchoolName(r[it.keyCol]);
+          if (!sk) continue;
+          if (!displayName.has(sk)) displayName.set(sk, String(r[it.keyCol] ?? "").trim());
+          allSchoolKeys.add(sk);
+          m.set(sk, r);
+        }
+        perYearMap.set(it.year, m);
+        colsByYear.set(it.year, it.headers.filter(h => h !== it.keyCol));
+}
+      let cmpCols = [...compareCols];
+const fixCols = [...fixedCols].filter(c => allCols.includes(c));
+      if (fixCols.length + cmpCols.length === 0) throw new Error("선택된 항목이 없습니다.");
+
+      // 비교항목이 실제로 존재하는 연도만 열 생성(불필요한 빈 열 방지)
+      const cmpYearsMap = new Map(); // col -> years[]
+      for (const c of cmpCols) {
+        const ys = [];
+        for (const y of yearsSorted) {
+          const cols = colsByYear.get(y) || [];
+          if (cols.includes(c)) ys.push(y);
+        }
+        if (ys.length > 0) cmpYearsMap.set(c, ys);
+      }
+
+      const outHeaders = ["학교명", ...fixCols, ...[...cmpYearsMap.entries()].flatMap(([c, ys]) => ys.map(y => c + "_" + y))];
+
+      const keysSorted = [...allSchoolKeys].sort((a,b) => (displayName.get(a)||a).localeCompare(displayName.get(b)||b, "ko"));
+      const outRows = [];
+
+      for (let i=0;i<keysSorted.length;i++) {
+        if (cancelFlag) throw new Error("사용자 취소");
+        const sk = keysSorted[i];
+        const name = displayName.get(sk) || sk;
+        const row = [name];
+
+        for (const c of fixCols) row.push(chooseFixedValue(yearsDesc, perYearMap, sk, c));
+        for (const [c, ys] of cmpYearsMap.entries()) {
+          for (const y of ys) {
+            const m = perYearMap.get(y);
+            const r = m ? m.get(sk) : null;
+            row.push(r ? (r[c] ?? "") : "");
+          }
+        }
+
+        outRows.push(row);
+        if (i % 200 === 0) {
+          setProgress(35 + Math.floor((i / Math.max(1, keysSorted.length)) * 55));
+          setStatus("출력 행 생성 중... (" + i + "/" + keysSorted.length + ")");
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      setProgress(93);
+      setStatus("엑셀 생성 및 다운로드 준비 중...");
+      await downloadResult(outHeaders, outRows, "학교데이터_연도비교_20260130.xlsx");
+
+      setProgress(100);
+      setStatus("완료! 학교 " + keysSorted.length + "개 / 연도 " + yearsSorted.length + "개");
+    } catch (err) {
+      if ((err?.message||"").includes("사용자 취소")) {
+        setStatus("취소됨");
+      } else {
+        alert("오류: " + (err?.message ?? err));
+        setStatus("오류 발생");
+      }
+      setProgress(0);
+    } finally {
+      cancel.disabled = true;
+      updateRunEnabled();
+    }
+  });
+
+  // init
+  setMode("files");
+  updateSummary();
+  setStatus("대기 중");
+  setProgress(0);
+});
+</script>
+
+</body>
+</html>

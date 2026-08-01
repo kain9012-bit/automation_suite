@@ -1,0 +1,257 @@
+QMainWindow {
+    background: #f3f6fb;
+}
+
+QWidget#topBar {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #173c6f, stop:1 #1f4f8f);
+    border: none;
+}
+
+QWidget#subMenuSurface {
+    background: transparent;
+}
+
+QScrollArea#subMenuScrollArea {
+    background: transparent;
+    border: none;
+}
+
+QWidget#subMenuWrap {
+    background: transparent;
+}
+
+QWidget#contentBackground {
+    background: #ffffff;
+}
+
+QFrame#contentShell {
+    background: #ffffff;
+    border: none;
+    border-radius: 0px;
+}
+
+QLabel#appTitleLabel {
+    color: white;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+QLabel#appSubtitleLabel {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#pageEyebrowLabel {
+    color: #1f4f8f;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+}
+
+QLabel#pageTitleLabel {
+    color: #1f2937;
+    font-size: 24px;
+    font-weight: 900;
+}
+
+QLabel#pageDescriptionLabel {
+    color: #667085;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QWidget#footerBar {
+    background: #f8fafc;
+    border-top: 1px solid #d8e2ee;
+}
+
+QLabel#footerLeft,
+QLabel#footerRight {
+    color: #667085;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QPushButton#topTabButton {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.86);
+    border: none;
+    border-radius: 14px;
+    padding: 0 18px;
+    font-size: 15px;
+    font-weight: 800;
+}
+QPushButton#topTabButton:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+QPushButton#topTabButton:checked {
+    background: white;
+    color: #1f2937;
+}
+
+QPushButton#headerActionButton,
+QPushButton#headerFavoriteButton {
+    min-height: 38px;
+    background: rgba(255, 255, 255, 0.10);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 800;
+}
+QPushButton#headerActionButton:hover,
+QPushButton#headerFavoriteButton:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+QPushButton#headerFavoriteButton {
+    min-width: 60px;
+    padding: 0 10px;
+    font-size: 16px;
+}
+
+QToolButton#subMenuButton,
+QToolButton#homeShortcutButton,
+QToolButton#homeFavoriteButton {
+    background: white;
+    border: 1px solid #d8e2ee;
+    border-radius: 14px;
+    padding: 2px 4px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #1f2937;
+}
+QToolButton#subMenuButton:hover,
+QToolButton#homeShortcutButton:hover,
+QToolButton#homeFavoriteButton:hover {
+    background: #f8fbff;
+    border: 1px solid #b6caea;
+}
+QToolButton#subMenuButton:checked,
+QToolButton#homeShortcutButton:checked,
+QToolButton#homeFavoriteButton:checked {
+    background: #1f4f8f;
+    border: 1px solid #1f4f8f;
+    color: white;
+}
+
+QPushButton#favoriteRemoveButton {
+    background: transparent;
+    color: #8f5b5b;
+    border: none;
+    border-radius: 0px;
+    padding: 0px;
+    font-size: 12px;
+    font-weight: 900;
+}
+QPushButton#favoriteRemoveButton:hover {
+    background: transparent;
+    color: #b42318;
+}
+
+QLabel#submenuDividerLabel {
+    color: #b0bfd3;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+QDialog {
+    background: #ffffff;
+}
+
+QFrame#allMenuCard {
+    background: #ffffff;
+    border: 1px solid #d8e2ee;
+    border-radius: 16px;
+}
+
+QLabel#allMenuDialogTitle {
+    color: #1f2937;
+    font-size: 22px;
+    font-weight: 900;
+}
+
+QLabel#allMenuDialogMeta {
+    color: #667085;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#dialogCloseButton {
+    background: white;
+    color: #1f2937;
+    border: 1px solid #d8e2ee;
+    border-radius: 12px;
+    padding: 0 16px;
+    min-height: 38px;
+    font-size: 13px;
+    font-weight: 800;
+}
+QPushButton#dialogCloseButton:hover {
+    background: #f8fafc;
+}
+
+QLabel#allMenuCardTitle {
+    color: #1f2937;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+QLabel#countBadge {
+    background: #e9f1ff;
+    color: #1f4f8f;
+    border-radius: 13px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+
+
+QFrame#allMenuToolCard {
+    background: #ffffff;
+    border: 1px solid #d8e2ee;
+    border-radius: 12px;
+}
+
+QPushButton#allMenuToolButton {
+    text-align: center;
+    background: transparent;
+    border: none;
+    color: #1f2937;
+    font-size: 14px;
+    padding: 2px 4px;
+    min-width: 120px;
+    font-weight: 700;
+}
+QPushButton#allMenuToolButton:hover {
+    color: #1f4f8f;
+    background: transparent;
+    border-radius: 0px;
+}
+
+QPushButton#allMenuFavoriteButton {
+    background: transparent;
+    border: none;
+    color: #d14b72;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 0px;
+}
+QPushButton#allMenuFavoriteButton:hover {
+    background: transparent;
+    color: #b53a63;
+}
+
+
+QDialog QScrollArea,
+QDialog QWidget {
+    background: #ffffff;
+}
+
+QDialog QLabel {
+    background: transparent;
+}

@@ -1,0 +1,13 @@
+{
+  "id": "simple_calculators",
+  "name": "계산기",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "한글 금액 변환, 날짜 차이, 글자수, 분/시간 변환, 만나이 계산 기능을 제공합니다.",
+  "order": 10,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["계산기", "한글금액", "날짜", "글자수", "시간", "만나이"]
+}

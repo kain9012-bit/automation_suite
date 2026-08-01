@@ -1,0 +1,13 @@
+{
+  "id": "qr_code_generator",
+  "name": "QR코드",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "로컬에서 QR코드를 생성하고 복사하거나 JPG로 저장합니다.",
+  "order": 50,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["QR", "QR코드", "바코드", "생성", "로컬"]
+}
