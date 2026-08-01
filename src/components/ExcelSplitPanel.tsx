@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { FileInput, FileSpreadsheet, FolderOpen, LoaderCircle, Play, RotateCw } from "lucide-react";
+import {
+  FileInput,
+  FileSpreadsheet,
+  FolderOpen,
+  LoaderCircle,
+  Play,
+  RotateCw,
+  ShieldCheck,
+} from "lucide-react";
 import { runNativeTool } from "../lib/bridge";
+import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
 import "./excel-split-panel.css";
 
@@ -98,6 +107,17 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
     void analyze(selected);
   };
 
+  const dropping = useFileDrop((paths) => {
+    const usable = filterByExtension(paths, ["xlsx", "xlsm", "csv"]);
+    if (!usable.length) {
+      setLog((items) => [...items, "엑셀 파일(xlsx, xlsm, csv)만 넣을 수 있습니다."]);
+      return;
+    }
+    setSource(usable[0]);
+    setSplitColumn(1);
+    void analyze(usable[0]);
+  });
+
   const pickOutput = async () => {
     const selected = await openDialog({ directory: true, multiple: false, title: "저장 폴더 선택" });
     if (typeof selected === "string") setOutput(selected);
@@ -157,29 +177,30 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
-            <strong>파일 선택</strong>
+            <strong>처리 대상 선택</strong>
           </div>
+          <span className="privacy-note">
+            <ShieldCheck size={15} />
+            파일은 PC 밖으로 전송되지 않습니다.
+          </span>
         </div>
-        <div className="split-row">
-          <input value={source} readOnly placeholder="분할할 엑셀 파일을 선택하세요" />
-          <button className="secondary-button" onClick={() => void pickSource()}>
-            <FileSpreadsheet size={15} />
-            파일 선택
-          </button>
-          {source && (
-            <button className="secondary-button" onClick={() => void analyze(source, sheetName)} disabled={analyzing}>
-              {analyzing ? <LoaderCircle className="spin" size={15} /> : <RotateCw size={15} />}
-              다시 읽기
-            </button>
-          )}
-        </div>
-        <div className="split-row">
-          <input value={output} readOnly placeholder="비우면 원본 파일 옆에 '(파일명)_분할' 폴더를 만듭니다" />
-          <button className="secondary-button" onClick={() => void pickOutput()}>
-            <FolderOpen size={15} />
-            저장 폴더
-          </button>
-        </div>
+        <button
+          className={`drop-zone ${dropping ? "is-dropping" : ""}`}
+          onClick={() => void pickSource()}
+        >
+          {analyzing ? <LoaderCircle className="spin" size={30} /> : <FileSpreadsheet size={30} />}
+          <strong>분할할 엑셀 파일을 선택하세요</strong>
+          <span>
+            {dropping
+              ? "여기에 놓으면 처리 대상으로 넣습니다."
+              : "클릭해서 고르거나, 창으로 끌어다 놓으세요."}
+          </span>
+        </button>
+        {!!source && (
+          <ul className="selected-files">
+            <li>{source}</li>
+          </ul>
+        )}
       </section>
 
       {!!sheets.length && (
@@ -188,8 +209,16 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
             <div className="task-heading">
               <div>
                 <span className="step-badge">2</span>
-                <strong>분할 기준</strong>
+                <strong>작업 설정</strong>
               </div>
+              <button
+                className="secondary-button"
+                onClick={() => void analyze(source, sheetName)}
+                disabled={analyzing}
+              >
+                {analyzing ? <LoaderCircle className="spin" size={15} /> : <RotateCw size={15} />}
+                다시 읽기
+              </button>
             </div>
 
             <div className="split-modes">
@@ -274,6 +303,21 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
                 기준 열 값이 비어 있는 행은 건너뛰기
               </label>
             )}
+
+            <label className="split-output">
+              <span>저장 폴더</span>
+              <div className="split-row">
+                <input
+                  value={output}
+                  readOnly
+                  placeholder="비우면 원본 파일 옆에 '(파일명)_분할' 폴더를 만듭니다"
+                />
+                <button className="secondary-button" onClick={() => void pickOutput()}>
+                  <FolderOpen size={15} />
+                  찾아보기
+                </button>
+              </div>
+            </label>
           </section>
 
           <section className="task-card split-card">

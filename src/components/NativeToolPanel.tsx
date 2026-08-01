@@ -15,6 +15,7 @@ import {
   initialToolOptions,
   type ToolField,
 } from "../lib/toolSchemas";
+import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
 import "./native-tool-panel.css";
 
@@ -48,6 +49,17 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
     if (!selected) return;
     setInputs(Array.isArray(selected) ? selected : [selected]);
   };
+
+  const dropping = useFileDrop((paths) => {
+    // 폴더를 받는 도구는 확장자를 따지지 않는다.
+    const usable =
+      schema.inputMode === "folder" ? paths : filterByExtension(paths, schema.extensions);
+    if (!usable.length) {
+      setLog((items) => [...items, "이 도구가 처리할 수 있는 파일이 없습니다."]);
+      return;
+    }
+    setInputs(schema.multiple ? usable : usable.slice(0, 1));
+  }, schema.inputMode !== "none");
 
   const chooseOutput = async () => {
     if (schema.outputMode === "folder") {
@@ -117,10 +129,14 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
             파일은 PC 밖으로 전송되지 않습니다.
           </span>
         </div>
-        <button className="drop-zone" onClick={chooseInput}>
+        <button className={`drop-zone ${dropping ? "is-dropping" : ""}`} onClick={chooseInput}>
           <FolderOpen size={30} />
           <strong>{schema.inputLabel}</strong>
-          <span>클릭해서 처리 대상을 불러옵니다.</span>
+          <span>
+            {dropping
+              ? "여기에 놓으면 처리 대상으로 넣습니다."
+              : "클릭해서 고르거나, 창으로 끌어다 놓으세요."}
+          </span>
         </button>
         {!!inputs.length && (
           <ul className="selected-files">

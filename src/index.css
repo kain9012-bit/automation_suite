@@ -808,10 +808,16 @@ kbd {
   background: var(--bg-primary);
 }
 
-.drop-zone:hover {
+.drop-zone:hover,
+.drop-zone.is-dropping {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+.drop-zone.is-dropping {
+  border-style: solid;
+  border-width: 2px;
 }
 
 .drop-zone strong {
