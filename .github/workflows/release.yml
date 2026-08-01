@@ -146,3 +146,40 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+
+      # tauri-action이 latest.json을 안 올리는 경우가 있어 직접 만들어 붙인다.
+      # 이 파일이 없으면 설치된 앱이 새 버전을 알아채지 못한다.
+      - name: 자동 업데이트용 latest.json 올리기
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $bundle = "src-tauri/target/release/bundle/nsis"
+          $setup = Get-ChildItem $bundle -Filter *-setup.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          $sig = Get-ChildItem $bundle -Filter *-setup.exe.sig -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          if (-not $setup) { throw "설치 파일을 찾지 못했습니다." }
+          if (-not $sig) {
+            Write-Host "::warning::서명 파일이 없어 latest.json을 만들지 않습니다. 자동 업데이트는 동작하지 않습니다."
+            exit 0
+          }
+
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $asset = [uri]::EscapeDataString($setup.Name)
+          $payload = [ordered]@{
+            version   = $version
+            notes     = "JB업무ON $version"
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = (Get-Content $sig.FullName -Raw).Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$asset"
+              }
+            }
+          }
+
+          $json = $payload | ConvertTo-Json -Depth 10
+          [System.IO.File]::WriteAllText("$PWD/latest.json", $json, (New-Object System.Text.UTF8Encoding $false))
+          Write-Host $json
+          gh release upload ${{ github.ref_name }} latest.json --clobber
