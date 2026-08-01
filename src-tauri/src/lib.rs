@@ -296,39 +296,58 @@ fn run_native_tool(
         .into_iter()
         .find(|candidate| candidate.is_file());
 
-    let mut command = if let Some(sidecar) = sidecar {
-        Command::new(sidecar)
-    } else {
-        let runner = runner
-            .ok_or_else(|| "내장 Python 실행기와 개발용 연결 모듈을 찾지 못했습니다.".to_string())?;
-        let mut command = Command::new("python");
-        command.arg(runner);
-        command
-    };
-    command
-        .arg("--tool")
-        .arg(&tool_id)
-        .arg("--payload-b64")
-        .arg(payload_encoded)
-        .env(
-            "JBEDU_TOOLS_ROOT",
-            record.root.parent().unwrap_or(&record.root),
-        )
-        .env(
-            "JBEDU_PROJECT_ROOT",
-            record.root.parent().unwrap_or(&record.root),
-        )
-        .current_dir(record.root.parent().unwrap_or(&record.root));
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
+    // 개발 중에는 bridge/runner.py를 먼저 쓴다. 미리 빌드해 둔 sidecar exe는
+    // 파이썬 코드를 고쳐도 갱신되지 않아 옛 동작이 그대로 돌아간다.
+    // 설치본에는 runner.py가 없으므로 자연스럽게 sidecar를 쓴다.
+    let mut attempts: Vec<(std::ffi::OsString, Option<PathBuf>)> = Vec::new();
+    if let Some(dev_runner) = runner.filter(|path| path.is_file()) {
+        attempts.push(("python".into(), Some(dev_runner)));
+    }
+    if let Some(sidecar) = sidecar {
+        attempts.push((sidecar.into_os_string(), None));
+    }
+    if attempts.is_empty() {
+        return Err("내장 Python 실행기와 개발용 연결 모듈을 찾지 못했습니다.".to_string());
     }
 
-    let output = command
-        .output()
-        .map_err(|error| format!("Python 도구를 실행하지 못했습니다: {error}"))?;
+    let working_dir = record.root.parent().unwrap_or(&record.root);
+    let mut spawn_error = String::new();
+    let mut result = None;
+
+    for (program, script) in attempts {
+        let mut command = Command::new(&program);
+        if let Some(script) = &script {
+            command.arg(script);
+        }
+        command
+            .arg("--tool")
+            .arg(&tool_id)
+            .arg("--payload-b64")
+            .arg(&payload_encoded)
+            .env("JBEDU_TOOLS_ROOT", working_dir)
+            .env("JBEDU_PROJECT_ROOT", working_dir)
+            // 한글 오류 메시지가 깨지지 않도록 파이썬 출력을 UTF-8로 고정한다.
+            .env("PYTHONUTF8", "1")
+            .env("PYTHONIOENCODING", "utf-8")
+            .current_dir(working_dir);
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000);
+        }
+
+        match command.output() {
+            Ok(output) => {
+                result = Some(output);
+                break;
+            }
+            Err(error) => spawn_error = error.to_string(),
+        }
+    }
+
+    let output = result
+        .ok_or_else(|| format!("Python 도구를 실행하지 못했습니다: {spawn_error}"))?;
 
     if !output.status.success() {
         let message = String::from_utf8_lossy(&output.stderr).trim().to_string();

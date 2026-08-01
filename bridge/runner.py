@@ -13,6 +13,13 @@ from typing import Any
 from extra_tools import EXTRA_HANDLERS
 from macro_actions import run_action as run_macro_action
 
+# Windows 기본 코드페이지로 나가면 한글 메시지가 앱에서 깨진다.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 
 PROJECT_ROOT = Path(
     os.environ.get("JBEDU_PROJECT_ROOT") or Path(__file__).resolve().parent.parent

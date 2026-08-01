@@ -21,13 +21,22 @@ pub struct MacroAction {
 }
 
 fn command_for_runner(app: &AppHandle) -> Result<Command, String> {
-    let mut candidates = Vec::new();
-    if let Ok(current_exe) = std::env::current_exe() { if let Some(parent) = current_exe.parent() { candidates.push(parent.join("bridge-runner.exe")); } }
-    if let Ok(resource_dir) = app.path().resource_dir() { candidates.push(resource_dir.join("bridge-runner.exe")); candidates.push(resource_dir.join("binaries").join("bridge-runner.exe")); }
-    if let Some(sidecar) = candidates.into_iter().find(|path| path.is_file()) { return Ok(Command::new(sidecar)); }
+    // 개발 중에는 bridge/runner.py를 먼저 쓴다. 미리 빌드해 둔 sidecar exe는
+    // 파이썬 코드를 고쳐도 갱신되지 않는다. 설치본에는 runner.py가 없다.
     let runner = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap_or_else(|| std::path::Path::new(".")).join("bridge").join("runner.py");
-    if !runner.is_file() { return Err("빠른 실행 모듈을 찾지 못했습니다.".to_string()); }
-    let mut command = Command::new("python"); command.arg(runner); Ok(command)
+    let mut command = if runner.is_file() {
+        let mut command = Command::new("python");
+        command.arg(runner);
+        command
+    } else {
+        let mut candidates = Vec::new();
+        if let Ok(current_exe) = std::env::current_exe() { if let Some(parent) = current_exe.parent() { candidates.push(parent.join("bridge-runner.exe")); } }
+        if let Ok(resource_dir) = app.path().resource_dir() { candidates.push(resource_dir.join("bridge-runner.exe")); candidates.push(resource_dir.join("binaries").join("bridge-runner.exe")); }
+        let sidecar = candidates.into_iter().find(|path| path.is_file()).ok_or_else(|| "빠른 실행 모듈을 찾지 못했습니다.".to_string())?;
+        Command::new(sidecar)
+    };
+    command.env("PYTHONUTF8", "1").env("PYTHONIOENCODING", "utf-8");
+    Ok(command)
 }
 
 /// 키 입력을 흉내 내야 하는 동작만 Python sidecar가 필요하다.
