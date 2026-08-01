@@ -14,6 +14,7 @@ import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { Header } from "./components/Header";
 import { HtmlToolView } from "./components/HtmlToolView";
 import { NativeToolPanel } from "./components/NativeToolPanel";
+import { ExcelSplitPanel } from "./components/ExcelSplitPanel";
 import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -154,11 +155,14 @@ export default function App() {
       return <SettingsPanel onRefresh={registry.refresh} onStartTutorial={() => { setView({ kind: "home" }); setTutorialOpen(true); }} />;
     }
     if (view.kind === "tool") {
-      return view.tool.type === "html" || view.tool.has_html ? (
-        <HtmlToolView tool={view.tool} />
-      ) : (
-        <NativeToolPanel tool={view.tool} />
-      );
+      if (view.tool.type === "html" || view.tool.has_html) {
+        return <HtmlToolView tool={view.tool} />;
+      }
+      // 일부 도구는 파일을 먼저 읽어 선택지를 만들어야 해서 전용 화면을 쓴다.
+      if (view.tool.id === "excel_split") {
+        return <ExcelSplitPanel tool={view.tool} />;
+      }
+      return <NativeToolPanel tool={view.tool} />;
     }
     if (view.kind === "home") {
       return (

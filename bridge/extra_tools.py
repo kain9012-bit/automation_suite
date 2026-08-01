@@ -208,6 +208,41 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def analyze_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
+    """분할 화면이 시트 목록·헤더·미리보기를 먼저 읽어오기 위한 조회 전용 동작."""
+    service = _module("excel_split", "excel_split_service")
+    sources = [path for path in _paths(payload) if path.is_file()]
+    if len(sources) != 1:
+        raise ValueError("분석할 엑셀 파일 하나를 선택하세요.")
+    source = sources[0]
+
+    info = service.analyze_workbook(source)
+    sheets = [
+        {
+            "name": sheet.name,
+            "max_row": sheet.max_row,
+            "max_column": sheet.max_column,
+            "auto_header_row": sheet.auto_header_row,
+            "headers": list(sheet.headers),
+        }
+        for sheet in info.sheet_infos
+    ]
+    if not sheets:
+        raise ValueError("읽을 수 있는 시트가 없습니다.")
+
+    sheet_name = str(payload.get("sheet_name") or "").strip() or sheets[0]["name"]
+    preview = service.preview_rows(source, sheet_name, max_rows=30, max_cols=20)
+
+    return {
+        "ok": True,
+        "message": f"시트 {len(sheets)}개를 읽었습니다.",
+        "csv_source": bool(info.csv_source),
+        "sheets": sheets,
+        "preview": preview,
+        "preview_sheet": sheet_name,
+    }
+
+
 def run_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
     service = _module("excel_split", "excel_split_service")
     sources = [path for path in _paths(payload) if path.is_file()]
@@ -252,5 +287,6 @@ EXTRA_HANDLERS = {
     "empty_folder_cleaner": run_empty_folder_cleaner,
     "excel_merge": run_excel_merge,
     "excel_split": run_excel_split,
+    "excel_split__analyze": analyze_excel_split,
     "homepage_post_collector": run_homepage_collector,
 }

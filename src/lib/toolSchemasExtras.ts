@@ -25,31 +25,6 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
       { key: "include_hidden_sheets", label: "숨긴 시트도 포함", type: "checkbox", defaultValue: false },
     ],
   },
-  excel_split: {
-    inputLabel: "분할할 엑셀 파일을 선택하세요",
-    multiple: false,
-    extensions: ["xlsx", "xlsm", "csv"],
-    outputMode: "folder",
-    outputLabel: "분할 결과 저장 폴더",
-    fields: [
-      {
-        key: "mode",
-        label: "분할 방식",
-        type: "select",
-        defaultValue: "sheet",
-        choices: [
-          { label: "시트별로 나누기", value: "sheet" },
-          { label: "행 개수로 나누기", value: "chunk" },
-          { label: "특정 열 값으로 나누기", value: "column" },
-        ],
-      },
-      { key: "sheet_name", label: "대상 시트 이름", type: "text", placeholder: "비우면 첫 시트" },
-      { key: "header_row", label: "머리글 행 번호", type: "number", defaultValue: 1 },
-      { key: "split_column", label: "기준 열 번호 (열 값 분할)", type: "number", defaultValue: 1 },
-      { key: "rows_per_file", label: "파일당 행 수 (행 개수 분할)", type: "number", defaultValue: 1000 },
-      { key: "skip_empty_key", label: "기준 값이 빈 행 건너뛰기", type: "checkbox", defaultValue: true },
-    ],
-  },
   certificate_pdf_splitter: {
     inputLabel: "분리할 이수증 PDF를 선택하세요",
     multiple: true,

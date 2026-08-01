@@ -269,7 +269,10 @@ fn run_native_tool(
     tool_id: String,
     payload: Value,
 ) -> Result<Value, String> {
-    let record = find_tool(&app, &tool_id)?;
+    // 한 도구가 실행 외에 조회 같은 보조 동작을 가질 수 있다.
+    // "excel_split__analyze" 처럼 뒤에 붙여 쓰고, 등록 확인은 앞부분으로 한다.
+    let base_id = tool_id.split("__").next().unwrap_or(&tool_id);
+    let record = find_tool(&app, base_id)?;
     if record.manifest.has_html {
         return Err("이 도구는 중앙 HTML 화면에서 실행됩니다.".to_string());
     }

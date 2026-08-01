@@ -1,0 +1,197 @@
+.excel-split {
+  display: grid;
+  gap: 16px;
+}
+
+.split-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px 19px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.split-card h2 {
+  margin: 0;
+  font-family: "Outfit Variable", Pretendard, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.split-hint {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.split-row {
+  display: flex;
+  gap: 8px;
+}
+
+.split-row input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.split-modes {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.split-mode {
+  display: grid;
+  gap: 3px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.split-mode strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.split-mode small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.split-mode.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.split-mode.is-active strong {
+  color: var(--accent-strong);
+}
+
+.split-fields {
+  display: grid;
+  gap: 11px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.split-fields > label {
+  display: grid;
+  gap: 5px;
+}
+
+.split-fields > label > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.split-fields select,
+.split-fields input[type="number"] {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.split-fields select:focus,
+.split-fields input:focus {
+  border-color: var(--accent);
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.field-inline input[type="number"] {
+  width: 84px;
+}
+
+.field-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.field-check.standalone {
+  margin-top: -2px;
+}
+
+.preview-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.preview-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 5px 9px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+}
+
+.preview-table th {
+  position: sticky;
+  left: 0;
+  background: var(--surface-soft);
+  color: var(--muted);
+  text-align: right;
+}
+
+.preview-table tr.is-header td {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 680;
+}
+
+.preview-table td.is-key {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.split-run {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+
+.split-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.split-status.is-error {
+  color: var(--error);
+}
