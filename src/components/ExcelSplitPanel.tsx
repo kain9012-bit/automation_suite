@@ -9,7 +9,7 @@ import {
   RotateCw,
   ShieldCheck,
 } from "lucide-react";
-import { runNativeTool } from "../lib/bridge";
+import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
 import "./excel-split-panel.css";
@@ -45,6 +45,7 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [done, setDone] = useState("");
 
   const [mode, setMode] = useState<Mode>("sheet");
   const [autoHeader, setAutoHeader] = useState(true);
@@ -147,7 +148,9 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         rows_per_file: rowsPerFile,
         skip_empty_key: skipEmptyKey,
       })) as unknown as { message: string; output: string; error_count: number };
-      setLog((items) => [...items, result.message, `저장 위치: ${result.output}`]);
+      const saved = resultPath(result as unknown as Record<string, unknown>);
+      setDone(saved);
+      setLog((items) => [...items, result.message, saved ? `저장 위치: ${saved}` : ""].filter(Boolean));
     } catch (reason) {
       setLog((items) => [
         ...items,
@@ -378,7 +381,15 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
       </div>
 
       <section className="log-panel">
-        <strong>작업 기록</strong>
+        <div className="log-head">
+          <strong>작업 기록</strong>
+          {!!done && (
+            <button className="secondary-button" onClick={() => void revealPath(done).catch(() => undefined)}>
+              <FolderOpen size={15} />
+              결과 폴더 열기
+            </button>
+          )}
+        </div>
         <pre>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
       </section>
     </div>

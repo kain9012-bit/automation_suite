@@ -99,6 +99,12 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     outputMode: "hidden",
     fields: [
       {
+        key: "recursive",
+        label: "폴더를 넣으면 하위 폴더까지 찾기",
+        type: "checkbox",
+        defaultValue: true,
+      },
+      {
         key: "visible",
         label: "한글 프로그램 처리 화면 표시",
         type: "checkbox",
@@ -121,6 +127,12 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     outputLabel: "압축 PDF 파일",
     outputExtension: "pdf",
     fields: [
+      {
+        key: "max_tries",
+        label: "압축 시도 횟수",
+        type: "number",
+        defaultValue: 18,
+      },
       {
         key: "target_mb",
         label: "목표 용량(MB)",
@@ -170,47 +182,6 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
       { key: "font_size", label: "글자 크기", type: "number", defaultValue: 10 },
     ],
   },
-  pdf_page_organizer: {
-    multiple: false,
-    extensions: ["pdf"],
-    outputMode: "folder",
-    outputLabel: "결과 저장 폴더",
-    fields: [
-      {
-        key: "action",
-        label: "작업",
-        type: "select",
-        defaultValue: "extract",
-        choices: [
-          { label: "페이지 추출", value: "extract" },
-          { label: "페이지 삭제", value: "delete" },
-          { label: "페이지 재배열", value: "reorder" },
-          { label: "PDF 분할", value: "split" },
-        ],
-      },
-      {
-        key: "mode",
-        label: "처리 방식",
-        type: "select",
-        defaultValue: "pages",
-        choices: [
-          { label: "페이지 직접 입력", value: "pages" },
-          { label: "홀수 페이지", value: "odd" },
-          { label: "짝수 페이지", value: "even" },
-          { label: "순서 직접 입력", value: "sequence" },
-          { label: "N페이지마다 분할", value: "every_n" },
-          { label: "지정 페이지에서 분할", value: "at_pages" },
-        ],
-      },
-      {
-        key: "spec",
-        label: "페이지 범위/순서",
-        type: "text",
-        placeholder: "예: 1-3, 5, 8-10",
-      },
-      { key: "number", label: "분할 단위(N)", type: "number", defaultValue: 1 },
-    ],
-  },
   rename_files: {
     inputLabel: "이름을 바꿀 파일을 선택하세요",
     outputMode: "hidden",
@@ -236,6 +207,12 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     outputMode: "folder",
     outputLabel: "압축 해제 폴더(선택)",
     fields: [
+      {
+        key: "recursive",
+        label: "폴더를 넣으면 하위 폴더까지 찾기",
+        type: "checkbox",
+        defaultValue: true,
+      },
       {
         key: "extract_direct",
         label: "압축파일명 폴더 없이 바로 풀기",

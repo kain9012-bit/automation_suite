@@ -235,6 +235,34 @@ fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
     macro_deck::open_with_default(&html_path.to_string_lossy())
 }
 
+/// 작업 결과가 저장된 파일이나 폴더를 탐색기로 연다.
+/// 파일 경로를 주면 그 파일이 든 폴더를 연다.
+#[tauri::command]
+fn reveal_path(path: String) -> Result<(), String> {
+    let target = PathBuf::from(path.trim());
+    if !target.exists() {
+        return Err("결과 경로를 찾지 못했습니다.".to_string());
+    }
+    let folder = if target.is_dir() {
+        target
+    } else {
+        target
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "결과 폴더를 찾지 못했습니다.".to_string())?
+    };
+    let mut command = Command::new("explorer.exe");
+    command.arg(&folder);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    // explorer.exe는 성공해도 0이 아닌 코드를 돌려주므로 결과를 따지지 않는다.
+    let _ = command.spawn();
+    Ok(())
+}
+
 fn bridge_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -386,6 +414,7 @@ pub fn run() {
             list_tools,
             read_tool_html,
             open_tool_in_browser,
+            reveal_path,
             run_native_tool,
             check_tool_updates,
             install_tool_updates,

@@ -28,6 +28,32 @@ export async function openToolInBrowser(toolId: string): Promise<void> {
   return invoke<void>("open_tool_in_browser", { toolId });
 }
 
+/** 작업 결과가 저장된 폴더를 탐색기로 연다. */
+export async function revealPath(path: string): Promise<void> {
+  if (!isTauri()) throw new Error("결과 폴더 열기는 설치된 앱에서 사용할 수 있습니다.");
+  return invoke<void>("reveal_path", { path });
+}
+
+/** 도구가 돌려준 결과에서 열어 볼 만한 경로를 찾는다. */
+export function resultPath(result: Record<string, unknown>): string {
+  const direct = result.output ?? result.output_path ?? result.folder;
+  if (typeof direct === "string" && direct.trim()) return direct;
+  const nested = result.result;
+  if (nested && typeof nested === "object") {
+    const inner = nested as Record<string, unknown>;
+    for (const key of ["output_folder", "output_path", "output", "folder"]) {
+      const value = inner[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  }
+  const outputs = result.outputs;
+  if (Array.isArray(outputs) && outputs.length) {
+    const first = outputs[0] as Record<string, unknown>;
+    if (typeof first?.path === "string") return first.path;
+  }
+  return "";
+}
+
 export async function runNativeTool(
   toolId: string,
   payload: Record<string, unknown>,

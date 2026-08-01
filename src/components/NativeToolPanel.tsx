@@ -9,7 +9,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { runNativeTool } from "../lib/bridge";
+import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import {
   getToolSchema,
   initialToolOptions,
@@ -29,6 +29,8 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
   const [confirmed, setConfirmed] = useState(false);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  // 작업이 끝난 뒤 결과를 바로 열어 볼 수 있도록 저장 경로를 기억한다.
+  const [done, setDone] = useState("");
 
   useEffect(() => {
     setInputs([]);
@@ -36,6 +38,7 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
     setOptions(initialToolOptions(schema));
     setConfirmed(false);
     setLog([]);
+    setDone("");
   }, [schema, tool.id]);
 
   const chooseInput = async () => {
@@ -89,10 +92,12 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
         ...options,
         confirmed,
       });
+      const saved = resultPath(result);
+      setDone(saved);
       setLog((current) => [
         ...current,
         String(result.message ?? "작업이 완료되었습니다."),
-        result.output ? `저장 위치: ${String(result.output)}` : "",
+        saved ? `저장 위치: ${saved}` : "",
       ].filter(Boolean));
     } catch (reason) {
       setLog((current) => [
@@ -222,7 +227,15 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
       </div>
 
       <section className="log-panel">
-        <strong>작업 기록</strong>
+        <div className="log-head">
+          <strong>작업 기록</strong>
+          {!!done && (
+            <button className="secondary-button" onClick={() => void revealPath(done).catch(() => undefined)}>
+              <FolderOpen size={15} />
+              결과 폴더 열기
+            </button>
+          )}
+        </div>
         <pre>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
       </section>
     </div>

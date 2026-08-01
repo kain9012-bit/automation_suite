@@ -15,6 +15,7 @@ import { Header } from "./components/Header";
 import { HtmlToolView } from "./components/HtmlToolView";
 import { NativeToolPanel } from "./components/NativeToolPanel";
 import { ExcelSplitPanel } from "./components/ExcelSplitPanel";
+import { PdfOrganizerPanel } from "./components/PdfOrganizerPanel";
 import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -161,6 +162,9 @@ export default function App() {
       // 일부 도구는 파일을 먼저 읽어 선택지를 만들어야 해서 전용 화면을 쓴다.
       if (view.tool.id === "excel_split") {
         return <ExcelSplitPanel tool={view.tool} />;
+      }
+      if (view.tool.id === "pdf_page_organizer") {
+        return <PdfOrganizerPanel tool={view.tool} />;
       }
       return <NativeToolPanel tool={view.tool} />;
     }

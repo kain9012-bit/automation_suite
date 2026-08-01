@@ -1160,3 +1160,10 @@ kbd {
   .deck-form-row { grid-template-columns: 1fr; }
   .tutorial-card { left: 24px !important; }
 }
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

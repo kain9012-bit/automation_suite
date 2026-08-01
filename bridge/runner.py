@@ -51,6 +51,22 @@ def _paths(payload: dict[str, Any]) -> list[Path]:
     return paths
 
 
+def _expand(paths: list[Path], suffixes: set[str], recursive: bool) -> list[Path]:
+    """폴더를 골랐을 때 안쪽 파일까지 찾아 준다. recursive면 하위 폴더도 훑는다."""
+    found: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            pattern = "**/*" if recursive else "*"
+            found.extend(
+                child
+                for child in sorted(path.glob(pattern))
+                if child.is_file() and child.suffix.lower() in suffixes
+            )
+        elif path.suffix.lower() in suffixes:
+            found.append(path)
+    return found
+
+
 def _output_path(
     payload: dict[str, Any],
     inputs: list[Path],
@@ -162,7 +178,9 @@ def run_hwp_to_pdf(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_hwp_to_hwpx(payload: dict[str, Any]) -> dict[str, Any]:
-    inputs = _paths(payload)
+    inputs = _expand(_paths(payload), {".hwp"}, bool(payload.get("recursive", True)))
+    if not inputs:
+        raise ValueError("변환할 한글(.hwp) 파일을 찾지 못했습니다.")
     service = _module("hwp_to_hwpx_converter", "hwp_to_hwpx_converter_service")
     result = service.convert_hwp_files_to_hwpx(
         inputs,
@@ -288,7 +306,9 @@ def run_rename_files(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_zip_extractor(payload: dict[str, Any]) -> dict[str, Any]:
-    inputs = [path for path in _paths(payload) if path.suffix.lower() == ".zip"]
+    inputs = _expand(_paths(payload), {".zip"}, bool(payload.get("recursive", True)))
+    if not inputs:
+        raise ValueError("풀어야 할 ZIP 파일을 찾지 못했습니다.")
     service = _module("zip_batch_extractor", "zip_batch_extractor_service")
     output = str(payload.get("output") or "")
     result = service.extract_zip_batch(
