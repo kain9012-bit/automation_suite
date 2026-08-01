@@ -50,7 +50,7 @@ fn spawn_detached(mut command: Command) -> Result<(), String> {
 }
 
 /// 확장 프로그램이나 셸 따옴표 해석을 거치지 않고 기본 연결 프로그램으로 연다.
-fn open_with_default(target: &str) -> Result<(), String> {
+pub fn open_with_default(target: &str) -> Result<(), String> {
     let mut command = Command::new("rundll32.exe");
     command.arg("url.dll,FileProtocolHandler").arg(target);
     spawn_detached(command)

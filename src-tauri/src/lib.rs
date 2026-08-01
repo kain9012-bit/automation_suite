@@ -218,6 +218,23 @@ fn read_tool_html(app: AppHandle, tool_id: String) -> Result<String, String> {
     fs::read_to_string(html_path).map_err(|error| format!("HTML 도구를 읽지 못했습니다: {error}"))
 }
 
+/// HTML 도구를 기본 브라우저의 별도 창으로 연다.
+/// 프런트엔드에서 window.open으로 blob URL을 여는 방식은 WebView2에서 동작하지 않는다.
+#[tauri::command]
+fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
+    let record = find_tool(&app, &tool_id)?;
+    let relative = if record.manifest.tool_type == "html" {
+        PathBuf::from(&record.manifest.entry)
+    } else {
+        PathBuf::from("web").join("index.html")
+    };
+    let html_path = checked_child(&record.root, &relative)?;
+    if !html_path.is_file() {
+        return Err("도구 화면 파일을 찾지 못했습니다.".to_string());
+    }
+    macro_deck::open_with_default(&html_path.to_string_lossy())
+}
+
 fn bridge_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -346,6 +363,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_tools,
             read_tool_html,
+            open_tool_in_browser,
             run_native_tool,
             check_tool_updates,
             install_tool_updates,

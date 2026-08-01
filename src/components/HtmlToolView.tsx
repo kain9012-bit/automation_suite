@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, LoaderCircle, RotateCw } from "lucide-react";
-import { readToolHtml } from "../lib/bridge";
+import { openToolInBrowser, readToolHtml } from "../lib/bridge";
 import type { ToolManifest } from "../types";
 
 export function HtmlToolView({ tool }: { tool: ToolManifest }) {
@@ -8,6 +8,8 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  // 새 창 열기 실패는 도구 화면을 가리지 않고 도구 이름 옆에만 알린다.
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -48,7 +50,7 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
       <div className="workspace-toolbar">
         <div>
           <strong>{tool.name}</strong>
-          <span>HTML 도구 · 통합 프레임</span>
+          <span>{notice || "HTML 도구 · 통합 프레임"}</span>
         </div>
         <div className="toolbar-actions">
           <button
@@ -61,8 +63,10 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
           <button
             className="secondary-button"
             onClick={() => {
-              const blob = new Blob([html], { type: "text/html" });
-              window.open(URL.createObjectURL(blob), "_blank");
+              setNotice("");
+              void openToolInBrowser(tool.id).catch((reason) =>
+                setNotice(reason instanceof Error ? reason.message : String(reason)),
+              );
             }}
           >
             <ExternalLink size={15} />

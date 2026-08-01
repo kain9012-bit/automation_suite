@@ -21,6 +21,13 @@ export async function readToolHtml(toolId: string): Promise<string> {
   return response.text();
 }
 
+export async function openToolInBrowser(toolId: string): Promise<void> {
+  if (!isTauri()) {
+    throw new Error("새 창 열기는 설치된 앱에서 사용할 수 있습니다.");
+  }
+  return invoke<void>("open_tool_in_browser", { toolId });
+}
+
 export async function runNativeTool(
   toolId: string,
   payload: Record<string, unknown>,
