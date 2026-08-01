@@ -134,6 +134,16 @@
   margin-top: -2px;
 }
 
+.preview-empty {
+  display: grid;
+  min-height: 96px;
+  place-items: center;
+  border: 1px dashed var(--border-hover);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .preview-wrap {
   max-height: 320px;
   overflow: auto;

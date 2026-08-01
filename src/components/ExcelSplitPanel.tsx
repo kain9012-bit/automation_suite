@@ -203,8 +203,6 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         )}
       </section>
 
-      {!!sheets.length && (
-        <>
           <section className="task-card split-card">
             <div className="task-heading">
               <div>
@@ -214,7 +212,7 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
               <button
                 className="secondary-button"
                 onClick={() => void analyze(source, sheetName)}
-                disabled={analyzing}
+                disabled={analyzing || !source}
               >
                 {analyzing ? <LoaderCircle className="spin" size={15} /> : <RotateCw size={15} />}
                 다시 읽기
@@ -237,12 +235,20 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
             <div className="split-fields">
               <label>
                 <span>대상 시트</span>
-                <select value={sheetName} onChange={(event) => changeSheet(event.target.value)}>
-                  {sheets.map((sheet) => (
-                    <option key={sheet.name} value={sheet.name}>
-                      {sheet.name} ({sheet.max_row}행)
-                    </option>
-                  ))}
+                <select
+                  value={sheetName}
+                  disabled={!sheets.length}
+                  onChange={(event) => changeSheet(event.target.value)}
+                >
+                  {sheets.length ? (
+                    sheets.map((sheet) => (
+                      <option key={sheet.name} value={sheet.name}>
+                        {sheet.name} ({sheet.max_row}행)
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">파일을 선택하면 시트가 나옵니다</option>
+                  )}
                 </select>
               </label>
 
@@ -253,13 +259,14 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
                     type="number"
                     min={1}
                     value={headerRow}
-                    disabled={autoHeader}
+                    disabled={autoHeader || !sheets.length}
                     onChange={(event) => setHeaderRow(Number(event.target.value) || 1)}
                   />
                   <label className="field-check">
                     <input
                       type="checkbox"
                       checked={autoHeader}
+                      disabled={!sheets.length}
                       onChange={(event) => setAutoHeader(event.target.checked)}
                     />
                     자동 감지
@@ -270,12 +277,20 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
               {mode === "column" && (
                 <label>
                   <span>기준 열</span>
-                  <select value={splitColumn} onChange={(event) => setSplitColumn(Number(event.target.value))}>
-                    {headers.map((header, index) => (
-                      <option key={`${header}-${index}`} value={index + 1}>
-                        {header?.trim() ? header : `(${index + 1}번째 열)`}
-                      </option>
-                    ))}
+                  <select
+                    value={splitColumn}
+                    disabled={!headers.length}
+                    onChange={(event) => setSplitColumn(Number(event.target.value))}
+                  >
+                    {headers.length ? (
+                      headers.map((header, index) => (
+                        <option key={`${header}-${index}`} value={index + 1}>
+                          {header?.trim() ? header : `(${index + 1}번째 열)`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={1}>파일을 선택하면 열 이름이 나옵니다</option>
+                    )}
                   </select>
                 </label>
               )}
@@ -330,28 +345,30 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
             <p className="split-hint">
               앞쪽 30행까지만 보여 줍니다. 파란 줄이 헤더 행으로 잡힌 위치입니다.
             </p>
-            <div className="preview-wrap">
-              <table className="preview-table">
-                <tbody>
-                  {preview.map((row, rowIndex) => (
-                    <tr key={rowIndex} className={rowIndex + 1 === headerRow ? "is-header" : ""}>
-                      <th>{rowIndex + 1}</th>
-                      {row.map((cell, cellIndex) => (
-                        <td
-                          key={cellIndex}
-                          className={mode === "column" && cellIndex + 1 === splitColumn ? "is-key" : ""}
-                        >
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {preview.length ? (
+              <div className="preview-wrap">
+                <table className="preview-table">
+                  <tbody>
+                    {preview.map((row, rowIndex) => (
+                      <tr key={rowIndex} className={rowIndex + 1 === headerRow ? "is-header" : ""}>
+                        <th>{rowIndex + 1}</th>
+                        {row.map((cell, cellIndex) => (
+                          <td
+                            key={cellIndex}
+                            className={mode === "column" && cellIndex + 1 === splitColumn ? "is-key" : ""}
+                          >
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="preview-empty">파일을 선택하면 내용이 여기에 나옵니다.</div>
+            )}
           </section>
-        </>
-      )}
 
       <div className="run-row">
         <button className="primary-button" onClick={() => void run()} disabled={running || !source}>
