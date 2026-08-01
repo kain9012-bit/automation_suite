@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { FileSpreadsheet, FolderOpen, LoaderCircle, Play, RotateCw } from "lucide-react";
+import { FileInput, FileSpreadsheet, FolderOpen, LoaderCircle, Play, RotateCw } from "lucide-react";
 import { runNativeTool } from "../lib/bridge";
 import type { ToolManifest } from "../types";
 import "./excel-split-panel.css";
@@ -140,14 +140,24 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
 
   return (
     <div className="content-column excel-split">
-      <div className="page-intro">
-        <span className="eyebrow">{tool.top_tab}</span>
-        <h1>{tool.name}</h1>
-        <p>{tool.description || "하나의 엑셀 파일을 열 값, 시트, 행 수 기준으로 여러 파일로 나눕니다."}</p>
+      <div className="native-hero">
+        <div className="tool-icon type-internal_python">
+          <FileInput size={23} />
+        </div>
+        <div>
+          <span className="eyebrow">{tool.top_tab}</span>
+          <h2>{tool.name}</h2>
+          <p>{tool.description || "하나의 엑셀 파일을 열 값, 시트, 행 수 기준으로 여러 파일로 나눕니다."}</p>
+        </div>
       </div>
 
-      <section className="split-card">
-        <h2>1. 파일 선택</h2>
+      <section className="task-card split-card">
+        <div className="task-heading">
+          <div>
+            <span className="step-badge">1</span>
+            <strong>파일 선택</strong>
+          </div>
+        </div>
         <div className="split-row">
           <input value={source} readOnly placeholder="분할할 엑셀 파일을 선택하세요" />
           <button className="secondary-button" onClick={() => void pickSource()}>
@@ -172,8 +182,13 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
 
       {!!sheets.length && (
         <>
-          <section className="split-card">
-            <h2>2. 분할 기준</h2>
+          <section className="task-card split-card">
+            <div className="task-heading">
+              <div>
+                <span className="step-badge">2</span>
+                <strong>분할 기준</strong>
+              </div>
+            </div>
 
             <div className="split-modes">
               {(Object.keys(MODE_LABELS) as Mode[]).map((item) => (
@@ -259,8 +274,13 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
             )}
           </section>
 
-          <section className="split-card">
-            <h2>3. 미리보기</h2>
+          <section className="task-card split-card">
+            <div className="task-heading">
+              <div>
+                <span className="step-badge">3</span>
+                <strong>미리보기</strong>
+              </div>
+            </div>
             <p className="split-hint">
               앞쪽 30행까지만 보여 줍니다. 파란 줄이 헤더 행으로 잡힌 위치입니다.
             </p>

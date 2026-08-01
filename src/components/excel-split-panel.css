@@ -1,23 +1,8 @@
-.excel-split {
-  display: grid;
-  gap: 16px;
-}
 
+/* 카드 자체는 다른 도구와 같은 .task-card 스타일을 쓰고, 내부 배치만 더한다. */
 .split-card {
   display: grid;
   gap: 12px;
-  padding: 18px 19px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.split-card h2 {
-  margin: 0;
-  font-family: "Outfit Variable", Pretendard, sans-serif;
-  font-size: 15px;
-  font-weight: 700;
 }
 
 .split-hint {
