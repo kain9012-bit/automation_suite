@@ -164,19 +164,3 @@
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
-.split-run {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-bottom: 8px;
-}
-
-.split-status {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.split-status.is-error {
-  color: var(--error);
-}

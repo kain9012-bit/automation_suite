@@ -35,8 +35,7 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
   const [preview, setPreview] = useState<string[][]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
+  const [log, setLog] = useState<string[]>([]);
 
   const [mode, setMode] = useState<Mode>("sheet");
   const [autoHeader, setAutoHeader] = useState(true);
@@ -53,7 +52,6 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
   const analyze = useCallback(
     async (path: string, wantedSheet?: string) => {
       setAnalyzing(true);
-      setError("");
       try {
         const result = (await runNativeTool("excel_split__analyze", {
           inputs: [path],
@@ -68,11 +66,14 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         setSheetName(result.preview_sheet);
         const found = result.sheets.find((sheet) => sheet.name === result.preview_sheet);
         if (found && autoHeader) setHeaderRow(found.auto_header_row || 1);
-        setStatus(`시트 ${result.sheets.length}개를 읽었습니다.`);
+        setLog((items) => [...items, `파일을 읽었습니다. 시트 ${result.sheets.length}개`]);
       } catch (reason) {
         setSheets([]);
         setPreview([]);
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setLog((items) => [
+          ...items,
+          `파일을 읽지 못했습니다: ${reason instanceof Error ? reason.message : String(reason)}`,
+        ]);
       } finally {
         setAnalyzing(false);
       }
@@ -110,12 +111,11 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
 
   const run = async () => {
     if (!source) {
-      setError("분할할 엑셀 파일을 선택하세요.");
+      setLog((items) => [...items, "분할할 엑셀 파일을 먼저 선택하세요."]);
       return;
     }
     setRunning(true);
-    setError("");
-    setStatus("분할하는 중입니다.");
+    setLog((items) => [...items, "분할하는 중입니다."]);
     try {
       const result = (await runNativeTool("excel_split", {
         inputs: [source],
@@ -127,10 +127,12 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         rows_per_file: rowsPerFile,
         skip_empty_key: skipEmptyKey,
       })) as unknown as { message: string; output: string; error_count: number };
-      setStatus(`${result.message} 저장 위치: ${result.output}`);
+      setLog((items) => [...items, result.message, `저장 위치: ${result.output}`]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setStatus("");
+      setLog((items) => [
+        ...items,
+        `실패: ${reason instanceof Error ? reason.message : String(reason)}`,
+      ]);
     } finally {
       setRunning(false);
     }
@@ -139,7 +141,7 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
   const headers = activeSheet?.headers ?? [];
 
   return (
-    <div className="content-column excel-split">
+    <div className="native-tool content-column">
       <div className="native-hero">
         <div className="tool-icon type-internal_python">
           <FileInput size={23} />
@@ -307,14 +309,17 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
         </>
       )}
 
-      <div className="split-run">
+      <div className="run-row">
         <button className="primary-button" onClick={() => void run()} disabled={running || !source}>
-          {running ? <LoaderCircle className="spin" size={15} /> : <Play size={15} />}
-          분할 실행
+          {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
+          {running ? "처리 중" : "분할 실행"}
         </button>
-        {status && <span className="split-status">{status}</span>}
-        {error && <span className="split-status is-error">{error}</span>}
       </div>
+
+      <section className="log-panel">
+        <strong>작업 기록</strong>
+        <pre>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
+      </section>
     </div>
   );
 }
