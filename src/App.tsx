@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Command,
+  Download,
   LoaderCircle,
   Search,
   Sparkles,
@@ -41,7 +42,7 @@ function titleFor(view: View) {
 
 export default function App() {
   const registry = useTools();
-  const updateStatus = useAutoUpdater(registry.refresh);
+  const updater = useAutoUpdater(registry.refresh);
   const [view, setView] = useState<View>({ kind: "home" });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dark, setDark] = useState(
@@ -261,11 +262,26 @@ export default function App() {
           onOpenCommand={() => setCommandOpen(true)}
           onToggleMacro={() => setView({ kind: "home" })}
         />
+        {!!updater.readyVersion && (
+          <div className="update-banner">
+            <span>
+              <Download size={15} />새 버전 {updater.readyVersion}을 받아 두었습니다.
+            </span>
+            <div>
+              <button className="secondary-button" onClick={updater.dismiss}>
+                나중에
+              </button>
+              <button className="primary-button" onClick={() => void updater.apply()}>
+                지금 적용
+              </button>
+            </div>
+          </div>
+        )}
         <main className="app-content" data-tour="tool-area">{content()}</main>
         <footer className="status-bar">
           <span>
             <i className="status-dot" />
-            {updateStatus}
+            {updater.status}
           </span>
           <span>도구 {registry.tools.length}개</span>
         </footer>

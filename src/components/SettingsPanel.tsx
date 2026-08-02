@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   checkToolUpdates,
-  installAppUpdateIfAvailable,
+  downloadUpdateIfAvailable,
   installToolUpdates,
 } from "../lib/updater";
 import {
@@ -79,8 +79,12 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
     setBusy("app");
     setMessage("앱 업데이트를 확인하는 중입니다.");
     try {
-      const found = await installAppUpdateIfAvailable(setMessage);
-      if (!found) setMessage("앱이 최신 버전입니다.");
+      const version = await downloadUpdateIfAvailable(setMessage);
+      setMessage(
+        version
+          ? `새 버전 ${version}을 받아 두었습니다. 화면 위쪽에서 '지금 적용'을 누르면 반영됩니다.`
+          : "앱이 최신 버전입니다.",
+      );
     } catch (error) {
       setMessage(`앱 업데이트 확인 실패: ${String(error)}`);
     } finally {
@@ -168,7 +172,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
         </div>
         <div>
           <strong>앱 자동 업데이트</strong>
-          <p>서명된 새 버전만 내려받아 설치하고 앱을 다시 시작합니다.</p>
+          <p>서명된 새 버전을 미리 내려받아 두고, 적용은 화면 위쪽에서 직접 고릅니다.</p>
         </div>
         <label className="switch">
           <input

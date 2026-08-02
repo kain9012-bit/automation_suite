@@ -24,29 +24,61 @@ export interface ToolInstallResult {
 
 export const isTauriRuntime = () => "__TAURI_INTERNALS__" in window;
 
-export async function installAppUpdateIfAvailable(
+/** 받아 두었지만 아직 적용하지 않은 업데이트가 생기면 알린다. */
+export const UPDATE_READY = "jbedu:update-ready";
+
+// 내려받은 업데이트를 적용할 때까지 들고 있는다.
+let pending: Awaited<ReturnType<typeof check>> = null;
+let pendingVersion = "";
+
+export function pendingUpdateVersion() {
+  return pending ? pendingVersion : "";
+}
+
+/**
+ * 새 버전이 있으면 조용히 내려받기만 한다. 설치는 하지 않는다.
+ * 작업 도중에 앱이 예고 없이 재시작되는 일을 막기 위한 것이다.
+ */
+export async function downloadUpdateIfAvailable(
   onProgress?: (message: string) => void,
-): Promise<boolean> {
-  if (!isTauriRuntime()) return false;
+): Promise<string> {
+  if (!isTauriRuntime()) return "";
+
   const update = await check();
-  if (!update) return false;
-  onProgress?.(`새 앱 버전 ${update.version}을 내려받는 중입니다.`);
+  if (!update) return "";
+
+  // 미뤄 둔 사이에 더 새 버전이 나왔으면 그쪽을 받는다.
+  if (pending && pendingVersion === update.version) return pendingVersion;
+
+  onProgress?.(`새 버전 ${update.version}을 내려받는 중입니다.`);
   let downloaded = 0;
   let total = 0;
-  await update.downloadAndInstall((event) => {
+  await update.download((event) => {
     if (event.event === "Started") {
       total = event.data.contentLength ?? 0;
     } else if (event.event === "Progress") {
       downloaded += event.data.chunkLength;
       if (total > 0) {
-        onProgress?.(`앱 업데이트 ${Math.round((downloaded / total) * 100)}%`);
+        onProgress?.(`새 버전 내려받는 중 ${Math.round((downloaded / total) * 100)}%`);
       }
-    } else if (event.event === "Finished") {
-      onProgress?.("앱 업데이트 설치를 마쳤습니다. 다시 시작합니다.");
     }
   });
+
+  pending = update;
+  pendingVersion = update.version;
+  onProgress?.(`새 버전 ${update.version} 준비 완료`);
+  window.dispatchEvent(new CustomEvent(UPDATE_READY));
+  return update.version;
+}
+
+/** 받아 둔 업데이트를 설치하고 앱을 다시 시작한다. */
+export async function applyPendingUpdate(
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  if (!pending) return;
+  onProgress?.("업데이트를 적용하고 다시 시작합니다.");
+  await pending.install();
   await relaunch();
-  return true;
 }
 
 export async function checkToolUpdates(): Promise<ToolUpdateCheck> {
