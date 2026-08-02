@@ -165,8 +165,15 @@ jobs:
             exit 0
           }
 
+          # 설치본 이름에 한글이 들어가면 GitHub가 올릴 때 다른 이름으로 바꾼다.
+          # 로컬 파일명으로 주소를 만들면 404가 나므로 실제 올라간 자산을 조회해서 쓴다.
+          $release = gh release view ${{ github.ref_name }} --json assets | ConvertFrom-Json
+          $uploaded = $release.assets | Where-Object { $_.name -like "*setup.exe" } | Select-Object -First 1
+          if (-not $uploaded) { throw "릴리스에 올라간 설치 파일을 찾지 못했습니다." }
+          Write-Host "로컬 파일명: $($setup.Name)"
+          Write-Host "올라간 이름: $($uploaded.name)"
+
           $version = "${{ github.ref_name }}".TrimStart("v")
-          $asset = [uri]::EscapeDataString($setup.Name)
           $payload = [ordered]@{
             version   = $version
             notes     = "JB업무ON $version"
@@ -174,7 +181,7 @@ jobs:
             platforms = [ordered]@{
               "windows-x86_64" = [ordered]@{
                 signature = (Get-Content $sig.FullName -Raw).Trim()
-                url       = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$asset"
+                url       = $uploaded.url
               }
             }
           }

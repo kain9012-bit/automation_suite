@@ -1998,7 +1998,7 @@ dependencies = [
 
 [[package]]
 name = "jbedu-automation-suite"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
