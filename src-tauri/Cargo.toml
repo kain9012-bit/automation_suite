@@ -1,6 +1,6 @@
 [package]
 name = "jbedu-automation-suite"
-version = "1.2.2"
+version = "1.2.3"
 description = "반복 업무를 간단하게 만드는 전북교육 업무도구 모음"
 authors = ["전북특별자치도교육청"]
 edition = "2021"
