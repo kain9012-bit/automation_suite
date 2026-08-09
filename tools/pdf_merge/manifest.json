@@ -9,5 +9,10 @@
   "order": 10,
   "enabled": true,
   "version": "2.2.0",
-  "keywords": []
+  "keywords": [],
+  "context_menu": {
+    "targets": ["pdf"],
+    "label": "선택한 PDF 취합",
+    "multiple": true
+  }
 }

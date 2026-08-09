@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   Download,
+  Eraser,
   FolderCog,
   LoaderCircle,
   MonitorCog,
+  MousePointerClick,
   PlayCircle,
   PackagePlus,
   RefreshCw,
@@ -22,10 +24,21 @@ import "./settings-panel.css";
 import { HotkeyInput } from "./HotkeyInput";
 import {
   DEFAULT_TOGGLE_HOTKEY,
+  clearContextMenus,
   getAppPreferences,
+  listContextMenu,
   setAppPreferences,
+  setContextMenu,
   type AppPreferences,
 } from "../lib/bridge";
+import type { ContextMenuEntry } from "../types";
+
+/** 우클릭 메뉴가 어디에 붙는지 사용자 말로 적는다. */
+function targetLabel(target: string) {
+  return target.toLowerCase() === "folder"
+    ? "폴더"
+    : `.${target.replace(/^\./, "").toLowerCase()} 파일`;
+}
 
 export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () => void; onStartTutorial: () => void }) {
   const [enabled, setEnabled] = useState(isAutoUpdateEnabled);
@@ -35,9 +48,57 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
   const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: true, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY });
   const [desktopBusy, setDesktopBusy] = useState(false);
 
+  // 탐색기 우클릭 메뉴. context_menu 블록이 있는 도구만 여기에 나온다.
+  const [contextMenus, setContextMenus] = useState<ContextMenuEntry[]>([]);
+  const [contextBusy, setContextBusy] = useState("");
+
   useEffect(() => {
     void getAppPreferences().then(setDesktop).catch((error) => setMessage(`Windows 설정을 불러오지 못했습니다: ${String(error)}`));
   }, []);
+
+  useEffect(() => {
+    void listContextMenu()
+      .then(setContextMenus)
+      .catch((error) => setMessage(`우클릭 메뉴 상태를 불러오지 못했습니다: ${String(error)}`));
+  }, []);
+
+  const changeContextMenu = async (entry: ContextMenuEntry, value: boolean) => {
+    setContextBusy(entry.id);
+    // 레지스트리 조회가 느릴 수 있으니 화면을 먼저 바꾸고, 실패하면 되돌린다.
+    const apply = (enabled: boolean) =>
+      setContextMenus((current) =>
+        current.map((item) => (item.id === entry.id ? { ...item, enabled } : item)),
+      );
+    apply(value);
+    try {
+      await setContextMenu(entry.id, value);
+      setMessage(
+        value
+          ? `우클릭 메뉴에 '${entry.label}'을 넣었습니다.`
+          : `우클릭 메뉴에서 '${entry.label}'을 뺐습니다.`,
+      );
+    } catch (error) {
+      apply(!value);
+      setMessage(`우클릭 메뉴 설정 실패: ${String(error)}`);
+    } finally {
+      setContextBusy("");
+    }
+  };
+
+  const clearContext = async () => {
+    setContextBusy("all");
+    try {
+      const removed = await clearContextMenus();
+      setContextMenus(await listContextMenu());
+      setMessage(
+        removed ? `우클릭 메뉴 ${removed}개를 정리했습니다.` : "정리할 우클릭 메뉴가 없습니다.",
+      );
+    } catch (error) {
+      setMessage(`우클릭 메뉴 정리 실패: ${String(error)}`);
+    } finally {
+      setContextBusy("");
+    }
+  };
 
   const changeDesktop = async (key: keyof AppPreferences, value: boolean) => {
     const next = { ...desktop, [key]: value };
@@ -140,6 +201,60 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
             <label><span><b>자동 실행 시 창 숨김</b><small>필요할 때 트레이 아이콘을 눌러 엽니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.start_minimized} disabled={desktopBusy} onChange={(event) => void changeDesktop("start_minimized", event.target.checked)} /><i /></span></label>
             <label><span><b>창 열기·숨기기 단축키</b><small>어느 화면에서든 이 키로 앱을 꺼내고 숨깁니다.</small></span><HotkeyInput value={desktop.toggle_hotkey} fallback={DEFAULT_TOGGLE_HOTKEY} disabled={desktopBusy} onChange={(next) => void changeHotkey(next)} /></label>
           </div>
+        </div>
+      </section>
+
+      <section className="settings-card settings-card-stack">
+        <div className="setting-icon"><MousePointerClick size={20} /></div>
+        <div>
+          <strong>탐색기 우클릭 메뉴</strong>
+          <p>
+            파일이나 폴더를 고르고 우클릭해서 도구를 바로 엽니다. 고른 파일이 처리 대상에
+            미리 담긴 채로 열립니다. Windows 11에서는 <b>더 많은 옵션 표시</b> 안에 들어갑니다.
+          </p>
+          {contextMenus.length ? (
+            <>
+              <div className="setting-toggles">
+                {contextMenus.map((entry) => (
+                  <label key={entry.id}>
+                    <span>
+                      <b>{entry.label}</b>
+                      <small>
+                        {entry.name} · {entry.targets.map(targetLabel).join(", ")}에서 보임
+                      </small>
+                    </span>
+                    <span className="switch">
+                      <input
+                        type="checkbox"
+                        checked={entry.enabled}
+                        disabled={contextBusy !== ""}
+                        onChange={(event) => void changeContextMenu(entry, event.target.checked)}
+                      />
+                      <i />
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="context-menu-actions">
+                <button
+                  className="secondary-button"
+                  onClick={() => void clearContext()}
+                  disabled={contextBusy !== ""}
+                >
+                  {contextBusy === "all" ? (
+                    <LoaderCircle className="spin" size={15} />
+                  ) : (
+                    <Eraser size={15} />
+                  )}
+                  모두 해제
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="context-menu-actions">
+              <span className="status-chip">우클릭 메뉴를 지원하는 도구가 없습니다</span>
+            </div>
+          )}
         </div>
       </section>
 

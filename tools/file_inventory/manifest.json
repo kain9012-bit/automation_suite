@@ -9,5 +9,10 @@
   "order": 22,
   "enabled": true,
   "version": "2.1.0",
-  "keywords": ["파일", "폴더", "현황표", "목록", "엑셀"]
+  "keywords": ["파일", "폴더", "현황표", "목록", "엑셀"],
+  "context_menu": {
+    "targets": ["folder"],
+    "label": "이 폴더 파일 목록 만들기",
+    "multiple": false
+  }
 }

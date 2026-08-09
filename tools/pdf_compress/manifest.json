@@ -9,5 +9,10 @@
   "order": 50,
   "enabled": true,
   "version": "2.2.0",
-  "keywords": []
+  "keywords": [],
+  "context_menu": {
+    "targets": ["pdf"],
+    "label": "PDF 용량 줄이기",
+    "multiple": true
+  }
 }

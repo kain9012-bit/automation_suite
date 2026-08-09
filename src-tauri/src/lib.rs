@@ -343,6 +343,74 @@ fn set_context_menu(app: AppHandle, tool_id: String, enabled: bool) -> Result<()
     Ok(())
 }
 
+// reg query가 결과를 HKCU가 아니라 이 이름으로 찍어 주므로, 목록을 훑을 때는
+// 같은 표기를 써야 앞부분을 잘라낼 수 있다.
+const CLASSES_ROOT: &str = r"HKEY_CURRENT_USER\Software\Classes";
+
+/// 주어진 키 바로 아래에 있는 하위 키의 전체 경로. 값과 손자 키는 빼고 본다.
+fn reg_subkeys(parent: &str) -> Vec<String> {
+    let Ok(output) = reg(&["query", parent]) else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    // 키 이름은 ASCII라서 콘솔 코드 페이지가 무엇이든 이 비교는 안전하다.
+    let text = String::from_utf8_lossy(&output.stdout).into_owned();
+    let prefix = format!(r"{parent}\");
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            // 바로 아래 자식만 본다. 더 깊은 경로는 여기서 걸러진다.
+            let leaf = line.strip_prefix(prefix.as_str())?;
+            if leaf.is_empty() || leaf.contains('\\') {
+                return None;
+            }
+            Some(line.to_string())
+        })
+        .collect()
+}
+
+fn is_context_key(key: &str) -> bool {
+    key.rsplit('\\')
+        .next()
+        .map(|leaf| leaf.starts_with(CONTEXT_KEY_PREFIX))
+        .unwrap_or(false)
+}
+
+/// 지금 등록되어 있는 우클릭 메뉴 키 전부. 매니페스트에서 도구가 사라진 뒤에도 찾아낸다.
+fn registered_context_keys() -> Vec<String> {
+    let mut keys: Vec<String> = reg_subkeys(&format!(r"{CLASSES_ROOT}\Directory\shell"))
+        .into_iter()
+        .filter(|key| is_context_key(key))
+        .collect();
+
+    for association in reg_subkeys(&format!(r"{CLASSES_ROOT}\SystemFileAssociations")) {
+        keys.extend(
+            reg_subkeys(&format!(r"{association}\shell"))
+                .into_iter()
+                .filter(|key| is_context_key(key)),
+        );
+    }
+    keys
+}
+
+/// 등록된 우클릭 메뉴를 전부 지우고 지운 개수를 돌려준다.
+/// 설치 제거 훅이 놓친 것이나, 이름이 바뀐 옛 도구가 남긴 것도 함께 정리된다.
+#[tauri::command]
+fn clear_context_menus() -> Result<usize, String> {
+    let mut removed = 0;
+    for key in registered_context_keys() {
+        if reg(&["delete", &key, "/f"])
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+        {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
 // 탐색기에서 파일 여러 개를 골라도 Windows는 명령을 파일 개수만큼 각각 실행한다.
 // 그래서 잠깐 모았다가 한 번에 넘긴다.
 static CONTEXT_BUFFER: std::sync::Mutex<Option<(String, Vec<String>)>> =
@@ -603,6 +671,7 @@ pub fn run() {
             reveal_path,
             list_context_menu,
             set_context_menu,
+            clear_context_menus,
             take_context_request,
             run_native_tool,
             check_tool_updates,

@@ -21,7 +21,14 @@ import "./native-tool-panel.css";
 
 type Options = Record<string, string | number | boolean>;
 
-export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
+export function NativeToolPanel({
+  tool,
+  // 탐색기 우클릭으로 열렸을 때 이미 정해진 처리 대상.
+  presetPaths,
+}: {
+  tool: ToolManifest;
+  presetPaths?: string[];
+}) {
   const schema = useMemo(() => getToolSchema(tool.id), [tool.id]);
   const [inputs, setInputs] = useState<string[]>([]);
   const [output, setOutput] = useState("");
@@ -33,13 +40,24 @@ export function NativeToolPanel({ tool }: { tool: ToolManifest }) {
   const [done, setDone] = useState("");
 
   useEffect(() => {
-    setInputs([]);
+    // 우클릭으로 들어온 경로는 미리 담아 두고, 사용자는 실행만 누르면 되게 한다.
+    // 파일 하나만 받는 도구에는 첫 번째만 넣는다.
+    const preset = presetPaths?.length
+      ? schema.multiple
+        ? presetPaths
+        : presetPaths.slice(0, 1)
+      : [];
+    setInputs(preset);
     setOutput("");
     setOptions(initialToolOptions(schema));
     setConfirmed(false);
-    setLog([]);
+    setLog(
+      preset.length
+        ? [`탐색기에서 ${preset.length}개를 받아 왔습니다. 설정을 확인하고 실행하세요.`]
+        : [],
+    );
     setDone("");
-  }, [schema, tool.id]);
+  }, [schema, tool.id, presetPaths]);
 
   const chooseInput = async () => {
     const selected = await open({

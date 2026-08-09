@@ -57,6 +57,12 @@
   gap: 3px;
 }
 
+.context-menu-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 13px;
+}
+
 .setting-toggles b { color: var(--text); font-size: 12px; }
 .setting-toggles small { color: var(--muted); font-size: 10px; }
 

@@ -25,11 +25,13 @@ import { TutorialOverlay } from "./components/TutorialOverlay";
 import { useTools } from "./hooks/useTools";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import {
+  CONTEXT_OPEN_EVENT,
   DEFAULT_TOGGLE_HOTKEY,
   PREFERENCES_CHANGED,
   getAppPreferences,
+  takeContextRequest,
 } from "./lib/bridge";
-import type { ToolManifest, View } from "./types";
+import type { ContextRequest, ToolManifest, View } from "./types";
 
 function titleFor(view: View) {
   if (view.kind === "home") return "홈";
@@ -79,6 +81,37 @@ export default function App() {
       .catch(() => undefined);
     return () => stop?.();
   }, []);
+
+  // 탐색기 우클릭으로 들어온 요청. 도구 목록이 준비된 뒤에 화면을 연다.
+  const [contextRequest, setContextRequest] = useState<ContextRequest | null>(null);
+
+  useEffect(() => {
+    let stop: UnlistenFn | undefined;
+    void listen<ContextRequest>(CONTEXT_OPEN_EVENT, (event) =>
+      setContextRequest(event.payload),
+    )
+      .then((unlisten) => { stop = unlisten; })
+      .catch(() => undefined);
+    // 앱이 꺼져 있다가 우클릭으로 실행된 경우는 이벤트가 아니라 여기로 들어온다.
+    void takeContextRequest()
+      .then((request) => { if (request) setContextRequest(request); })
+      .catch(() => undefined);
+    return () => stop?.();
+  }, []);
+
+  useEffect(() => {
+    // 도구 목록을 아직 못 불러왔으면 그대로 두고 다음 렌더에서 다시 본다.
+    if (!contextRequest || !registry.tools.length) return;
+    const tool = registry.tools.find((item) => item.id === contextRequest.toolId);
+    setContextRequest(null);
+    if (!tool) return;
+    registry.markRecent(tool.id);
+    setCommandOpen(false);
+    // 안내 오버레이가 떠 있으면 도구 화면을 가리므로 닫는다.
+    setTutorialOpen(false);
+    setView({ kind: "tool", tool, presetPaths: contextRequest.paths });
+  }, [contextRequest, registry.tools, registry.markRecent]);
+
   // 창을 보였다 숨겼다 하는 전역 단축키. 설정에서 바꾸면 곧바로 다시 등록한다.
   const [toggleHotkey, setToggleHotkey] = useState(DEFAULT_TOGGLE_HOTKEY);
   useEffect(() => {
@@ -167,7 +200,7 @@ export default function App() {
       if (view.tool.id === "pdf_page_organizer") {
         return <PdfOrganizerPanel tool={view.tool} />;
       }
-      return <NativeToolPanel tool={view.tool} />;
+      return <NativeToolPanel tool={view.tool} presetPaths={view.presetPaths} />;
     }
     if (view.kind === "home") {
       return (

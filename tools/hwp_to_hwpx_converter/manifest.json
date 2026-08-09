@@ -9,5 +9,10 @@
   "order": 45,
   "enabled": true,
   "version": "2.2.0",
-  "keywords": ["HWP", "HWPX", "한글", "변환", "문서"]
+  "keywords": ["HWP", "HWPX", "한글", "변환", "문서"],
+  "context_menu": {
+    "targets": ["hwp"],
+    "label": "HWPX로 변환",
+    "multiple": true
+  }
 }
