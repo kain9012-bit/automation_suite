@@ -58,6 +58,175 @@
   gap: 10px;
 }
 
+/* 합치는 순서가 결과를 바꾸는 도구의 파일 목록 */
+.ordered-files {
+  margin-top: 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.ordered-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ordered-files-head b {
+  color: var(--text);
+}
+
+/* Tailwind가 svg를 display:block으로 두므로 안내 문구에는 아이콘을 넣지 않는다.
+   좁아지면 줄을 늘리지 말고 끝을 …으로 줄인다. */
+.ordered-files-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ordered-files-tools {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent);
+}
+
+.ordered-files ol {
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ordered-files li {
+  /* 끌어 옮기는 중에 글자가 파랗게 잡히지 않도록 선택을 막는다. */
+  user-select: none;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.ordered-files li:last-child {
+  border-bottom: 0;
+}
+
+.ordered-files li.is-dragging {
+  opacity: .45;
+}
+
+/* 놓을 자리는 윗변으로 알린다. 줄이 밀려나지 않도록 테두리 대신 그림자를 쓴다. */
+.ordered-files li.is-over {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 줄 아무 데나 잡아 끌 수 있지만, 잡는 곳이라는 표시는 손잡이에 둔다. */
+.ordered-files li {
+  cursor: grab;
+}
+
+.ordered-files li.is-dragging {
+  cursor: grabbing;
+}
+
+.ordered-files li .file-actions button {
+  cursor: pointer;
+}
+
+.drag-grip {
+  color: var(--text-muted);
+}
+
+.file-order {
+  min-width: 20px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-label {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.file-label b {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-label small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.file-actions button {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.file-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.file-actions button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
 .destructive-confirm {
   display: flex;
   align-items: center;

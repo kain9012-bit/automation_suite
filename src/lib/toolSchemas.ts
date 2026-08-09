@@ -24,6 +24,11 @@ export interface ToolUiSchema {
   outputExtension?: string;
   fields?: ToolField[];
   destructive?: boolean;
+  /**
+   * 합치는 순서가 결과를 바꾸는 도구. 목록에서 순서를 바꾸고 한 줄씩 뺄 수 있고,
+   * 파일을 다시 고르면 교체가 아니라 뒤에 덧붙인다.
+   */
+  orderable?: boolean;
 }
 
 const defaultSchema: ToolUiSchema = {
@@ -91,6 +96,8 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
   },
   hwp_collector: {
     extensions: ["hwp", "hwpx"],
+    inputLabel: "취합할 한글 파일을 선택하세요",
+    orderable: true,
     outputLabel: "취합할 한글 파일",
     outputExtension: "hwpx",
   },
@@ -119,6 +126,8 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
   },
   multi_format_pdf_combiner: {
     extensions: ["pdf", "hwp", "hwpx", "doc", "docx", "ppt", "pptx"],
+    inputLabel: "통합할 파일을 선택하세요",
+    orderable: true,
     outputLabel: "통합 PDF 파일",
     outputExtension: "pdf",
   },
@@ -143,6 +152,8 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
   },
   pdf_merge: {
     extensions: ["pdf"],
+    inputLabel: "취합할 PDF 파일을 선택하세요",
+    orderable: true,
     outputLabel: "취합 PDF 파일",
     outputExtension: "pdf",
   },
