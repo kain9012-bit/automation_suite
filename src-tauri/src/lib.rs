@@ -1,3 +1,4 @@
+mod board_update;
 mod desktop;
 mod macro_deck;
 mod updates;
@@ -674,6 +675,9 @@ pub fn run() {
             clear_context_menus,
             take_context_request,
             run_native_tool,
+            board_update::check_board_update,
+            board_update::download_board_update,
+            board_update::apply_board_update,
             check_tool_updates,
             install_tool_updates,
             get_app_preferences,

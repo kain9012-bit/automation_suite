@@ -82,7 +82,7 @@ fn version(value: &str) -> Version {
     Version::parse(value.trim_start_matches('v')).unwrap_or_else(|_| Version::new(0, 0, 0))
 }
 
-fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap_or_else(|| Path::new("."))

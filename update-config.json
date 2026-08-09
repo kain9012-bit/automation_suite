@@ -3,7 +3,10 @@
     "enabled": true,
     "channel": "stable",
     "check_on_start": true,
-    "check_interval_hours": 6
+    "check_interval_hours": 6,
+    "app_id": "JBEDT-0005",
+    "post_url": "https://www.jbe.go.kr/board/view.jbe?boardId=BBS_0000649&menuCd=DOM_000000106011002001&command=update&dataSid=1151988&startPage=1&commentPage=1&keyword=",
+    "public_key": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3RDc5RDUxOEQ1QjQzRgpSV1EvdE5VWTFYbDlCc0hPRVZHUkFpR01JdDBFcEdwSlpxenR4NTd1dWxxblRHa0IxZlFFNVZEdAo="
   },
   "tools": {
     "enabled": true,

@@ -15,6 +15,7 @@ import {
   checkToolUpdates,
   downloadUpdateIfAvailable,
   installToolUpdates,
+  lastCheckMessage,
 } from "../lib/updater";
 import {
   isAutoUpdateEnabled,
@@ -144,7 +145,8 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
       setMessage(
         version
           ? `새 버전 ${version}을 받아 두었습니다. 화면 위쪽에서 '지금 적용'을 누르면 반영됩니다.`
-          : "앱이 최신 버전입니다.",
+          // 게시판이 돌려준 설명을 그대로 보여 준다. 표식이 잘못돼 있으면 여기서 보인다.
+          : lastCheckMessage() || "앱이 최신 버전입니다.",
       );
     } catch (error) {
       setMessage(`앱 업데이트 확인 실패: ${String(error)}`);

@@ -1,6 +1,6 @@
 [package]
 name = "jbedu-automation-suite"
-version = "1.2.4"
+version = "1.2.5"
 description = "반복 업무를 간단하게 만드는 전북교육 업무도구 모음"
 authors = ["전북특별자치도교육청"]
 edition = "2021"
@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 base64 = "0.22"
 ed25519-dalek = "2"
+minisign-verify = "0.2"
 reqwest = { version = "0.13", features = ["blocking", "json", "rustls"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }

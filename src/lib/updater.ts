@@ -1,5 +1,3 @@
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface ToolUpdateInfo {
@@ -22,63 +20,78 @@ export interface ToolInstallResult {
   message: string;
 }
 
+/** 게시글 표식에서 읽어 온 새 버전. */
+export interface BoardUpdate {
+  version: string;
+  download: string;
+  signature: string;
+}
+
+export interface BoardUpdateCheck {
+  configured: boolean;
+  current: string;
+  update: BoardUpdate | null;
+  message: string;
+}
+
 export const isTauriRuntime = () => "__TAURI_INTERNALS__" in window;
 
 /** 받아 두었지만 아직 적용하지 않은 업데이트가 생기면 알린다. */
 export const UPDATE_READY = "jbedu:update-ready";
 
-// 내려받은 업데이트를 적용할 때까지 들고 있는다.
-let pending: Awaited<ReturnType<typeof check>> = null;
+// 내려받아 서명까지 확인한 설치본을 적용할 때까지 들고 있는다.
+let pendingPath = "";
 let pendingVersion = "";
+// 마지막 확인에서 게시판이 돌려준 설명. 새 버전이 없을 때 무슨 상태인지 알려 준다.
+let lastMessage = "";
 
 export function pendingUpdateVersion() {
-  return pending ? pendingVersion : "";
+  return pendingVersion;
+}
+
+/** 마지막 확인 결과 설명. 표식이 잘못돼 있으면 여기서 드러난다. */
+export function lastCheckMessage() {
+  return lastMessage;
 }
 
 /**
  * 새 버전이 있으면 조용히 내려받기만 한다. 설치는 하지 않는다.
  * 작업 도중에 앱이 예고 없이 재시작되는 일을 막기 위한 것이다.
+ *
+ * 확인·내려받기·서명 검증은 모두 Rust에서 한다. 서명이 어긋나면 여기서 오류가 난다.
  */
 export async function downloadUpdateIfAvailable(
   onProgress?: (message: string) => void,
 ): Promise<string> {
   if (!isTauriRuntime()) return "";
 
-  const update = await check();
-  if (!update) return "";
+  const check = await invoke<BoardUpdateCheck>("check_board_update");
+  lastMessage = check.message;
+  if (!check.configured || !check.update) return "";
 
   // 미뤄 둔 사이에 더 새 버전이 나왔으면 그쪽을 받는다.
-  if (pending && pendingVersion === update.version) return pendingVersion;
+  if (pendingVersion === check.update.version) return pendingVersion;
 
-  onProgress?.(`새 버전 ${update.version}을 내려받는 중입니다.`);
-  let downloaded = 0;
-  let total = 0;
-  await update.download((event) => {
-    if (event.event === "Started") {
-      total = event.data.contentLength ?? 0;
-    } else if (event.event === "Progress") {
-      downloaded += event.data.chunkLength;
-      if (total > 0) {
-        onProgress?.(`새 버전 내려받는 중 ${Math.round((downloaded / total) * 100)}%`);
-      }
-    }
-  });
+  onProgress?.(`새 버전 ${check.update.version}을 내려받는 중입니다.`);
+  const path = await invoke<string>("download_board_update", { update: check.update });
 
-  pending = update;
-  pendingVersion = update.version;
-  onProgress?.(`새 버전 ${update.version} 준비 완료`);
+  pendingPath = path;
+  pendingVersion = check.update.version;
+  onProgress?.(`새 버전 ${check.update.version} 준비 완료`);
   window.dispatchEvent(new CustomEvent(UPDATE_READY));
-  return update.version;
+  return pendingVersion;
 }
 
-/** 받아 둔 업데이트를 설치하고 앱을 다시 시작한다. */
+/**
+ * 받아 둔 설치본을 실행한다. 설치가 끝나면 설치본이 앱을 다시 실행하므로
+ * 여기서 따로 재시작하지 않는다.
+ */
 export async function applyPendingUpdate(
   onProgress?: (message: string) => void,
 ): Promise<void> {
-  if (!pending) return;
+  if (!pendingPath) return;
   onProgress?.("업데이트를 적용하고 다시 시작합니다.");
-  await pending.install();
-  await relaunch();
+  await invoke("apply_board_update", { path: pendingPath });
 }
 
 export async function checkToolUpdates(): Promise<ToolUpdateCheck> {
@@ -95,4 +108,3 @@ export async function checkToolUpdates(): Promise<ToolUpdateCheck> {
 export async function installToolUpdates(): Promise<ToolInstallResult> {
   return invoke<ToolInstallResult>("install_tool_updates");
 }
-
