@@ -39,10 +39,22 @@ struct ToolManifest {
     version: String,
     #[serde(default)]
     keywords: Vec<String>,
+    /// 이 블록이 있는 도구만 탐색기 우클릭 메뉴에 등록할 수 있다.
+    #[serde(default)]
+    context_menu: Option<ContextMenuSpec>,
     #[serde(skip_deserializing)]
     source: String,
     #[serde(skip_deserializing)]
     has_html: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ContextMenuSpec {
+    /// 확장자 목록(["pdf", "xlsx"]) 또는 ["folder"]
+    targets: Vec<String>,
+    label: String,
+    #[serde(default)]
+    multiple: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -235,6 +247,174 @@ fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
     macro_deck::open_with_default(&html_path.to_string_lossy())
 }
 
+// ── 탐색기 우클릭 메뉴 ───────────────────────────────────────────────
+// HKCU에만 쓰므로 관리자 권한이 필요 없다. 키 이름을 이 접두어로 시작하게 두면
+// 프로그램을 제거할 때 한 번에 찾아 지울 수 있다.
+const CONTEXT_KEY_PREFIX: &str = "JBEduON.";
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ContextMenuEntry {
+    id: String,
+    name: String,
+    label: String,
+    targets: Vec<String>,
+    enabled: bool,
+}
+
+/// 대상 하나에 대응하는 레지스트리 키 경로.
+fn context_key(target: &str, tool_id: &str) -> String {
+    let leaf = format!("{CONTEXT_KEY_PREFIX}{tool_id}");
+    if target.eq_ignore_ascii_case("folder") {
+        format!(r"HKCU\Software\Classes\Directory\shell\{leaf}")
+    } else {
+        let extension = target.trim_start_matches('.').to_lowercase();
+        format!(r"HKCU\Software\Classes\SystemFileAssociations\.{extension}\shell\{leaf}")
+    }
+}
+
+fn reg(args: &[&str]) -> std::io::Result<std::process::Output> {
+    let mut command = Command::new("reg");
+    command.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    command.output()
+}
+
+fn context_registered(target: &str, tool_id: &str) -> bool {
+    reg(&["query", &context_key(target, tool_id)])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+/// 우클릭 메뉴에 넣을 수 있는 도구 목록과 현재 등록 상태.
+#[tauri::command]
+fn list_context_menu(app: AppHandle) -> Result<Vec<ContextMenuEntry>, String> {
+    let mut entries = Vec::new();
+    for record in read_tool_records(&app)? {
+        let Some(spec) = record.manifest.context_menu.clone() else {
+            continue;
+        };
+        let enabled = spec
+            .targets
+            .iter()
+            .all(|target| context_registered(target, &record.manifest.id));
+        entries.push(ContextMenuEntry {
+            id: record.manifest.id,
+            name: record.manifest.name,
+            label: spec.label,
+            targets: spec.targets,
+            enabled,
+        });
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+fn set_context_menu(app: AppHandle, tool_id: String, enabled: bool) -> Result<(), String> {
+    let record = find_tool(&app, &tool_id)?;
+    let spec = record
+        .manifest
+        .context_menu
+        .clone()
+        .ok_or_else(|| "이 도구는 우클릭 메뉴를 지원하지 않습니다.".to_string())?;
+
+    let exe = std::env::current_exe()
+        .map_err(|error| format!("실행 파일 경로를 찾지 못했습니다: {error}"))?;
+    let exe = exe.to_string_lossy().to_string();
+
+    for target in &spec.targets {
+        let key = context_key(target, &tool_id);
+        if enabled {
+            let command_key = format!(r"{key}\command");
+            let command_value = format!("\"{exe}\" --open-with {tool_id} --path \"%1\"");
+            reg(&["add", &key, "/ve", "/d", &spec.label, "/f"])
+                .map_err(|error| format!("메뉴를 등록하지 못했습니다: {error}"))?;
+            let _ = reg(&["add", &key, "/v", "Icon", "/d", &exe, "/f"]);
+            reg(&["add", &command_key, "/ve", "/d", &command_value, "/f"])
+                .map_err(|error| format!("메뉴를 등록하지 못했습니다: {error}"))?;
+        } else {
+            // 없는 키를 지우려 하면 실패하지만 결과는 같으므로 따지지 않는다.
+            let _ = reg(&["delete", &key, "/f"]);
+        }
+    }
+    Ok(())
+}
+
+// 탐색기에서 파일 여러 개를 골라도 Windows는 명령을 파일 개수만큼 각각 실행한다.
+// 그래서 잠깐 모았다가 한 번에 넘긴다.
+static CONTEXT_BUFFER: std::sync::Mutex<Option<(String, Vec<String>)>> =
+    std::sync::Mutex::new(None);
+
+fn parse_context_args(argv: &[String]) -> Option<(String, String)> {
+    let mut tool_id = None;
+    let mut path = None;
+    let mut index = 0;
+    while index + 1 < argv.len() {
+        match argv[index].as_str() {
+            "--open-with" => tool_id = Some(argv[index + 1].clone()),
+            "--path" => path = Some(argv[index + 1].clone()),
+            _ => {}
+        }
+        index += 1;
+    }
+    match (tool_id, path) {
+        (Some(tool_id), Some(path)) if !tool_id.is_empty() && !path.is_empty() => {
+            Some((tool_id, path))
+        }
+        _ => None,
+    }
+}
+
+/// 우클릭으로 들어온 경로를 모은다. 첫 경로가 들어오면 잠깐 기다렸다 한 번에 알린다.
+fn collect_context_request(app: &AppHandle, argv: &[String]) {
+    let Some((tool_id, path)) = parse_context_args(argv) else {
+        return;
+    };
+
+    let first = {
+        let Ok(mut buffer) = CONTEXT_BUFFER.lock() else {
+            return;
+        };
+        match buffer.as_mut() {
+            // 도구가 다르면 앞의 것은 버리고 새로 시작한다.
+            Some((current, paths)) if *current == tool_id => {
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+                false
+            }
+            _ => {
+                *buffer = Some((tool_id.clone(), vec![path]));
+                true
+            }
+        }
+    };
+
+    if !first {
+        return;
+    }
+
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let taken = CONTEXT_BUFFER.lock().ok().and_then(|mut buffer| buffer.take());
+        if let Some((tool_id, paths)) = taken {
+            use tauri::Emitter;
+            let _ = handle.emit("context-open", json!({ "toolId": tool_id, "paths": paths }));
+        }
+    });
+}
+
+/// 앱이 꺼져 있던 상태에서 우클릭으로 실행됐을 때, 화면이 준비된 뒤 다시 확인한다.
+#[tauri::command]
+fn take_context_request() -> Option<Value> {
+    let taken = CONTEXT_BUFFER.lock().ok().and_then(|mut buffer| buffer.take())?;
+    Some(json!({ "toolId": taken.0, "paths": taken.1 }))
+}
+
 /// 작업 결과가 저장된 파일이나 폴더를 탐색기로 연다.
 /// 파일 경로를 주면 그 파일이 든 폴더를 연다.
 #[tauri::command]
@@ -401,13 +581,19 @@ pub fn run() {
     tauri::Builder::default()
         // 중복 실행 방지: 이미 떠 있으면 새 창을 만들지 않고, 트레이에 숨어 있던
         // 기존 창을 꺼내서 앞으로 가져온다. 반드시 첫 번째 플러그인이어야 한다.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             desktop::focus_main_window(app);
+            collect_context_request(app, &argv);
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .setup(setup_desktop)
+        .setup(|app| {
+            // 앱이 꺼져 있을 때 우클릭으로 실행되면 인자가 이 첫 실행에 들어온다.
+            let argv: Vec<String> = std::env::args().collect();
+            collect_context_request(app.handle(), &argv);
+            setup_desktop(app)
+        })
         .on_window_event(handle_window_event)
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -415,6 +601,9 @@ pub fn run() {
             read_tool_html,
             open_tool_in_browser,
             reveal_path,
+            list_context_menu,
+            set_context_menu,
+            take_context_request,
             run_native_tool,
             check_tool_updates,
             install_tool_updates,
