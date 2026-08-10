@@ -20,12 +20,12 @@ pub struct AppPreferences {
 
 fn enabled() -> bool { true }
 
-fn default_toggle_hotkey() -> String { "Ctrl+Alt+Space".to_string() }
+fn default_toggle_hotkey() -> String { "Ctrl+Alt+J".to_string() }
 
 impl Default for AppPreferences {
     fn default() -> Self {
         Self {
-            auto_start: false,
+            auto_start: true,
             close_to_tray: true,
             minimize_to_tray: true,
             start_minimized: true,
@@ -109,7 +109,17 @@ pub fn focus_main_window(app: &AppHandle) {
 }
 
 pub fn setup_desktop(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    // 설정 파일이 아직 없으면 이 컴퓨터에서 처음 실행하는 것이다.
+    let first_run = preferences_path(app.handle()).map(|path| !path.is_file()).unwrap_or(false);
     let preferences = load_preferences(app.handle());
+
+    // 자동 시작은 설정값이 아니라 레지스트리가 실제 상태다. 처음 실행일 때만
+    // 기본값대로 등록해 둔다. 꺼 두신 분의 설정을 다시 켜지 않기 위해서다.
+    if first_run && preferences.auto_start {
+        let _ = set_auto_start(true);
+        let _ = save_preferences(app.handle(), &preferences);
+    }
+
     app.manage(RuntimeState::new(preferences.clone()));
     let show_item = MenuItem::with_id(app, "show", "열기", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "settings", "설정", true, None::<&str>)?;

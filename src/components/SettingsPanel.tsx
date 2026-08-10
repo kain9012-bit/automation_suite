@@ -41,7 +41,7 @@ function targetLabel(target: string) {
     : `.${target.replace(/^\./, "").toLowerCase()} 파일`;
 }
 
-export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () => void; onStartTutorial: () => void }) {
+export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onRefresh: () => void; onStartTutorial: () => void; hotkeyError?: string }) {
   const [enabled, setEnabled] = useState(isAutoUpdateEnabled);
   const [busy, setBusy] = useState<"app" | "tools" | null>(null);
   const [message, setMessage] = useState("");
@@ -202,6 +202,11 @@ export function SettingsPanel({ onRefresh, onStartTutorial }: { onRefresh: () =>
             <label><span><b>최소화 시 트레이로 숨기기</b><small>작업 표시줄을 깔끔하게 유지합니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.minimize_to_tray} disabled={desktopBusy} onChange={(event) => void changeDesktop("minimize_to_tray", event.target.checked)} /><i /></span></label>
             <label><span><b>자동 실행 시 창 숨김</b><small>필요할 때 트레이 아이콘을 눌러 엽니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.start_minimized} disabled={desktopBusy} onChange={(event) => void changeDesktop("start_minimized", event.target.checked)} /><i /></span></label>
             <label><span><b>창 열기·숨기기 단축키</b><small>어느 화면에서든 이 키로 앱을 꺼내고 숨깁니다.</small></span><HotkeyInput value={desktop.toggle_hotkey} fallback={DEFAULT_TOGGLE_HOTKEY} disabled={desktopBusy} onChange={(next) => void changeHotkey(next)} /></label>
+            {!!hotkeyError && (
+              <p className="setting-warning">
+                {hotkeyError} 를 등록하지 못했습니다. 다른 프로그램이 먼저 쓰고 있을 수 있습니다. 다른 조합으로 바꿔 보세요.
+              </p>
+            )}
           </div>
         </div>
       </section>

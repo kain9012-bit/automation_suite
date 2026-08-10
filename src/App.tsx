@@ -11,7 +11,7 @@ import {
 import "@fontsource-variable/outfit";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
+import { isRegistered, register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { Header } from "./components/Header";
 import { HtmlToolView } from "./components/HtmlToolView";
 import { NativeToolPanel } from "./components/NativeToolPanel";
@@ -125,24 +125,58 @@ export default function App() {
     return () => window.removeEventListener(PREFERENCES_CHANGED, load);
   }, []);
 
+  // 등록에 실패하면 사용자는 이유를 알 길이 없다. 설정 화면에서 보여 준다.
+  const [hotkeyError, setHotkeyError] = useState("");
+
   useEffect(() => {
     const shortcut = toggleHotkey.trim();
-    if (!shortcut) return;
-    void register(shortcut, async (event) => {
-      if (event.state !== "Pressed") return;
-      const appWindow = getCurrentWindow();
-      const visible = await appWindow.isVisible();
-      const minimized = await appWindow.isMinimized();
-      if (visible && !minimized) {
-        await appWindow.hide();
-      } else {
-        await appWindow.show();
-        await appWindow.unminimize();
-        await appWindow.setFocus();
+    if (!shortcut) {
+      setHotkeyError("");
+      return;
+    }
+
+    // 등록이 비동기라, 그냥 두면 정리 함수의 해제가 다음 등록보다 늦게 끝나
+    // 방금 등록한 단축키를 도로 풀어 버린다. 그래서 순서를 지켜 처리한다.
+    let cancelled = false;
+    let mine = false;
+
+    const run = async () => {
+      try {
+        // 앞선 등록이 남아 있으면 먼저 푼다. 남아 있으면 등록이 실패한다.
+        if (await isRegistered(shortcut)) await unregister(shortcut);
+        if (cancelled) return;
+
+        await register(shortcut, async (event) => {
+          if (event.state !== "Pressed") return;
+          const appWindow = getCurrentWindow();
+          const visible = await appWindow.isVisible();
+          const minimized = await appWindow.isMinimized();
+          if (visible && !minimized) {
+            await appWindow.hide();
+          } else {
+            await appWindow.show();
+            await appWindow.unminimize();
+            await appWindow.setFocus();
+          }
+        });
+
+        if (cancelled) {
+          await unregister(shortcut).catch(() => undefined);
+          return;
+        }
+        mine = true;
+        setHotkeyError("");
+      } catch {
+        if (!cancelled) {
+          setHotkeyError(shortcut);
+        }
       }
-    }).catch(() => undefined);
+    };
+    void run();
+
     return () => {
-      void unregister(shortcut).catch(() => undefined);
+      cancelled = true;
+      if (mine) void unregister(shortcut).catch(() => undefined);
     };
   }, [toggleHotkey]);
 
@@ -187,7 +221,7 @@ export default function App() {
       );
     }
     if (view.kind === "settings") {
-      return <SettingsPanel onRefresh={registry.refresh} onStartTutorial={() => { setView({ kind: "home" }); setTutorialOpen(true); }} />;
+      return <SettingsPanel onRefresh={registry.refresh} hotkeyError={hotkeyError} onStartTutorial={() => { setView({ kind: "home" }); setTutorialOpen(true); }} />;
     }
     if (view.kind === "tool") {
       if (view.tool.type === "html" || view.tool.has_html) {

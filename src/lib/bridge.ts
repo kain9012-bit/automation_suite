@@ -108,7 +108,7 @@ export interface AppPreferences {
   toggle_hotkey: string;
 }
 
-export const DEFAULT_TOGGLE_HOTKEY = "Ctrl+Alt+Space";
+export const DEFAULT_TOGGLE_HOTKEY = "Ctrl+Alt+J";
 
 /** 설정이 저장되면 앱 전체가 알아차리도록 알린다. */
 export const PREFERENCES_CHANGED = "jbedu:preferences-changed";
@@ -128,7 +128,7 @@ export interface MacroActionPayload {
 export async function getAppPreferences(): Promise<AppPreferences> {
   if (!isTauri()) {
     return {
-      auto_start: false,
+      auto_start: true,
       close_to_tray: true,
       minimize_to_tray: true,
       start_minimized: true,

@@ -52,6 +52,20 @@ if ($signature -match '[\|\r\n]') {
     throw "서명에 | 나 줄바꿈이 섞여 있습니다. 올바른 .sig 파일인지 확인하세요."
 }
 
+# 서명 안에는 어느 파일에 서명한 것인지가 적혀 있다. 게시판에 올린 ZIP 속 exe와
+# 다른 파일의 서명을 넣는 것이 가장 흔한 실수라, 여기서 미리 보여 준다.
+$signedFile = ""
+try {
+    $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($signature))
+    foreach ($line in $decoded -split "`n") {
+        if ($line -like "trusted comment:*" -and $line -match 'file:(.+?)(\t|$)') {
+            $signedFile = $Matches[1].Trim()
+        }
+    }
+} catch {
+    throw "서명 파일을 해석하지 못했습니다. 올바른 .sig 파일인지 확인하세요."
+}
+
 if (-not $DownloadUrl) {
     throw "첨부 링크 주소가 필요합니다. 게시글에 ZIP을 올린 뒤 그 링크를 복사해 -DownloadUrl 로 주세요."
 }
@@ -63,9 +77,16 @@ if ($DownloadUrl -notmatch 'download\.jbe') {
 $marker = "[업데이트정보]id=$AppId|앱=$AppName|버전=$Version|다운로드=$DownloadUrl|서명=$signature"
 
 Write-Host ""
-Write-Host "버전    : $Version"
-Write-Host "서명파일: $SignaturePath"
+Write-Host "버전      : $Version"
+Write-Host "서명 파일 : $SignaturePath"
+Write-Host "서명 대상 : $signedFile"
 Write-Host ""
+
+if ($signedFile -and ($signedFile -notmatch [regex]::Escape($Version))) {
+    Write-Warning "서명 대상 파일 이름에 $Version 이 없습니다."
+    Write-Warning "게시판에 올린 ZIP 속 exe와 다른 파일의 서명일 수 있습니다. 확인하세요."
+    Write-Host ""
+}
 Write-Host "아래 한 줄을 게시글 본문에 붙여 넣으세요. (서식 없이 한 줄로)"
 Write-Host "----------------------------------------------------------------"
 Write-Host $marker
