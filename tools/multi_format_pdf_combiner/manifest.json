@@ -9,5 +9,10 @@
   "order": 20,
   "enabled": true,
   "version": "2.2.0",
-  "keywords": []
+  "keywords": [],
+  "context_menu": {
+    "targets": ["pdf", "hwp", "hwpx", "doc", "docx", "ppt", "pptx"],
+    "label": "선택한 파일 PDF로 통합",
+    "multiple": true
+  }
 }

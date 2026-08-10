@@ -150,13 +150,6 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
       },
     ],
   },
-  pdf_merge: {
-    extensions: ["pdf"],
-    inputLabel: "취합할 PDF 파일을 선택하세요",
-    orderable: true,
-    outputLabel: "취합 PDF 파일",
-    outputExtension: "pdf",
-  },
   pdf_page_number_adder: {
     multiple: false,
     extensions: ["pdf"],

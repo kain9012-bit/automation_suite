@@ -107,7 +107,7 @@ NativeToolPanel  처리 대상에 미리 담고, 파일 하나만 받는 도구�
 
 | 도구 | 대상 | 메뉴 문구 |
 |---|---|---|
-| `pdf_merge` | `.pdf` | 선택한 PDF 취합 |
+| `multi_format_pdf_combiner` | `.pdf` `.hwp` `.hwpx` `.doc` `.docx` `.ppt` `.pptx` | 선택한 파일 PDF로 통합 |
 | `pdf_compress` | `.pdf` | PDF 용량 줄이기 |
 | `file_inventory` | 폴더 | 이 폴더 파일 목록 만들기 |
 | `hwp_to_hwpx_converter` | `.hwp` | HWPX로 변환 |

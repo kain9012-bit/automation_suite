@@ -396,6 +396,30 @@ fn registered_context_keys() -> Vec<String> {
     keys
 }
 
+/// 지금 매니페스트에 없는 도구가 남긴 우클릭 메뉴를 지운다.
+///
+/// 도구를 없애도 레지스트리는 아무도 치우지 않는다. 그대로 두면 메뉴에는 계속
+/// 보이는데 눌러도 아무 일이 없다. 앱이 뜰 때마다 스스로 정리해, 도구를 뺄 때
+/// 따로 신경 쓸 일이 없게 한다.
+pub fn prune_context_menus(app: &AppHandle) {
+    let Ok(records) = read_tool_records(app) else {
+        // 도구 목록을 못 읽은 상태에서 지우면 멀쩡한 메뉴까지 날아간다.
+        return;
+    };
+    let alive: Vec<String> = records
+        .into_iter()
+        .filter(|record| record.manifest.context_menu.is_some())
+        .map(|record| format!("{CONTEXT_KEY_PREFIX}{}", record.manifest.id))
+        .collect();
+
+    for key in registered_context_keys() {
+        let leaf = key.rsplit('\\').next().unwrap_or_default();
+        if !alive.iter().any(|name| name == leaf) {
+            let _ = reg(&["delete", &key, "/f"]);
+        }
+    }
+}
+
 /// 등록된 우클릭 메뉴를 전부 지우고 지운 개수를 돌려준다.
 /// 설치 제거 훅이 놓친 것이나, 이름이 바뀐 옛 도구가 남긴 것도 함께 정리된다.
 #[tauri::command]
@@ -661,6 +685,12 @@ pub fn run() {
             // 앱이 꺼져 있을 때 우클릭으로 실행되면 인자가 이 첫 실행에 들어온다.
             let argv: Vec<String> = std::env::args().collect();
             collect_context_request(app.handle(), &argv);
+
+            // 없어진 도구가 남긴 우클릭 메뉴를 치운다. reg 조회가 느릴 수 있어
+            // 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || prune_context_menus(&handle));
+
             setup_desktop(app)
         })
         .on_window_event(handle_window_event)

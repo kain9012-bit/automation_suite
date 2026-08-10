@@ -103,18 +103,6 @@ def _success(message: str, **extra: Any) -> dict[str, Any]:
     return {"ok": True, "message": message, **{k: _plain(v) for k, v in extra.items()}}
 
 
-def run_pdf_merge(payload: dict[str, Any]) -> dict[str, Any]:
-    inputs = [path for path in _paths(payload) if path.suffix.lower() == ".pdf"]
-    output = _output_path(payload, inputs, "PDF_취합본.pdf")
-    service = _module("pdf_merge", "pdf_merge_service")
-    ok_files, bad_files = service.merge_pdfs(inputs, output)
-    return _success(
-        f"PDF {len(ok_files)}개를 취합했습니다.",
-        output=output,
-        failed=bad_files,
-    )
-
-
 def run_hwp_collector(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
     output = _output_path(payload, inputs, "한글문서_취합본.hwpx")
@@ -363,7 +351,6 @@ HANDLERS = {
     "hwp_to_pdf_converter": run_hwp_to_pdf,
     "multi_format_pdf_combiner": run_multi_format_pdf_combiner,
     "pdf_compress": run_pdf_compress,
-    "pdf_merge": run_pdf_merge,
     "pdf_page_number_adder": run_pdf_page_number,
     "pdf_page_organizer": run_pdf_organizer,
     "rename_files": run_rename_files,
