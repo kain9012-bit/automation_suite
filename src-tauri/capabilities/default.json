@@ -9,6 +9,13 @@
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-visible",
+    "core:window:allow-is-minimized",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered",
@@ -16,4 +23,3 @@
     "updater:default"
   ]
 }
-

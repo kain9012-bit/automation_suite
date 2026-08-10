@@ -148,15 +148,29 @@ export default function App() {
 
         await register(shortcut, async (event) => {
           if (event.state !== "Pressed") return;
-          const appWindow = getCurrentWindow();
-          const visible = await appWindow.isVisible();
-          const minimized = await appWindow.isMinimized();
-          if (visible && !minimized) {
-            await appWindow.hide();
-          } else {
-            await appWindow.show();
-            await appWindow.unminimize();
-            await appWindow.setFocus();
+          try {
+            const appWindow = getCurrentWindow();
+            const visible = await appWindow.isVisible();
+            const minimized = await appWindow.isMinimized();
+            if (visible && !minimized) {
+              await appWindow.hide();
+            } else {
+              await appWindow.show();
+              await appWindow.unminimize();
+              // Windows는 백그라운드 앱이 포커스를 가져가는 것을 막는다.
+              // 맨 앞으로 올린 뒤 포커스를 줘야 다른 창 뒤에 뜨지 않는다.
+              await appWindow.setAlwaysOnTop(true);
+              await appWindow.setAlwaysOnTop(false);
+              await appWindow.setFocus();
+            }
+          } catch (reason) {
+            // 여기서 막히면 단축키는 눌렸는데 창만 안 움직인다. 조용히 두면
+            // 사용자는 단축키가 안 먹는 줄로만 안다.
+            setHotkeyError(
+              `${shortcut} 를 눌렀지만 창을 여닫지 못했습니다: ${
+                reason instanceof Error ? reason.message : String(reason)
+              }`,
+            );
           }
         });
 
@@ -166,9 +180,13 @@ export default function App() {
         }
         mine = true;
         setHotkeyError("");
-      } catch {
+      } catch (reason) {
         if (!cancelled) {
-          setHotkeyError(shortcut);
+          setHotkeyError(
+            `${shortcut} 를 등록하지 못했습니다. 다른 프로그램이 먼저 쓰고 있을 수 있습니다. (${
+              reason instanceof Error ? reason.message : String(reason)
+            })`,
+          );
         }
       }
     };
