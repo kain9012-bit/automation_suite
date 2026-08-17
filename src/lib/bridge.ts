@@ -99,6 +99,12 @@ export async function runNativeTool(
   });
 }
 
+/** 실행 중인 도구에 그만두라고 알린다. */
+export async function cancelNativeTool(toolId: string): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>("cancel_native_tool", { toolId });
+}
+
 export interface AppPreferences {
   auto_start: boolean;
   close_to_tray: boolean;

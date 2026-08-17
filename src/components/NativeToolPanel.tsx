@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   ArrowDown,
   ArrowDownAZ,
@@ -13,12 +14,14 @@ import {
   Play,
   Save,
   ShieldCheck,
+  Search,
+  Square,
   Trash2,
   TriangleAlert,
   X,
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
+import { cancelNativeTool, resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import {
   getToolSchema,
   initialToolOptions,
@@ -59,6 +62,27 @@ export function NativeToolPanel({
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
+  const logRef = useRef<HTMLPreElement>(null);
+
+  // 도구가 실행되는 동안 한 줄씩 올라오는 진행 상황을 그때그때 기록에 붙인다.
+  // 끝난 뒤에 한꺼번에 받으면 오래 걸리는 작업에서 아무것도 안 보인다.
+  useEffect(() => {
+    let stop: UnlistenFn | undefined;
+    void listen<{ toolId: string; text: string }>("tool-progress", (event) => {
+      // 도구 하나가 보조 동작을 가질 수 있어 앞부분으로 견준다.
+      if (event.payload.toolId.split("__")[0] !== tool.id) return;
+      setLog((items) => [...items, event.payload.text]);
+    })
+      .then((unlisten) => { stop = unlisten; })
+      .catch(() => undefined);
+    return () => stop?.();
+  }, [tool.id]);
+
+  // 새 줄이 붙으면 아래로 따라 내린다.
+  useEffect(() => {
+    const box = logRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [log]);
 
   useEffect(() => {
     // 우클릭으로 들어온 경로는 미리 담아 두고, 사용자는 실행만 누르면 되게 한다.
@@ -227,7 +251,51 @@ export function NativeToolPanel({
     setOptions((current) => ({ ...current, [key]: value }));
   };
 
+  // 중지를 누른 뒤에는 버튼을 다시 누르지 못하게 막는다.
+  const [stopping, setStopping] = useState(false);
+
+  const stop = async () => {
+    setStopping(true);
+    setLog((items) => [...items, "중지를 요청했습니다. 하던 항목까지 마치고 멈춥니다."]);
+    try {
+      await cancelNativeTool(tool.id);
+    } catch (reason) {
+      setLog((items) => [
+        ...items,
+        `중지 요청 실패: ${reason instanceof Error ? reason.message : String(reason)}`,
+      ]);
+    }
+  };
+
+  // 칸 옆 확인 버튼. 결과 설명은 작업 기록에 남기고, 돌려받은 값으로 다른 칸을 채운다.
+  const [checking, setChecking] = useState("");
+
+  const runFieldAction = async (field: ToolField) => {
+    const action = field.action;
+    if (!action) return;
+    setChecking(field.key);
+    setLog((items) => [...items, `${action.label} 중입니다...`]);
+    try {
+      const result = await runNativeTool(action.tool, {
+        [action.payloadKey]: options[field.key],
+      });
+      setLog((items) => [...items, String(result.message ?? "확인했습니다.")]);
+      const fill = result.fill;
+      if (fill && typeof fill === "object" && !Array.isArray(fill)) {
+        setOptions((current) => ({ ...current, ...(fill as Options) }));
+      }
+    } catch (reason) {
+      setLog((items) => [
+        ...items,
+        `${action.label} 실패: ${reason instanceof Error ? reason.message : String(reason)}`,
+      ]);
+    } finally {
+      setChecking("");
+    }
+  };
+
   const run = async () => {
+    setStopping(false);
     setRunning(true);
     setLog((current) => [...current, `${tool.name} 작업을 시작합니다.`]);
     try {
@@ -251,6 +319,7 @@ export function NativeToolPanel({
       ]);
     } finally {
       setRunning(false);
+      setStopping(false);
     }
   };
 
@@ -402,6 +471,8 @@ export function NativeToolPanel({
                   key={field.key}
                   field={field}
                   value={options[field.key]}
+                  busy={checking === field.key}
+                  onAction={() => void runFieldAction(field)}
                   onChange={(value) => setOption(field.key, value)}
                 />
               ))}
@@ -457,6 +528,16 @@ export function NativeToolPanel({
           )}
           {running ? "처리 중" : "작업 실행"}
         </button>
+        {schema.cancellable && (
+          <button
+            className="secondary-button"
+            onClick={() => void stop()}
+            disabled={!running || stopping}
+          >
+            <Square size={15} />
+            {stopping ? "멈추는 중" : "중지"}
+          </button>
+        )}
       </div>
 
       <section className="log-panel">
@@ -469,7 +550,7 @@ export function NativeToolPanel({
             </button>
           )}
         </div>
-        <pre>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
+        <pre ref={logRef}>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
       </section>
     </div>
   );
@@ -478,10 +559,14 @@ export function NativeToolPanel({
 function OptionField({
   field,
   value,
+  busy,
+  onAction,
   onChange,
 }: {
   field: ToolField;
   value: string | number | boolean;
+  busy?: boolean;
+  onAction?: () => void;
   onChange: (value: string | number | boolean) => void;
 }) {
   if (field.type === "checkbox") {
@@ -512,6 +597,30 @@ function OptionField({
             </option>
           ))}
         </select>
+      ) : field.action ? (
+        <div className="path-picker">
+          <input
+            className="text-input"
+            type={field.type}
+            value={String(value ?? "")}
+            placeholder={field.placeholder}
+            onChange={(event) =>
+              onChange(
+                field.type === "number"
+                  ? Number(event.target.value)
+                  : event.target.value,
+              )
+            }
+          />
+          <button
+            className="secondary-button"
+            onClick={onAction}
+            disabled={busy || !String(value ?? "").trim()}
+          >
+            {busy ? <LoaderCircle className="spin" size={15} /> : <Search size={15} />}
+            {field.action.label}
+          </button>
+        </div>
       ) : (
         <input
           className="text-input"

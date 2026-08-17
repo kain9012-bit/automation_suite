@@ -252,3 +252,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 진행 상황이 길어지면 기록 칸 안에서만 스크롤되게 한다. */
+.log-panel pre {
+  max-height: 300px;
+  overflow: auto;
+}
+
+/* 확인 버튼이 붙는 칸은 옵션 두 칸을 다 쓴다. 주소가 길어 잘리면 확인이 어렵다. */
+.option-grid > label:has(.path-picker) {
+  grid-column: 1 / -1;
+}

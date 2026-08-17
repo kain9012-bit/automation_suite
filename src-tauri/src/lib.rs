@@ -396,27 +396,45 @@ fn registered_context_keys() -> Vec<String> {
     keys
 }
 
-/// 지금 매니페스트에 없는 도구가 남긴 우클릭 메뉴를 지운다.
+/// 등록된 우클릭 메뉴를 지금 상태에 맞춘다.
 ///
-/// 도구를 없애도 레지스트리는 아무도 치우지 않는다. 그대로 두면 메뉴에는 계속
-/// 보이는데 눌러도 아무 일이 없다. 앱이 뜰 때마다 스스로 정리해, 도구를 뺄 때
-/// 따로 신경 쓸 일이 없게 한다.
-pub fn prune_context_menus(app: &AppHandle) {
+/// 두 가지가 어긋날 수 있다. 도구를 없애면 메뉴만 남아 눌러도 아무 일이 없고,
+/// 프로그램 이름이나 설치 위치가 바뀌면 등록된 실행 파일 경로가 옛 것을 가리킨다.
+/// 레지스트리는 아무도 치우지 않으므로 앱이 뜰 때마다 스스로 맞춘다.
+pub fn refresh_context_menus(app: &AppHandle) {
     let Ok(records) = read_tool_records(app) else {
         // 도구 목록을 못 읽은 상태에서 지우면 멀쩡한 메뉴까지 날아간다.
         return;
     };
-    let alive: Vec<String> = records
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let exe = exe.to_string_lossy().to_string();
+
+    let alive: HashMap<String, ContextMenuSpec> = records
         .into_iter()
-        .filter(|record| record.manifest.context_menu.is_some())
-        .map(|record| format!("{CONTEXT_KEY_PREFIX}{}", record.manifest.id))
+        .filter_map(|record| {
+            let spec = record.manifest.context_menu.clone()?;
+            Some((record.manifest.id, spec))
+        })
         .collect();
 
     for key in registered_context_keys() {
         let leaf = key.rsplit('\\').next().unwrap_or_default();
-        if !alive.iter().any(|name| name == leaf) {
+        let tool_id = leaf.trim_start_matches(CONTEXT_KEY_PREFIX);
+
+        let Some(spec) = alive.get(tool_id) else {
+            // 없어진 도구가 남긴 메뉴.
             let _ = reg(&["delete", &key, "/f"]);
-        }
+            continue;
+        };
+
+        // 살아 있는 메뉴는 지금 실행 파일 경로로 다시 써 둔다. 같은 값이면 아무 일도 아니다.
+        let command_key = format!(r"{key}\command");
+        let command_value = format!("\"{exe}\" --open-with {tool_id} --path \"%1\"");
+        let _ = reg(&["add", &key, "/ve", "/d", &spec.label, "/f"]);
+        let _ = reg(&["add", &key, "/v", "Icon", "/d", &exe, "/f"]);
+        let _ = reg(&["add", &command_key, "/ve", "/d", &command_value, "/f"]);
     }
 }
 
@@ -564,8 +582,50 @@ fn bridge_path(app: &AppHandle) -> Result<PathBuf, String> {
     Err("Python 도구 연결 모듈을 찾지 못했습니다.".to_string())
 }
 
+/// 실행 중인 도구에 중지를 알리는 신호 파일의 위치.
+///
+/// 프로세스를 죽이면 그때까지 모은 결과도 함께 사라진다. 파일 하나를 만들어 두고
+/// 도구가 스스로 보게 하면, 하던 항목까지 마치고 결과를 저장한 뒤 멈출 수 있다.
+fn cancel_flag_path(app: &AppHandle, tool_id: &str) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| format!("임시 폴더를 찾지 못했습니다: {error}"))?
+        .join("cancel");
+    fs::create_dir_all(&dir).map_err(|error| format!("임시 폴더를 만들지 못했습니다: {error}"))?;
+    let safe: String = tool_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    Ok(dir.join(format!("{safe}.stop")))
+}
+
+/// 실행 중인 도구에 그만두라고 알린다. 도구가 중지를 지원할 때만 효과가 있다.
 #[tauri::command]
-fn run_native_tool(
+fn cancel_native_tool(app: AppHandle, tool_id: String) -> Result<(), String> {
+    let path = cancel_flag_path(&app, &tool_id)?;
+    fs::write(&path, b"stop").map_err(|error| format!("중지 요청을 남기지 못했습니다: {error}"))
+}
+
+/// 파이썬 도구가 진행 상황을 알릴 때 줄 앞에 붙이는 표시.
+/// 이 표시가 붙은 줄은 결과가 아니라 화면에 그때그때 올릴 안내다.
+const PROGRESS_PREFIX: &str = "@@JBEDU_PROGRESS@@";
+
+/// 도구 실행은 오래 걸린다. 동기 명령은 Tauri가 메인 스레드에서 돌리기 때문에
+/// 그동안 창이 통째로 멈춘다. 중지 버튼도 안 눌리고 진행 상황도 그려지지 않는다.
+/// 그래서 실제 작업은 다른 스레드로 넘기고 여기서는 기다리기만 한다.
+#[tauri::command]
+async fn run_native_tool(
+    app: AppHandle,
+    tool_id: String,
+    payload: Value,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || run_native_tool_blocking(app, tool_id, payload))
+        .await
+        .map_err(|error| format!("도구 실행을 마치지 못했습니다: {error}"))?
+}
+
+fn run_native_tool_blocking(
     app: AppHandle,
     tool_id: String,
     payload: Value,
@@ -611,6 +671,12 @@ fn run_native_tool(
         return Err("내장 Python 실행기와 개발용 연결 모듈을 찾지 못했습니다.".to_string());
     }
 
+    // 지난 실행에서 남은 중지 신호를 지우고 시작한다. 남아 있으면 시작하자마자 멈춘다.
+    let cancel_flag = cancel_flag_path(&app, &tool_id).ok();
+    if let Some(path) = &cancel_flag {
+        let _ = fs::remove_file(path);
+    }
+
     let working_dir = record.root.parent().unwrap_or(&record.root);
     let mut spawn_error = String::new();
     let mut result = None;
@@ -625,6 +691,10 @@ fn run_native_tool(
             .arg(&tool_id)
             .arg("--payload-b64")
             .arg(&payload_encoded)
+            .env(
+                "JBEDU_CANCEL_FILE",
+                cancel_flag.as_deref().unwrap_or(Path::new("")),
+            )
             .env("JBEDU_TOOLS_ROOT", working_dir)
             .env("JBEDU_PROJECT_ROOT", working_dir)
             // 한글 오류 메시지가 깨지지 않도록 파이썬 출력을 UTF-8로 고정한다.
@@ -632,26 +702,70 @@ fn run_native_tool(
             .env("PYTHONIOENCODING", "utf-8")
             .current_dir(working_dir);
 
+        command
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
 
-        match command.output() {
-            Ok(output) => {
-                result = Some(output);
+        match command.spawn() {
+            Ok(child) => {
+                result = Some(child);
                 break;
             }
             Err(error) => spawn_error = error.to_string(),
         }
     }
 
-    let output = result
+    let mut child = result
         .ok_or_else(|| format!("Python 도구를 실행하지 못했습니다: {spawn_error}"))?;
 
-    if !output.status.success() {
-        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    // 오류 출력은 따로 읽는다. 그냥 두면 출력이 많을 때 파이프가 차서 서로 멈춘다.
+    let stderr_reader = child.stderr.take().map(|mut stderr| {
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut text = String::new();
+            let _ = stderr.read_to_string(&mut text);
+            text
+        })
+    });
+
+    // 도구가 한 줄씩 내보내는 진행 상황을 기다리지 않고 그때그때 화면으로 올린다.
+    // 표시가 붙은 줄은 안내, 나머지는 모아서 결과로 읽는다.
+    let mut body_lines: Vec<String> = Vec::new();
+    if let Some(stdout) = child.stdout.take() {
+        use std::io::{BufRead, BufReader};
+        use tauri::Emitter;
+        for line in BufReader::new(stdout).lines() {
+            let Ok(line) = line else { break };
+            match line.trim().strip_prefix(PROGRESS_PREFIX) {
+                Some(text) => {
+                    let _ = app.emit(
+                        "tool-progress",
+                        json!({ "toolId": tool_id, "text": text.trim() }),
+                    );
+                }
+                None => body_lines.push(line),
+            }
+        }
+    }
+
+    let status = child
+        .wait()
+        .map_err(|error| format!("도구 실행을 마치지 못했습니다: {error}"))?;
+    if let Some(path) = &cancel_flag {
+        let _ = fs::remove_file(path);
+    }
+    let stderr_text = stderr_reader
+        .and_then(|handle| handle.join().ok())
+        .unwrap_or_default();
+
+    if !status.success() {
+        let message = stderr_text.trim().to_string();
         return Err(if message.is_empty() {
             "도구 실행 중 오류가 발생했습니다.".to_string()
         } else {
@@ -659,11 +773,12 @@ fn run_native_tool(
         });
     }
 
-    serde_json::from_slice(&output.stdout)
+    let body = body_lines.join("\n");
+    serde_json::from_str(body.trim())
         .or_else(|_| {
             Ok(json!({
                 "ok": true,
-                "message": String::from_utf8_lossy(&output.stdout).trim()
+                "message": body.trim()
             }))
         })
         .map_err(|error: serde_json::Error| error.to_string())
@@ -686,10 +801,10 @@ pub fn run() {
             let argv: Vec<String> = std::env::args().collect();
             collect_context_request(app.handle(), &argv);
 
-            // 없어진 도구가 남긴 우클릭 메뉴를 치운다. reg 조회가 느릴 수 있어
-            // 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
+            // 없어진 도구가 남긴 메뉴를 치우고, 살아 있는 메뉴의 실행 파일 경로를
+            // 지금 것으로 맞춘다. reg 조회가 느려 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
             let handle = app.handle().clone();
-            std::thread::spawn(move || prune_context_menus(&handle));
+            std::thread::spawn(move || refresh_context_menus(&handle));
 
             setup_desktop(app)
         })
@@ -705,6 +820,7 @@ pub fn run() {
             clear_context_menus,
             take_context_request,
             run_native_tool,
+            cancel_native_tool,
             board_update::check_board_update,
             board_update::download_board_update,
             board_update::apply_board_update,

@@ -115,9 +115,21 @@ pub fn setup_desktop(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     // 자동 시작은 설정값이 아니라 레지스트리가 실제 상태다. 처음 실행일 때만
     // 기본값대로 등록해 둔다. 꺼 두신 분의 설정을 다시 켜지 않기 위해서다.
-    if first_run && preferences.auto_start {
+    // 개발 빌드가 사용자의 자동 시작을 건드리지 않도록 여기서도 막는다.
+    if first_run && preferences.auto_start && !cfg!(debug_assertions) {
         let _ = set_auto_start(true);
         let _ = save_preferences(app.handle(), &preferences);
+    }
+
+    // 자동 시작이 켜져 있으면 지금 실행 파일 경로로 다시 써 둔다.
+    // 설치 위치나 프로그램 이름이 바뀌면 등록된 경로가 옛 것을 가리켜, 로그인할 때
+    // 지금 깔린 것이 아니라 예전 프로그램이 뜬다. 값을 읽어 비교하려 해도 reg 출력이
+    // 콘솔 코드 페이지라 한글이 섞인 경로가 깨진다. 그래서 조건 없이 덮어쓴다.
+    //
+    // 개발 빌드는 제외한다. 개발용으로 한 번 띄울 때마다 사용자의 자동 시작이
+    // target\debug 의 실행 파일로 바뀌어, 로그인하면 설치본이 아니라 개발 빌드가 뜬다.
+    if !first_run && !cfg!(debug_assertions) && auto_start_enabled() {
+        let _ = set_auto_start(true);
     }
 
     app.manage(RuntimeState::new(preferences.clone()));

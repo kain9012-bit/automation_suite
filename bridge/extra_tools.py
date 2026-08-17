@@ -14,6 +14,38 @@ TOOLS_ROOT = Path(
 ).resolve()
 
 
+# 진행 상황 줄 앞에 붙이는 표시. Rust가 이 표시를 보고 결과가 아니라
+# 화면에 바로 올릴 안내로 구분한다. (src-tauri/src/lib.rs 의 PROGRESS_PREFIX)
+PROGRESS_PREFIX = "@@JBEDU_PROGRESS@@"
+
+
+def emit_progress(text: Any) -> None:
+    """진행 상황 한 줄을 지금 바로 내보낸다.
+
+    모아 두었다가 끝에 돌려주면 오래 걸리는 작업에서 아무것도 안 보인다.
+    줄바꿈이 섞이면 Rust가 여러 줄로 읽으므로 한 줄로 눌러 준다.
+    """
+    line = str(text).replace("\r", " ").replace("\n", " ").strip()
+    if not line:
+        return
+    print(f"{PROGRESS_PREFIX}{line}", flush=True)
+
+
+class FileCancel:
+    """중지 신호 파일이 생기면 멈추라고 알리는 물건.
+
+    도구는 threading.Event 처럼 is_set() 만 본다. 앱이 그 파일을 만들면
+    도구가 하던 항목까지 마치고 스스로 멈춘다. 프로세스를 죽이는 것과 달리
+    그때까지 모은 결과를 저장할 수 있다.
+    """
+
+    def __init__(self) -> None:
+        self.path = os.environ.get("JBEDU_CANCEL_FILE", "").strip()
+
+    def is_set(self) -> bool:
+        return bool(self.path) and os.path.exists(self.path)
+
+
 def _module(tool_id: str, module_name: str):
     tool_root = TOOLS_ROOT / tool_id
     if str(tool_root) not in sys.path:
@@ -137,36 +169,108 @@ def run_homepage_collector(payload: dict[str, Any]) -> dict[str, Any]:
         "homepage_post_collector_service",
     )
     output_text = str(payload.get("output") or "").strip()
-    output_dir = (
-        Path(output_text).expanduser().resolve()
-        if output_text
-        else Path.home() / "Downloads" / "게시글_취합"
-    )
+    if output_text:
+        output_dir = Path(output_text).expanduser().resolve()
+    else:
+        # 저장 위치를 비워 두면 다운로드 폴더에 바로 만든다.
+        # 예전에는 '게시글_취합' 폴더를 하나 더 만들어 파일을 찾기 번거로웠다.
+        downloads = Path.home() / "Downloads"
+        output_dir = downloads if downloads.is_dir() else Path.home()
     output_dir.mkdir(parents=True, exist_ok=True)
     download_files = bool(payload.get("download_files", False))
-    attach_dir = output_dir / "첨부파일" if download_files else None
+
+    # 저장할 이름은 긁기 전에 정한다. 예전에는 크롤링이 다 끝난 뒤에 이 줄을 만들다가
+    # 실패해서, 오래 걸린 수집 결과가 통째로 버려졌다.
+    stamp = service.make_timestamp()
+    excel_path = output_dir / f"게시글_취합_{stamp}.xlsx"
+    # 첨부 폴더에도 시각을 붙인다. 안 그러면 여러 번 돌릴 때 한 폴더에 뒤섞인다.
+    attach_dir = output_dir / f"첨부파일_{stamp}" if download_files else None
+
     logs: list[str] = []
+    start_page = int(payload.get("start_page") or 1)
+    end_page = int(payload.get("end_page") or 1)
+    max_posts = int(payload.get("max_posts") or 0)
+
+    def note(text: Any) -> None:
+        logs.append(str(text))
+        emit_progress(text)
+
+    def counted(collected: int) -> None:
+        # 몇 건까지 왔는지 짚어 준다. 목표 건수가 있으면 함께 보여 준다.
+        if max_posts:
+            emit_progress(f"　　… {collected}/{max_posts}건 수집")
+        else:
+            emit_progress(f"　　… {collected}건 수집")
+
+    emit_progress(f"게시판을 확인합니다. ({start_page}~{end_page}페이지)")
     result = service.crawl_board(
         board_url,
-        int(payload.get("start_page") or 1),
-        int(payload.get("end_page") or 1),
-        int(payload.get("max_posts") or 0),
-        logs.append,
+        start_page,
+        end_page,
+        max_posts,
+        note,
         collect_body=bool(payload.get("collect_body", True)),
         download_files=download_files,
         attach_dir=attach_dir,
+        cancel_event=FileCancel(),
+        progress_func=counted,
     )
-    excel_path = output_dir / f"게시글_취합_{service.make_timestamp()}.xlsx"
+    emit_progress(
+        "중지했습니다. 그때까지 모은 것만 저장합니다."
+        if result.cancelled
+        else f"수집을 마쳤습니다. 모두 {result.count}건."
+    )
+    if bool(payload.get("create_excel", True)):
+        emit_progress("엑셀 파일로 정리하는 중...")
     if bool(payload.get("create_excel", True)):
         service.save_to_excel(result.headers, result.rows, result.errors, excel_path, board_url)
     return {
         "ok": True,
-        "message": f"게시글 {result.count}건, 첨부파일 {result.attach_count}개를 처리했습니다.",
+        "message": (
+            f"중지했습니다. 그때까지 모은 게시글 {result.count}건, 첨부파일 {result.attach_count}개를 저장했습니다."
+            if result.cancelled
+            else f"게시글 {result.count}건, 첨부파일 {result.attach_count}개를 처리했습니다."
+        ),
         "output": str(excel_path if excel_path.exists() else output_dir),
         "error_count": len(result.errors),
         "cancelled": result.cancelled,
         "attachment_count": result.attach_count,
         "logs": logs[-20:],
+    }
+
+
+def probe_homepage_board(payload: dict[str, Any]) -> dict[str, Any]:
+    """주소를 한 번 열어 게시판을 제대로 찾는지, 끝 페이지가 몇 쪽인지 알려 준다.
+
+    끝 페이지를 모르고 찍어 넣으면 헛돌거나 덜 가져온다. 미리 확인해서
+    화면의 끝 페이지 칸까지 채워 준다.
+    """
+    board_url = str(payload.get("board_url") or "").strip()
+    if not board_url.startswith(("http://", "https://")):
+        raise ValueError("게시판 목록 URL을 입력하세요.")
+    service = _module(
+        "homepage_post_collector",
+        "homepage_post_collector_service",
+    )
+    info = service.probe_board(board_url)
+
+    lines = [str(info.get("message") or "").strip()]
+    fill: dict[str, Any] = {}
+    if info.get("ok"):
+        headers = info.get("headers") or []
+        if headers:
+            lines.append(f"인식된 헤더: {', '.join(str(h) for h in headers)}")
+        if info.get("title_column"):
+            lines.append(f"제목 칸: {info['title_column']}")
+        last_page = int(info.get("last_page") or 0)
+        if last_page > 0:
+            fill["end_page"] = last_page
+            lines.append(f"끝 페이지를 {last_page}쪽으로 채웠습니다.")
+
+    return {
+        "ok": bool(info.get("ok")),
+        "message": "\n".join(line for line in lines if line),
+        "fill": fill,
     }
 
 
@@ -289,4 +393,5 @@ EXTRA_HANDLERS = {
     "excel_split": run_excel_split,
     "excel_split__analyze": analyze_excel_split,
     "homepage_post_collector": run_homepage_collector,
+    "homepage_post_collector__probe": probe_homepage_board,
 }

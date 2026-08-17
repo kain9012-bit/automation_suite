@@ -5,6 +5,14 @@ export interface Choice {
   value: string;
 }
 
+export interface FieldAction {
+  label: string;
+  /** 부를 보조 동작. `도구ID__동작` 형태를 쓴다. */
+  tool: string;
+  /** 이 칸의 값을 어떤 이름으로 보낼지. */
+  payloadKey: string;
+}
+
 export interface ToolField {
   key: string;
   label: string;
@@ -12,6 +20,11 @@ export interface ToolField {
   defaultValue?: string | number | boolean;
   placeholder?: string;
   choices?: Choice[];
+  /**
+   * 칸 옆에 붙는 확인 버튼. 값을 검사한 결과를 작업 기록에 남기고,
+   * 돌려받은 `fill`로 다른 칸을 채운다.
+   */
+  action?: FieldAction;
 }
 
 export interface ToolUiSchema {
@@ -29,6 +42,8 @@ export interface ToolUiSchema {
    * 파일을 다시 고르면 교체가 아니라 뒤에 덧붙인다.
    */
   orderable?: boolean;
+  /** 실행 중에 중지할 수 있는 도구. 하던 항목까지 마치고 결과를 저장한 뒤 멈춘다. */
+  cancellable?: boolean;
 }
 
 const defaultSchema: ToolUiSchema = {

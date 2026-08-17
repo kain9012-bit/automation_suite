@@ -21,6 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
+import datetime
 
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) BoardCollector/2.0"
@@ -62,6 +63,11 @@ ATTACH_EXTS = (
 
 # 엑셀에 공통으로 덧붙이는 열
 EXTRA_HEADERS = ["게시판URL", "상세URL", "본문내용", "첨부파일개수", "첨부파일목록"]
+
+
+def make_timestamp() -> str:
+    """결과 파일과 첨부 폴더 이름에 붙일 시각. 같은 실행에서는 같은 값을 쓴다."""
+    return datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 class Cancelled(Exception):

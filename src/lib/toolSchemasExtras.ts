@@ -88,14 +88,20 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     inputMode: "none",
     inputLabel: "",
     multiple: false,
+    cancellable: true,
     outputMode: "folder",
-    outputLabel: "결과 저장 폴더",
+    outputLabel: "결과 저장 폴더(비우면 다운로드 폴더)",
     fields: [
       {
         key: "board_url",
         label: "게시판 목록 URL",
         type: "text",
         placeholder: "https://www.jbe.go.kr/board/list.jbe?...",
+        action: {
+          label: "주소 확인",
+          tool: "homepage_post_collector__probe",
+          payloadKey: "board_url",
+        },
       },
       {
         key: "start_page",
