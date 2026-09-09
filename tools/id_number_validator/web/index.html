@@ -155,7 +155,6 @@
 
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-    .footer{margin-top:10px;font-size:11px;color:var(--muted);text-align:center;}
   </style>
 </head>
 <body>
@@ -193,7 +192,9 @@
       <div class="notice">
         · 한 줄에 번호 하나씩 넣으세요. 하이픈은 있어도 없어도 됩니다. 이름 같은 글자가 섞여 있으면 번호 부분만 골라 검사합니다.<br />
         · <b>입력한 데이터는 이 PC 밖으로 전송되지 않습니다.</b> 모든 계산은 화면 안에서만 이루어집니다.<br />
-        · 검증은 <b>번호 규칙(체크섬)</b>만 확인합니다. 실제로 발급된 번호인지, 누구의 번호인지는 알 수 없습니다.
+        · 검증은 <b>번호 규칙</b>만 확인합니다. 실제로 발급된 번호인지, 누구의 번호인지는 알 수 없습니다.<br />
+        · <b>검증번호 불일치</b>는 마지막 한 자리가 앞자리들로 계산한 값과 다르다는 뜻입니다. 문서에 흔히 쓰는
+        <code>800101-1234567</code> 같은 가짜 번호는 여기서 걸립니다.
       </div>
     </section>
 
@@ -222,7 +223,6 @@
       </div>
     </section>
 
-    <div class="footer">전북특별자치도교육청 · JB업무ON</div>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -234,6 +234,7 @@
         guide: '주민등록번호를 한 줄에 하나씩 넣으세요. (13자리, 하이픈 무관)',
         placeholder: '800101-1234567\n9002021234567\n030505-3456789',
         sample: '900101-1234568\n800101-1234567\n901301-1234567\n03050534567',
+        sampleNote: '예시는 정상 1건과 오류 3건을 일부러 섞었습니다. 검사를 실행해 보세요.',
         check: checkRrn
       },
       biz: {
@@ -241,6 +242,7 @@
         guide: '사업자등록번호를 한 줄에 하나씩 넣으세요. (10자리, 하이픈 무관)',
         placeholder: '123-45-67891\n1234567891\n220-81-62517',
         sample: '220-81-62517\n1234567891\n123-45-67891\n2208162518',
+        sampleNote: '예시는 정상 3건과 오류 1건을 일부러 섞었습니다. 검사를 실행해 보세요.',
         check: checkBiz
       }
     };
@@ -425,7 +427,7 @@
 
     function loadSample() {
       document.getElementById('inputArea').value = MODES[currentMode].sample;
-      showToast('예시를 채웠습니다. 검사를 실행해 보세요.');
+      showToast(MODES[currentMode].sampleNote);
     }
 
     function clearAll() {
