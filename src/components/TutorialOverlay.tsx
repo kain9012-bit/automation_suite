@@ -5,7 +5,7 @@ const STEPS = [
   { selector: '[data-tour="sidebar"]', title: "업무별 도구 메뉴", body: "엑셀 데이터, PDF 문서, 수집·추출, 업무 자동화, 간단 도구 순서로 필요한 기능을 찾을 수 있습니다." },
   { selector: '[data-tour="search"]', title: "빠른 도구 검색", body: "도구 이름이나 하려는 업무를 검색하세요. Ctrl+K를 눌러 어디서든 검색창을 열 수도 있습니다." },
   { selector: '[data-tour="tool-area"]', title: "한 화면에서 실행", body: "도구를 선택하면 이 영역에서 바로 작업합니다. HTML 도구도 별도 창 없이 내부에서 열립니다." },
-  { selector: '[data-tour="macro-toggle"]', title: "빠른 실행", body: "홈 화면의 빠른 실행에 자주 쓰는 사이트·폴더·프로그램을 등록해 두고 클릭이나 단축키로 실행합니다. 반복 작업은 매크로로 묶을 수 있습니다." },
+  { selector: '[data-tour="macro-toggle"]', title: "빠른 실행", body: "홈 화면의 빠른 실행에 자주 쓰는 사이트·폴더·프로그램을 등록해 두고 클릭이나 단축키로 실행합니다. 파일을 끌어다 놓아도 바로 등록되고, 반복 작업은 매크로로 묶을 수 있습니다." },
   { selector: '[data-tour="support"]', title: "관련 문의", body: "오류나 개선 의견이 있을 때 확인할 수 있는 문의 안내를 사이드바 하단에 두었습니다." },
   { selector: '[data-tour="settings"]', title: "시작 및 트레이 설정", body: "Windows 자동 시작, 트레이 최소화, 업데이트 설정을 여기에서 관리하고 이 안내를 다시 볼 수 있습니다." },
 ];
