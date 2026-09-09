@@ -426,3 +426,62 @@
     grid-column: span 1;
   }
 }
+
+/* 끌어다 놓은 파일을 등록할지 물어보는 막대. 다른 프로그램에 파일을 넣는 중에도
+   이 창이 같은 신호를 받는 일이 있어, 눌러야만 등록되도록 한 단계를 둔다. */
+.launcher-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+.launcher-confirm .confirm-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.launcher-confirm .confirm-text strong {
+  font-size: 14px;
+}
+
+.launcher-confirm .confirm-text span {
+  font-size: 12px;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launcher-confirm .confirm-buttons {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.launcher-confirm button {
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.launcher-confirm .confirm-yes {
+  border: 1px solid var(--accent-strong);
+  background: var(--accent-strong);
+  color: #fff;
+}
+
+.launcher-confirm .confirm-no {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+}

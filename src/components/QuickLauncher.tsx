@@ -127,6 +127,7 @@ export function QuickLauncher() {
   const [status, setStatus] = useState("");
   const [undo, setUndo] = useState<DeckState[]>([]);
   const [dropping, setDropping] = useState(false);
+  const [pending, setPending] = useState<string[]>([]);
   const cardRef = useRef<HTMLElement | null>(null);
   const deckRef = useRef(deck);
 
@@ -291,15 +292,8 @@ export function QuickLauncher() {
           setDropping(false);
           return;
         }
-        // 다른 프로그램에서 파일을 옮기는 중에도 이 창이 놓임 이벤트를 받는다.
-        // 공문 기안창 첨부란에 넣은 파일이 빠른 실행에 등록되던 원인이 이것이다.
-        // 이 창이 지금 쓰이는 창일 때만 받아들인다. 남의 창에서 하는 일은 무시한다.
-        if (!document.hasFocus()) {
-          setDropping(false);
-          return;
-        }
         // 놓인 자리가 카드 안인지 본다. 이 검사가 없으면 창 위 아무 데나 놓아도
-        // 등록된다.
+        // 받아 버린다.
         const inside = isInsideCard(event.payload.position);
         if (event.payload.type === "over") {
           setDropping(inside);
@@ -309,25 +303,10 @@ export function QuickLauncher() {
         if (!inside) return;
         const paths = event.payload.paths ?? [];
         if (!paths.length) return;
-        let added = 0;
-        let skipped = 0;
-        for (const path of paths) {
-          const guess = guessFromPath(path);
-          if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: path })) {
-            skipped += 1;
-            continue;
-          }
-          added += 1;
-        }
-        if (!added) {
-          setStatus("이미 등록된 항목입니다.");
-          return;
-        }
-        setStatus(
-          skipped
-            ? `${added}개를 빠른 실행에 등록했습니다. (이미 있던 ${skipped}개는 건너뜀)`
-            : `${added}개를 빠른 실행에 등록했습니다.`,
-        );
+        // 바로 등록하지 않고 물어본다. 다른 프로그램에 파일을 넣는 중에도 이 창이
+        // 같은 신호를 받는 일이 있어, 공문 기안창 첨부란에 넣은 파일이 빠른 실행에
+        // 저절로 올라가곤 했다. 물어보게 해 두면 눌러야만 등록된다.
+        setPending(paths);
       })
       .then((stop) => {
         if (cancelled) {
@@ -342,6 +321,30 @@ export function QuickLauncher() {
       unlisten?.();
     };
   }, [addAction, isInsideCard]);
+
+  /** 물어본 뒤 실제로 등록한다. */
+  const confirmPending = () => {
+    let added = 0;
+    let skipped = 0;
+    for (const path of pending) {
+      const guess = guessFromPath(path);
+      if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: path })) {
+        skipped += 1;
+        continue;
+      }
+      added += 1;
+    }
+    setPending([]);
+    if (!added) {
+      setStatus("이미 등록된 항목입니다.");
+      return;
+    }
+    setStatus(
+      skipped
+        ? `${added}개를 빠른 실행에 등록했습니다. (이미 있던 ${skipped}개는 건너뜀)`
+        : `${added}개를 빠른 실행에 등록했습니다.`,
+    );
+  };
 
   const handleDrop = (event: React.DragEvent) => {
     const url = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
@@ -428,6 +431,19 @@ export function QuickLauncher() {
       onDragLeave={() => setDropping(false)}
       onDrop={handleDrop}
     >
+      {!!pending.length && (
+        <div className="launcher-confirm">
+          <div className="confirm-text">
+            <strong>{pending.length}개를 빠른 실행에 등록할까요?</strong>
+            <span>{pending.map((path) => path.split(/[\\/]/).pop()).join(", ")}</span>
+          </div>
+          <div className="confirm-buttons">
+            <button className="confirm-yes" onClick={confirmPending}>등록</button>
+            <button className="confirm-no" onClick={() => setPending([])}>취소</button>
+          </div>
+        </div>
+      )}
+
       <header className="launcher-head">
         <div>
           <h2>빠른 실행</h2>
