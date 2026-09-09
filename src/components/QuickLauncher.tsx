@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
   ChevronDown,
   ChevronUp,
@@ -95,7 +94,7 @@ function readState(): DeckState {
   }
 }
 
-/** 드롭된 경로를 보고 폴더·프로그램·파일 중 무엇인지 추측한다. */
+/** 고른 경로를 보고 폴더·프로그램·파일 중 무엇인지 추측한다. */
 function guessFromPath(path: string): { type: ActionType; name: string } {
   const cleaned = path.replace(/[\\/]+$/, "");
   const base = cleaned.split(/[\\/]/).pop() || cleaned;
@@ -111,24 +110,12 @@ function normalizeTarget(target: string) {
   return target.trim().replace(/[\\/]+$/, "").toLowerCase();
 }
 
-function guessFromUrl(url: string): { type: ActionType; name: string } {
-  try {
-    const parsed = new URL(url);
-    return { type: "site", name: parsed.hostname.replace(/^www\./, "") };
-  } catch {
-    return { type: "site", name: url.slice(0, 24) };
-  }
-}
-
 export function QuickLauncher() {
   const [deck, setDeck] = useState<DeckState>(readState);
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<DeckAction | null>(null);
   const [status, setStatus] = useState("");
   const [undo, setUndo] = useState<DeckState[]>([]);
-  const [dropping, setDropping] = useState(false);
-  const [pending, setPending] = useState<string[]>([]);
-  const cardRef = useRef<HTMLElement | null>(null);
   const deckRef = useRef(deck);
 
   useEffect(() => {
@@ -136,20 +123,6 @@ export function QuickLauncher() {
   });
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(deck)), [deck]);
-
-  /**
-   * 창 전체가 아니라 빠른 실행 카드 위에 놓았을 때만 등록한다.
-   * Tauri 가 주는 좌표는 실제 화소 단위라 배율로 나눠 CSS 좌표에 맞춘다.
-   */
-  const isInsideCard = useCallback((position?: { x: number; y: number }) => {
-    const card = cardRef.current;
-    if (!card || !position) return false;
-    const ratio = window.devicePixelRatio || 1;
-    const x = position.x / ratio;
-    const y = position.y / ratio;
-    const box = card.getBoundingClientRect();
-    return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
-  }, []);
 
   const activePage = deck.pages.find((page) => page.id === deck.activePageId) ?? deck.pages[0];
   const actions = useMemo(
@@ -279,85 +252,6 @@ export function QuickLauncher() {
     [],
   );
 
-  // 파일·폴더·프로그램을 빠른 실행 카드에 끌어다 놓으면 바로 버튼으로 등록한다.
-  useEffect(() => {
-    // 등록이 끝나기 전에 화면을 벗어나면 정리 함수가 먼저 돌아 리스너가 남는다.
-    // 그대로 두면 홈에 드나들 때마다 리스너가 쌓여 파일 하나를 놓아도 여러 번 등록된다.
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    void getCurrentWebview()
-      .onDragDropEvent((event) => {
-        if (cancelled) return;
-        if (event.payload.type === "leave") {
-          setDropping(false);
-          return;
-        }
-        // 놓인 자리가 카드 안인지 본다. 이 검사가 없으면 창 위 아무 데나 놓아도
-        // 받아 버린다.
-        const inside = isInsideCard(event.payload.position);
-        if (event.payload.type === "over") {
-          setDropping(inside);
-          return;
-        }
-        setDropping(false);
-        if (!inside) return;
-        const paths = event.payload.paths ?? [];
-        if (!paths.length) return;
-        // 바로 등록하지 않고 물어본다. 다른 프로그램에 파일을 넣는 중에도 이 창이
-        // 같은 신호를 받는 일이 있어, 공문 기안창 첨부란에 넣은 파일이 빠른 실행에
-        // 저절로 올라가곤 했다. 물어보게 해 두면 눌러야만 등록된다.
-        setPending(paths);
-      })
-      .then((stop) => {
-        if (cancelled) {
-          stop();
-          return;
-        }
-        unlisten = stop;
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [addAction, isInsideCard]);
-
-  /** 물어본 뒤 실제로 등록한다. */
-  const confirmPending = () => {
-    let added = 0;
-    let skipped = 0;
-    for (const path of pending) {
-      const guess = guessFromPath(path);
-      if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: path })) {
-        skipped += 1;
-        continue;
-      }
-      added += 1;
-    }
-    setPending([]);
-    if (!added) {
-      setStatus("이미 등록된 항목입니다.");
-      return;
-    }
-    setStatus(
-      skipped
-        ? `${added}개를 빠른 실행에 등록했습니다. (이미 있던 ${skipped}개는 건너뜀)`
-        : `${added}개를 빠른 실행에 등록했습니다.`,
-    );
-  };
-
-  const handleDrop = (event: React.DragEvent) => {
-    const url = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
-    if (!url.trim()) return;
-    event.preventDefault();
-    setDropping(false);
-    const guess = guessFromUrl(url.trim());
-    if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: url.trim() })) {
-      setStatus("이미 등록된 항목입니다.");
-      return;
-    }
-    setStatus(`${guess.name}을(를) 빠른 실행에 등록했습니다.`);
-  };
 
   const saveEditor = () => {
     if (!editor || !editor.name.trim()) {
@@ -421,29 +315,7 @@ export function QuickLauncher() {
   };
 
   return (
-    <section
-      ref={cardRef}
-      className={`quick-launcher ${dropping ? "is-dropping" : ""}`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setDropping(true);
-      }}
-      onDragLeave={() => setDropping(false)}
-      onDrop={handleDrop}
-    >
-      {!!pending.length && (
-        <div className="launcher-confirm">
-          <div className="confirm-text">
-            <strong>{pending.length}개를 빠른 실행에 등록할까요?</strong>
-            <span>{pending.map((path) => path.split(/[\\/]/).pop()).join(", ")}</span>
-          </div>
-          <div className="confirm-buttons">
-            <button className="confirm-yes" onClick={confirmPending}>등록</button>
-            <button className="confirm-no" onClick={() => setPending([])}>취소</button>
-          </div>
-        </div>
-      )}
-
+    <section className="quick-launcher">
       <header className="launcher-head">
         <div>
           <h2>빠른 실행</h2>
@@ -485,7 +357,7 @@ export function QuickLauncher() {
             <Layers3 size={30} />
             <strong>아직 등록한 버튼이 없습니다.</strong>
             <span>
-              파일·폴더·프로그램을 이 영역으로 끌어다 놓거나, <b>새 버튼</b>을 눌러 사이트와 매크로를 등록하세요.
+              <b>새 버튼</b>을 눌러 사이트·폴더·프로그램과 매크로를 등록하세요.
             </span>
           </div>
         )}
