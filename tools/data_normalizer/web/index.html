@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>데이터 정제 도구(v1.0)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --ok-bg:#ecfdf3;
+      --ok-text:#027a48;
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --head-bg:#f8fafc;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{max-width:1200px;margin:0 auto;padding:24px 16px 32px;}
+
+    header{text-align:center;margin-bottom:16px;}
+
+    header h1{
+      font-size:24px;font-weight:600;letter-spacing:-0.02em;
+      display:flex;align-items:center;justify-content:center;gap:8px;color:#111827;
+    }
+
+    .logo-badge{
+      width:32px;height:32px;border-radius:6px;background:var(--brand);
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:700;font-size:16px;
+    }
+
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+
+    .panel{
+      background:var(--card);border-radius:var(--radius-lg);
+      border:1px solid var(--border);box-shadow:var(--shadow-soft);
+      padding:16px;min-width:0;margin-top:16px;
+    }
+
+    .panel-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+    .panel-desc{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.55;}
+
+    .setting-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);
+      gap:16px;
+    }
+
+    @media(max-width:960px){.setting-grid{grid-template-columns:1fr;}}
+
+    .block-title{font-size:15px;font-weight:600;margin-bottom:8px;color:#111827;}
+
+    .type-list{display:flex;flex-wrap:wrap;gap:8px;}
+
+    .type-btn{
+      border:1px solid var(--border);background:#fff;color:#111827;
+      border-radius:6px;padding:10px 18px;font-size:13px;font-weight:600;
+      cursor:pointer;font-family:inherit;
+    }
+
+    .type-btn:hover{background:#f8fafc;}
+
+    .type-btn.active{
+      background:var(--brand-soft);border-color:#b7cff0;color:var(--brand);
+    }
+
+    .format-list{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:6px;
+    }
+
+    @media(max-width:700px){.format-list{grid-template-columns:1fr;}}
+
+    .format-item{
+      display:flex;align-items:center;gap:8px;
+      border:1px solid var(--border);border-radius:6px;
+      padding:8px 12px;font-size:13px;cursor:pointer;background:#fff;
+    }
+
+    .format-item:hover{background:#f8fafc;}
+
+    .format-item.active{
+      background:var(--brand-soft);border-color:#b7cff0;
+      color:var(--brand);font-weight:600;
+    }
+
+    .format-item input{margin:0;}
+
+    .examples{
+      margin-top:12px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:var(--head-bg);
+      padding:10px 12px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.8;
+    }
+
+    .examples b{color:#111827;}
+
+    .actions{
+      display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;
+    }
+
+    .btn-primary{
+      background:var(--brand);color:#fff;border:1px solid var(--brand);
+      border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;
+      cursor:pointer;font-family:inherit;
+    }
+
+    .btn-primary:hover{background:var(--brand-dark);}
+
+    .btn-ghost{
+      background:#fff;color:#111827;border-radius:6px;border:1px solid var(--border);
+      padding:8px 12px;font-size:12px;cursor:pointer;font-family:inherit;
+    }
+
+    .btn-ghost:hover{background:#f8fafc;}
+
+    .stats{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;}
+
+    .stat{
+      border:1px solid var(--border);border-radius:6px;padding:6px 12px;
+      font-size:12px;color:var(--muted);background:var(--head-bg);
+    }
+
+    .stat b{font-size:14px;color:#111827;margin-left:4px;}
+    .stat.ok b{color:var(--ok-text);}
+    .stat.bad b{color:var(--bad-text);}
+
+    .grid-wrap{
+      border:1px solid var(--border);border-radius:6px;
+      overflow:auto;max-height:460px;background:#fff;
+    }
+
+    table.grid{border-collapse:collapse;width:100%;font-size:13px;}
+
+    table.grid th{
+      background:var(--head-bg);border-bottom:1px solid var(--border);
+      border-right:1px solid var(--border);padding:8px 10px;font-weight:600;
+      text-align:left;position:sticky;top:0;z-index:2;
+    }
+
+    table.grid td{
+      border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7;
+      padding:6px 10px;height:32px;vertical-align:middle;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis;max-width:320px;
+    }
+
+    table.grid td.rownum{
+      background:var(--head-bg);color:var(--muted);text-align:center;
+      width:52px;font-size:12px;position:sticky;left:0;z-index:1;
+    }
+
+    td.editable{outline:none;cursor:text;background:#fff;}
+    td.editable:focus{background:#f5f9ff;box-shadow:inset 0 0 0 2px var(--brand);}
+
+    td.result{color:#111827;font-weight:600;}
+    td.status{width:110px;text-align:center;}
+
+    .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+    .tag.ok{background:var(--ok-bg);color:var(--ok-text);}
+    .tag.bad{background:var(--bad-bg);color:var(--bad-text);}
+
+    .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;}
+
+    .toast{
+      position:fixed;left:50%;bottom:28px;
+      transform:translateX(-50%) translateY(12px);
+      background:#111827;color:#fff;font-size:13px;padding:10px 18px;
+      border-radius:6px;opacity:0;pointer-events:none;
+      transition:opacity .18s, transform .18s;z-index:50;
+    }
+
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    .footer{margin-top:10px;font-size:11px;color:var(--muted);text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">D</span>
+        데이터 정제 도구(v1.0)
+      </h1>
+      <p>제각각인 전화번호·날짜·시간을 공문에 쓰는 한 가지 형식으로 맞춰 줍니다.</p>
+    </header>
+
+    <section class="panel">
+      <div class="panel-title">1. 무엇을 어떤 형식으로 바꿀까요?</div>
+      <div class="panel-desc">종류를 고른 뒤 원하는 형식을 선택하세요.</div>
+
+      <div class="setting-grid">
+        <div>
+          <div class="block-title">종류</div>
+          <div class="type-list" id="typeList"></div>
+          <div class="examples" id="examples"></div>
+        </div>
+        <div>
+          <div class="block-title">변환할 형식</div>
+          <div class="format-list" id="formatList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">2. 데이터 붙여넣기</div>
+      <div class="panel-desc">엑셀에서 한 열을 복사해 <b>원본 데이터</b> 칸에 붙여넣기(Ctrl+V) 하세요.</div>
+
+      <div class="actions">
+        <button class="btn-primary" onclick="runConversion()">변환 실행</button>
+        <button class="btn-ghost" onclick="copyResults()">결과 복사</button>
+        <button class="btn-ghost" onclick="loadSample()">예시 채우기</button>
+        <button class="btn-ghost" onclick="clearAll()">전체 지우기</button>
+        <div class="stats">
+          <span class="stat">총 데이터<b id="statTotal">0</b></span>
+          <span class="stat ok">성공<b id="statDone">0</b></span>
+          <span class="stat bad">실패<b id="statFail">0</b></span>
+        </div>
+      </div>
+
+      <div class="grid-wrap">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th style="width:52px;text-align:center;">#</th>
+              <th>원본 데이터</th>
+              <th>변환 결과</th>
+              <th style="width:110px;text-align:center;">상태</th>
+            </tr>
+          </thead>
+          <tbody id="gridBody"></tbody>
+        </table>
+      </div>
+
+      <div class="hint">
+        · 형식을 알아볼 수 없는 값은 결과를 비워 두고 <b>실패</b>로 표시합니다. 원본은 그대로 두니 고쳐서 다시 실행하세요.<br />
+        · <b>결과 복사</b>는 변환 결과 열만 순서대로 복사합니다.
+      </div>
+    </section>
+
+    <div class="footer">전북특별자치도교육청 · JB업무ON</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var ROWS = 200;
+
+    var TYPES = {
+      PHONE: {
+        label: '전화번호',
+        formats: [
+          { id: 'hyphen', label: '010-1234-5678 (표준)' },
+          { id: 'dot', label: '010.1234.5678 (점 구분)' },
+          { id: 'plain', label: '01012345678 (숫자만)' },
+          { id: 'global', label: '+82-10-1234-5678 (국제)' }
+        ],
+        examples: ['01012345678', '10-1234-5678', '021234567', '0632391234', '070 1234 5678'],
+        sample: ['01012345678', '1056781234', '021234567', '29876543', '031-123-4567', '0519876543', '010.5678.1234', '07012345678'],
+        convert: convertPhone
+      },
+      DATE: {
+        label: '날짜',
+        formats: [
+          { id: 'official_kr', label: '2026. 1. 1. (공문 표준)' },
+          { id: 'official_kr_zero', label: '2026. 01. 01. (0 포함 공문)' },
+          { id: 'dot_space', label: '2026. 1. 1 (마지막 점 없음)' },
+          { id: 'korean', label: '2026년 1월 1일 (한글)' },
+          { id: 'korean_zero', label: '2026년 01월 01일 (0 포함 한글)' },
+          { id: 'hyphen', label: '2026-01-01 (하이픈)' },
+          { id: 'dot_compact', label: '2026.1.1 (간략)' },
+          { id: 'dot_compact_zero', label: '2026.01.01 (0 포함 간략)' },
+          { id: 'slash', label: '2026/01/01 (슬래시)' },
+          { id: 'compact', label: '20260101 (숫자만)' }
+        ],
+        examples: ['20260101', '2026.1.1', '26-02-02', '2026년 3월 1일', '2026/04/05'],
+        sample: ['20260101', '2026.1.1', '26.02.02', '2026-03-01', '2026년 4월 5일', '2026/05/06', '260707', '2026. 8. 9.'],
+        convert: convertDate
+      },
+      TIME: {
+        label: '시간',
+        formats: [
+          { id: 'colon_24', label: '14:30 (24시간)' },
+          { id: 'korean_ampm', label: '오후 2:30' },
+          { id: 'korean_full', label: '오후 2시 30분' },
+          { id: 'korean_24', label: '16시 20분' },
+          { id: 'ampm', label: '2:30 PM' },
+          { id: 'compact', label: '1430 (숫자만)' }
+        ],
+        examples: ['1430', '14:30', '오후 2:30', '2시 30분', '2:30 PM'],
+        sample: ['1430', '9:05', '오후 2:30', '오전 9시', '16시 20분', '2:30 PM', '0730'],
+        convert: convertTime
+      }
+    };
+
+    var TYPE_ORDER = ['PHONE', 'DATE', 'TIME'];
+
+    var currentType = 'PHONE';
+    var currentFormat = 'hyphen';
+    var values = new Array(ROWS).fill('');
+    var results = new Array(ROWS).fill(null);
+    var converted = false;
+
+    function pad2(n) {
+      return n < 10 ? '0' + n : String(n);
+    }
+
+    function convertPhone(value, formatId) {
+      var digits = value.replace(/[^0-9]/g, '');
+
+      if (digits.length >= 8 && digits.length <= 10) {
+        if (digits.indexOf('10') === 0 && digits.length === 10) digits = '0' + digits;
+        else if (digits.charAt(0) === '2' && (digits.length === 8 || digits.length === 9)) digits = '0' + digits;
+        else if (/^[3-6]/.test(digits) && (digits.length === 9 || digits.length === 10)) digits = '0' + digits;
+        else if (digits.indexOf('70') === 0 && digits.length === 10) digits = '0' + digits;
+      }
+
+      if (digits.length < 9) return null;
+
+      var parts;
+      if (digits.indexOf('02') === 0) {
+        if (digits.length === 9) parts = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5)];
+        else if (digits.length === 10) parts = [digits.slice(0, 2), digits.slice(2, 6), digits.slice(6)];
+        else return null;
+      } else {
+        if (digits.length === 10) parts = [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)];
+        else if (digits.length === 11) parts = [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
+        else return null;
+      }
+
+      if (formatId === 'dot') return parts.join('.');
+      if (formatId === 'plain') return digits;
+      if (formatId === 'global') return '+82-' + parts[0].slice(1) + '-' + parts[1] + '-' + parts[2];
+      return parts.join('-');
+    }
+
+    function convertDate(value, formatId) {
+      var nums = value.match(/\d+/g);
+      if (!nums) return null;
+
+      var y, m, d;
+
+      if (nums.length === 1) {
+        var one = nums[0];
+        if (one.length === 8) {
+          y = one.slice(0, 4); m = one.slice(4, 6); d = one.slice(6, 8);
+        } else if (one.length === 6) {
+          y = '20' + one.slice(0, 2); m = one.slice(2, 4); d = one.slice(4, 6);
+        } else {
+          return null;
+        }
+      } else if (nums.length >= 3) {
+        y = nums[0]; m = nums[1]; d = nums[2];
+        if (y.length === 2) y = (parseInt(y, 10) > 50 ? '19' : '20') + y;
+        if (y.length !== 4) return null;
+      } else {
+        return null;
+      }
+
+      var year = parseInt(y, 10);
+      var month = parseInt(m, 10);
+      var day = parseInt(d, 10);
+
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+      if (month < 1 || month > 12) return null;
+      if (day < 1 || day > 31) return null;
+
+      var probe = new Date(year, month - 1, day);
+      if (probe.getMonth() + 1 !== month || probe.getDate() !== day) return null;
+
+      var mm = String(month);
+      var dd = String(day);
+      var mp = pad2(month);
+      var dp = pad2(day);
+
+      if (formatId === 'official_kr') return year + '. ' + mm + '. ' + dd + '.';
+      if (formatId === 'official_kr_zero') return year + '. ' + mp + '. ' + dp + '.';
+      if (formatId === 'dot_space') return year + '. ' + mm + '. ' + dd;
+      if (formatId === 'korean') return year + '년 ' + mm + '월 ' + dd + '일';
+      if (formatId === 'korean_zero') return year + '년 ' + mp + '월 ' + dp + '일';
+      if (formatId === 'dot_compact') return year + '.' + mm + '.' + dd;
+      if (formatId === 'dot_compact_zero') return year + '.' + mp + '.' + dp;
+      if (formatId === 'slash') return year + '/' + mp + '/' + dp;
+      if (formatId === 'compact') return '' + year + mp + dp;
+      return year + '-' + mp + '-' + dp;
+    }
+
+    function convertTime(value, formatId) {
+      var nums = value.match(/\d+/g);
+      if (!nums) return null;
+
+      var hour, minute;
+
+      if (value.indexOf(':') >= 0) {
+        if (nums.length < 2) return null;
+        hour = parseInt(nums[0], 10);
+        minute = parseInt(nums[1], 10);
+      } else if (value.indexOf('시') >= 0) {
+        hour = parseInt(nums[0], 10);
+        minute = nums.length > 1 ? parseInt(nums[1], 10) : 0;
+      } else if (nums.length === 1 && nums[0].length === 4) {
+        hour = parseInt(nums[0].slice(0, 2), 10);
+        minute = parseInt(nums[0].slice(2, 4), 10);
+      } else if (nums.length === 1 && nums[0].length === 3) {
+        hour = parseInt(nums[0].slice(0, 1), 10);
+        minute = parseInt(nums[0].slice(1, 3), 10);
+      } else {
+        return null;
+      }
+
+      if (isNaN(hour) || isNaN(minute)) return null;
+
+      var upper = value.toUpperCase();
+      if ((value.indexOf('오후') >= 0 || upper.indexOf('PM') >= 0) && hour < 12) hour += 12;
+      if ((value.indexOf('오전') >= 0 || upper.indexOf('AM') >= 0) && hour === 12) hour = 0;
+
+      if (hour < 0 || hour > 24 || minute < 0 || minute > 59) return null;
+
+      if (formatId === 'colon_24') return pad2(hour) + ':' + pad2(minute);
+      if (formatId === 'compact') return pad2(hour) + pad2(minute);
+      if (formatId === 'korean_24') return hour + '시 ' + minute + '분';
+
+      var meridiemKo = hour >= 12 ? '오후' : '오전';
+      var meridiemEn = hour >= 12 ? 'PM' : 'AM';
+      var hour12 = hour % 12;
+      if (hour12 === 0) hour12 = 12;
+
+      if (formatId === 'korean_ampm') return meridiemKo + ' ' + hour12 + ':' + pad2(minute);
+      if (formatId === 'korean_full') return meridiemKo + ' ' + hour12 + '시 ' + minute + '분';
+      if (formatId === 'ampm') return hour12 + ':' + pad2(minute) + ' ' + meridiemEn;
+
+      return pad2(hour) + ':' + pad2(minute);
+    }
+
+    function renderTypes() {
+      var box = document.getElementById('typeList');
+      box.innerHTML = '';
+      TYPE_ORDER.forEach(function (key) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'type-btn' + (key === currentType ? ' active' : '');
+        btn.textContent = TYPES[key].label;
+        btn.addEventListener('click', function () {
+          currentType = key;
+          currentFormat = TYPES[key].formats[0].id;
+          renderTypes();
+          renderFormats();
+          renderExamples();
+          clearResults();
+        });
+        box.appendChild(btn);
+      });
+    }
+
+    function renderFormats() {
+      var list = document.getElementById('formatList');
+      list.innerHTML = '';
+      TYPES[currentType].formats.forEach(function (fmt) {
+        var label = document.createElement('label');
+        label.className = 'format-item' + (fmt.id === currentFormat ? ' active' : '');
+
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'targetFormat';
+        radio.value = fmt.id;
+        radio.checked = fmt.id === currentFormat;
+        radio.addEventListener('change', function () {
+          currentFormat = fmt.id;
+          renderFormats();
+          if (converted) runConversion(true);
+        });
+
+        var text = document.createElement('span');
+        text.textContent = fmt.label;
+
+        label.appendChild(radio);
+        label.appendChild(text);
+        list.appendChild(label);
+      });
+    }
+
+    function renderExamples() {
+      var box = document.getElementById('examples');
+      var list = TYPES[currentType].examples.map(function (item) {
+        return '<b>' + escapeHtml(item) + '</b>';
+      }).join(' · ');
+      box.innerHTML = '이런 값들을 알아봅니다: ' + list;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function buildGrid() {
+      var body = document.getElementById('gridBody');
+      var frag = document.createDocumentFragment();
+
+      for (var i = 0; i < ROWS; i++) {
+        var tr = document.createElement('tr');
+
+        var num = document.createElement('td');
+        num.className = 'rownum';
+        num.textContent = String(i + 1);
+        tr.appendChild(num);
+
+        var input = document.createElement('td');
+        input.className = 'editable';
+        input.contentEditable = 'true';
+        input.spellcheck = false;
+        input.dataset.row = String(i);
+        tr.appendChild(input);
+
+        var result = document.createElement('td');
+        result.className = 'result';
+        tr.appendChild(result);
+
+        var status = document.createElement('td');
+        status.className = 'status';
+        tr.appendChild(status);
+
+        frag.appendChild(tr);
+      }
+
+      body.appendChild(frag);
+
+      body.addEventListener('input', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        var row = parseInt(cell.dataset.row, 10);
+        values[row] = cell.textContent.replace(/\s+$/, '');
+        results[row] = null;
+        paintRow(row);
+        updateStats();
+      });
+
+      body.addEventListener('paste', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        event.preventDefault();
+        var text = (event.clipboardData || window.clipboardData).getData('text');
+        var start = parseInt(cell.dataset.row, 10);
+        var lines = text.replace(/\r/g, '').split('\n');
+        while (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+        for (var i = 0; i < lines.length; i++) {
+          var row = start + i;
+          if (row >= ROWS) break;
+          values[row] = lines[i].split('\t')[0].trim();
+          results[row] = null;
+        }
+        syncInputCells();
+        repaintAll();
+        showToast(Math.min(lines.length, ROWS - start) + '개 값을 붙여 넣었습니다. 변환 실행을 눌러 주세요.');
+      });
+
+      body.addEventListener('keydown', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          var row = parseInt(cell.dataset.row, 10);
+          var next = body.querySelector('td.editable[data-row="' + (row + 1) + '"]');
+          if (next) next.focus();
+        }
+      });
+    }
+
+    function paintRow(row) {
+      var tr = document.getElementById('gridBody').children[row];
+      if (!tr) return;
+      var resultCell = tr.children[2];
+      var statusCell = tr.children[3];
+      var raw = (values[row] || '').trim();
+
+      if (!raw) {
+        resultCell.textContent = '';
+        statusCell.innerHTML = '';
+        return;
+      }
+
+      var value = results[row];
+      if (value === null || value === undefined) {
+        resultCell.textContent = '';
+        statusCell.innerHTML = converted ? '<span class="tag bad">실패</span>' : '';
+        return;
+      }
+
+      resultCell.textContent = value;
+      statusCell.innerHTML = '<span class="tag ok">성공</span>';
+    }
+
+    function repaintAll() {
+      for (var i = 0; i < ROWS; i++) paintRow(i);
+      updateStats();
+    }
+
+    function syncInputCells() {
+      var body = document.getElementById('gridBody');
+      for (var i = 0; i < ROWS; i++) {
+        var cell = body.children[i].children[1];
+        if (cell.textContent !== values[i]) cell.textContent = values[i];
+      }
+    }
+
+    function runConversion(quiet) {
+      var convert = TYPES[currentType].convert;
+      var total = 0;
+
+      for (var i = 0; i < ROWS; i++) {
+        var raw = (values[i] || '').trim();
+        if (!raw) { results[i] = null; continue; }
+        total++;
+        var value = null;
+        try {
+          value = convert(raw, currentFormat);
+        } catch (error) {
+          value = null;
+        }
+        results[i] = (value === null || value === undefined || value === '') ? null : value;
+      }
+
+      converted = true;
+      repaintAll();
+
+      if (!quiet) {
+        if (total === 0) showToast('변환할 데이터가 없습니다.');
+        else showToast('총 ' + total + '건을 변환했습니다.');
+      }
+    }
+
+    function clearResults() {
+      results = new Array(ROWS).fill(null);
+      converted = false;
+      repaintAll();
+    }
+
+    function updateStats() {
+      var total = 0, done = 0, fail = 0;
+      for (var i = 0; i < ROWS; i++) {
+        if (!(values[i] || '').trim()) continue;
+        total++;
+        if (results[i] !== null && results[i] !== undefined) done++;
+        else if (converted) fail++;
+      }
+      document.getElementById('statTotal').textContent = String(total);
+      document.getElementById('statDone').textContent = String(done);
+      document.getElementById('statFail').textContent = String(fail);
+    }
+
+    function copyResults() {
+      var last = -1;
+      for (var i = 0; i < ROWS; i++) {
+        if ((values[i] || '').trim()) last = i;
+      }
+      if (last < 0) {
+        showToast('복사할 결과가 없습니다.');
+        return;
+      }
+      var lines = [];
+      for (var j = 0; j <= last; j++) {
+        lines.push(results[j] === null || results[j] === undefined ? '' : results[j]);
+      }
+      copyText(lines.join('\n'), lines.length + '행을 복사했습니다.');
+    }
+
+    function copyText(text, message) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+      document.body.removeChild(area);
+      showToast(ok ? message : '복사하지 못했습니다. 직접 선택해 복사하세요.');
+    }
+
+    function loadSample() {
+      var samples = TYPES[currentType].sample || [];
+      values = new Array(ROWS).fill('');
+      results = new Array(ROWS).fill(null);
+      converted = false;
+      for (var i = 0; i < samples.length && i < ROWS; i++) values[i] = samples[i];
+      syncInputCells();
+      repaintAll();
+      showToast('예시를 채웠습니다. 변환 실행을 눌러 보세요.');
+    }
+
+    function clearAll() {
+      values = new Array(ROWS).fill('');
+      results = new Array(ROWS).fill(null);
+      converted = false;
+      syncInputCells();
+      repaintAll();
+      showToast('모두 지웠습니다.');
+    }
+
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    renderTypes();
+    renderFormats();
+    renderExamples();
+    buildGrid();
+    repaintAll();
+  </script>
+</body>
+</html>

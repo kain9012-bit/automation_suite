@@ -106,6 +106,11 @@ function guessFromPath(path: string): { type: ActionType; name: string } {
   return { type: "file", name: base.slice(0, dot) };
 }
 
+/** 중복 판정을 위해 경로·주소를 한 모양으로 맞춘다. */
+function normalizeTarget(target: string) {
+  return target.trim().replace(/[\\/]+$/, "").toLowerCase();
+}
+
 function guessFromUrl(url: string): { type: ActionType; name: string } {
   try {
     const parsed = new URL(url);
@@ -122,8 +127,28 @@ export function QuickLauncher() {
   const [status, setStatus] = useState("");
   const [undo, setUndo] = useState<DeckState[]>([]);
   const [dropping, setDropping] = useState(false);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const deckRef = useRef(deck);
+
+  useEffect(() => {
+    deckRef.current = deck;
+  });
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(deck)), [deck]);
+
+  /**
+   * 창 전체가 아니라 빠른 실행 카드 위에 놓았을 때만 등록한다.
+   * Tauri 가 주는 좌표는 실제 화소 단위라 배율로 나눠 CSS 좌표에 맞춘다.
+   */
+  const isInsideCard = useCallback((position?: { x: number; y: number }) => {
+    const card = cardRef.current;
+    if (!card || !position) return false;
+    const ratio = window.devicePixelRatio || 1;
+    const x = position.x / ratio;
+    const y = position.y / ratio;
+    const box = card.getBoundingClientRect();
+    return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  }, []);
 
   const activePage = deck.pages.find((page) => page.id === deck.activePageId) ?? deck.pages[0];
   const actions = useMemo(
@@ -232,22 +257,28 @@ export function QuickLauncher() {
     };
   }, [shortcutSignature]);
 
+  // 같은 대상이 이미 있으면 등록하지 않는다. 등록했으면 true.
   const addAction = useCallback(
     (action: DeckAction) => {
+      const key = normalizeTarget(action.target);
+      const page = deckRef.current.pages.find((item) => item.id === deckRef.current.activePageId) ?? deckRef.current.pages[0];
+      if (key && page?.actions.some((item) => normalizeTarget(item.target) === key)) return false;
+
       setDeck((current) => {
-        const page = current.pages.find((item) => item.id === current.activePageId) ?? current.pages[0];
+        const target = current.pages.find((item) => item.id === current.activePageId) ?? current.pages[0];
         return {
           ...current,
           pages: current.pages.map((item) =>
-            item.id === page.id ? { ...item, actions: [...item.actions, action] } : item,
+            item.id === target.id ? { ...item, actions: [...item.actions, action] } : item,
           ),
         };
       });
+      return true;
     },
     [],
   );
 
-  // 파일·폴더·프로그램을 창으로 끌어다 놓으면 바로 버튼으로 등록한다.
+  // 파일·폴더·프로그램을 빠른 실행 카드에 끌어다 놓으면 바로 버튼으로 등록한다.
   useEffect(() => {
     // 등록이 끝나기 전에 화면을 벗어나면 정리 함수가 먼저 돌아 리스너가 남는다.
     // 그대로 두면 홈에 드나들 때마다 리스너가 쌓여 파일 하나를 놓아도 여러 번 등록된다.
@@ -256,24 +287,47 @@ export function QuickLauncher() {
     void getCurrentWebview()
       .onDragDropEvent((event) => {
         if (cancelled) return;
-        if (event.payload.type === "over") {
-          setDropping(true);
-          return;
-        }
         if (event.payload.type === "leave") {
           setDropping(false);
           return;
         }
+        // 다른 프로그램에서 파일을 옮기는 중에도 이 창이 놓임 이벤트를 받는다.
+        // 공문 기안창 첨부란에 넣은 파일이 빠른 실행에 등록되던 원인이 이것이다.
+        // 이 창이 지금 쓰이는 창일 때만 받아들인다. 남의 창에서 하는 일은 무시한다.
+        if (!document.hasFocus()) {
+          setDropping(false);
+          return;
+        }
+        // 놓인 자리가 카드 안인지 본다. 이 검사가 없으면 창 위 아무 데나 놓아도
+        // 등록된다.
+        const inside = isInsideCard(event.payload.position);
+        if (event.payload.type === "over") {
+          setDropping(inside);
+          return;
+        }
         setDropping(false);
+        if (!inside) return;
         const paths = event.payload.paths ?? [];
         if (!paths.length) return;
         let added = 0;
+        let skipped = 0;
         for (const path of paths) {
           const guess = guessFromPath(path);
-          addAction({ ...emptyAction(guess.type), name: guess.name, target: path });
+          if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: path })) {
+            skipped += 1;
+            continue;
+          }
           added += 1;
         }
-        setStatus(`${added}개를 빠른 실행에 등록했습니다.`);
+        if (!added) {
+          setStatus("이미 등록된 항목입니다.");
+          return;
+        }
+        setStatus(
+          skipped
+            ? `${added}개를 빠른 실행에 등록했습니다. (이미 있던 ${skipped}개는 건너뜀)`
+            : `${added}개를 빠른 실행에 등록했습니다.`,
+        );
       })
       .then((stop) => {
         if (cancelled) {
@@ -287,7 +341,7 @@ export function QuickLauncher() {
       cancelled = true;
       unlisten?.();
     };
-  }, [addAction]);
+  }, [addAction, isInsideCard]);
 
   const handleDrop = (event: React.DragEvent) => {
     const url = event.dataTransfer.getData("text/uri-list") || event.dataTransfer.getData("text/plain");
@@ -295,7 +349,10 @@ export function QuickLauncher() {
     event.preventDefault();
     setDropping(false);
     const guess = guessFromUrl(url.trim());
-    addAction({ ...emptyAction(guess.type), name: guess.name, target: url.trim() });
+    if (!addAction({ ...emptyAction(guess.type), name: guess.name, target: url.trim() })) {
+      setStatus("이미 등록된 항목입니다.");
+      return;
+    }
     setStatus(`${guess.name}을(를) 빠른 실행에 등록했습니다.`);
   };
 
@@ -362,6 +419,7 @@ export function QuickLauncher() {
 
   return (
     <section
+      ref={cardRef}
       className={`quick-launcher ${dropping ? "is-dropping" : ""}`}
       onDragOver={(event) => {
         event.preventDefault();

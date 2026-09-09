@@ -1,0 +1,20 @@
+{
+  "id": "data_normalizer",
+  "name": "데이터 정제",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "제각각인 전화번호·날짜·시간을 한 가지 형식으로 맞춥니다.",
+  "order": 42,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "정제",
+    "전화번호",
+    "날짜",
+    "시간",
+    "형식변환",
+    "공문"
+  ]
+}

@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>중복 데이터 확인 도구(v1.0)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --ok-text:#027a48;
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --head-bg:#f8fafc;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{max-width:1400px;margin:0 auto;padding:24px 16px 32px;}
+
+    header{text-align:center;margin-bottom:16px;}
+
+    header h1{
+      font-size:24px;font-weight:600;letter-spacing:-0.02em;
+      display:flex;align-items:center;justify-content:center;gap:8px;color:#111827;
+    }
+
+    .logo-badge{
+      width:32px;height:32px;border-radius:6px;background:var(--brand);
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:700;font-size:16px;
+    }
+
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+
+    .panel{
+      background:var(--card);border-radius:var(--radius-lg);
+      border:1px solid var(--border);box-shadow:var(--shadow-soft);
+      padding:16px;min-width:0;margin-top:16px;
+    }
+
+    .panel-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+    .panel-desc{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.55;}
+
+    .layout{
+      display:grid;
+      grid-template-columns:260px minmax(0,1fr);
+      gap:16px;
+      align-items:start;
+    }
+
+    @media(max-width:960px){.layout{grid-template-columns:1fr;}}
+
+    .side{
+      border:1px solid var(--border);
+      border-radius:6px;
+      background:var(--head-bg);
+      padding:12px;
+    }
+
+    .side h3{font-size:14px;font-weight:600;margin-bottom:8px;color:#111827;}
+
+    .side .side-desc{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;}
+
+    .col-list{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:6px;
+      max-height:280px;
+      overflow:auto;
+      padding:6px;
+    }
+
+    .col-item{
+      display:flex;align-items:center;gap:8px;
+      padding:6px 8px;border-radius:4px;font-size:13px;cursor:pointer;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+
+    .col-item:hover{background:#f1f5f9;}
+    .col-item input{margin:0;flex:none;}
+    .col-item span.key{color:var(--muted);font-size:11px;flex:none;}
+
+    .opt-row{
+      display:flex;align-items:center;gap:8px;
+      font-size:13px;margin-bottom:8px;cursor:pointer;
+    }
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;}
+
+    .btn-primary{
+      background:var(--brand);color:#fff;border:1px solid var(--brand);
+      border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;
+      cursor:pointer;font-family:inherit;
+    }
+
+    .btn-primary:hover{background:var(--brand-dark);}
+
+    .btn-ghost{
+      background:#fff;color:#111827;border-radius:6px;border:1px solid var(--border);
+      padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit;
+    }
+
+    .btn-ghost:hover{background:#f8fafc;}
+
+    .btn-ghost.on{background:var(--bad-bg);border-color:#f3b6b0;color:var(--bad-text);font-weight:600;}
+
+    .btn-danger{
+      background:#fff;color:var(--bad-text);border:1px solid #f3b6b0;
+      border-radius:6px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit;
+    }
+
+    .btn-danger:hover{background:var(--bad-bg);}
+
+    .btn-ghost:disabled,.btn-danger:disabled,.btn-primary:disabled{
+      opacity:.45;cursor:not-allowed;
+    }
+
+    .stats{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;}
+
+    .stat{
+      border:1px solid var(--border);border-radius:6px;padding:6px 12px;
+      font-size:12px;color:var(--muted);background:var(--head-bg);
+    }
+
+    .stat b{font-size:14px;color:#111827;margin-left:4px;}
+    .stat.bad b{color:var(--bad-text);}
+
+    .grid-wrap{
+      border:1px solid var(--border);border-radius:6px;
+      overflow:auto;max-height:520px;background:#fff;
+    }
+
+    table.grid{
+      border-collapse:collapse;font-size:13px;table-layout:fixed;
+      width:max-content;min-width:100%;
+    }
+
+    table.grid th{
+      background:var(--head-bg);border-bottom:1px solid var(--border);
+      border-right:1px solid var(--border);padding:6px 8px;font-weight:600;
+      text-align:center;position:sticky;top:0;z-index:3;
+      font-size:12px;color:var(--muted);width:150px;
+    }
+
+    table.grid th.corner{
+      width:52px;left:0;z-index:4;
+    }
+
+    table.grid td{
+      border-bottom:1px solid #eef2f7;border-right:1px solid #eef2f7;
+      padding:5px 8px;height:30px;vertical-align:middle;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      width:150px;outline:none;
+    }
+
+    table.grid td.rownum{
+      background:var(--head-bg);color:var(--muted);text-align:center;
+      width:52px;font-size:12px;position:sticky;left:0;z-index:2;
+    }
+
+    table.grid tr.headline td.rownum{color:var(--brand);font-weight:700;}
+    table.grid tr.headline td{background:#f2f7fd;font-weight:700;}
+
+    td.cell:focus{box-shadow:inset 0 0 0 2px var(--brand);background:#f5f9ff;}
+
+    .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7;}
+
+    .modal-back{
+      position:fixed;inset:0;background:rgba(15,23,42,.45);
+      display:none;align-items:center;justify-content:center;z-index:60;padding:20px;
+    }
+
+    .modal-back.show{display:flex;}
+
+    .modal{
+      background:#fff;border-radius:8px;width:100%;max-width:640px;
+      box-shadow:0 20px 50px rgba(15,23,42,.25);overflow:hidden;
+      display:flex;flex-direction:column;max-height:80vh;
+    }
+
+    .modal-head{
+      padding:14px 18px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+    }
+
+    .modal-head h3{font-size:16px;font-weight:600;}
+
+    .modal-body{padding:14px 18px;overflow:auto;}
+
+    .modal-foot{
+      padding:12px 18px;border-top:1px solid var(--border);
+      display:flex;gap:8px;justify-content:flex-end;background:var(--head-bg);
+    }
+
+    table.summary-table{border-collapse:collapse;width:100%;font-size:13px;}
+
+    table.summary-table th{
+      background:var(--head-bg);border-bottom:1px solid var(--border);
+      padding:8px 10px;text-align:left;font-weight:600;position:sticky;top:0;
+    }
+
+    table.summary-table td{border-bottom:1px solid #eef2f7;padding:7px 10px;}
+    table.summary-table td.count{width:90px;text-align:center;font-weight:600;color:var(--bad-text);}
+
+    .toast{
+      position:fixed;left:50%;bottom:28px;
+      transform:translateX(-50%) translateY(12px);
+      background:#111827;color:#fff;font-size:13px;padding:10px 18px;
+      border-radius:6px;opacity:0;pointer-events:none;
+      transition:opacity .18s, transform .18s;z-index:80;white-space:pre-line;text-align:center;
+    }
+
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    .footer{margin-top:10px;font-size:11px;color:var(--muted);text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">C</span>
+        중복 데이터 확인 도구(v1.0)
+      </h1>
+      <p>엑셀 표를 그대로 붙여 넣고, 기준으로 삼을 열을 골라 중복된 행을 찾아 지웁니다.</p>
+    </header>
+
+    <section class="panel">
+      <div class="panel-title">중복 검사</div>
+      <div class="panel-desc">
+        엑셀에서 표를 복사해 아래 칸 아무 곳이나 클릭한 뒤 붙여넣기(Ctrl+V) 하세요. 여러 열을 고르면
+        <b>고른 열의 값이 모두 같은 행</b>만 중복으로 봅니다.
+      </div>
+
+      <div class="layout">
+        <div class="side">
+          <h3>기준 열 선택</h3>
+          <div class="side-desc">중복을 판단할 열을 체크하세요.</div>
+
+          <label class="opt-row">
+            <input type="checkbox" id="headerMode" checked />
+            1행은 제목(Header)입니다
+          </label>
+          <label class="opt-row">
+            <input type="checkbox" id="smartMode" checked />
+            스마트 검색 (공백·특수문자 무시)
+          </label>
+
+          <div style="display:flex;gap:6px;margin:10px 0 8px;">
+            <button class="btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="checkAllColumns(true)">전체 선택</button>
+            <button class="btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="checkAllColumns(false)">전체 해제</button>
+          </div>
+
+          <div class="col-list" id="colList"></div>
+        </div>
+
+        <div>
+          <div class="actions">
+            <button class="btn-primary" onclick="runAnalysis()">중복 검사 실행</button>
+            <button class="btn-ghost" id="btnSummary" onclick="openSummary()" disabled>현황표 보기</button>
+            <button class="btn-ghost" id="btnFilter" onclick="toggleFilter()" disabled>중복만 보기</button>
+            <button class="btn-danger" id="btnKeepFirst" onclick="removeDuplicates('first')" disabled>아래쪽 삭제</button>
+            <button class="btn-danger" id="btnKeepLast" onclick="removeDuplicates('last')" disabled>위쪽 삭제</button>
+            <div class="stats">
+              <span class="stat">전체 행<b id="statRows">0</b></span>
+              <span class="stat bad">중복<b id="statDup">0</b></span>
+            </div>
+          </div>
+
+          <div class="actions" style="margin-bottom:12px;">
+            <button class="btn-ghost" onclick="copyAll()">데이터 복사</button>
+            <button class="btn-ghost" onclick="loadSample()">예시 채우기</button>
+            <button class="btn-ghost" onclick="clearAll()">초기화</button>
+            <button class="btn-ghost" onclick="addRows(100)">행 100개 추가</button>
+            <button class="btn-ghost" onclick="addColumn()">열 추가</button>
+          </div>
+
+          <div class="grid-wrap">
+            <table class="grid">
+              <thead><tr id="gridHead"></tr></thead>
+              <tbody id="gridBody"></tbody>
+            </table>
+          </div>
+
+          <div class="hint">
+            · <b>아래쪽 삭제</b>는 같은 값 중 가장 위의 행만 남기고 나머지를 지웁니다. <b>위쪽 삭제</b>는 가장 아래 행만 남깁니다.<br />
+            · 중복으로 판정된 칸은 그룹마다 다른 색으로 칠해집니다. 같은 색끼리가 한 묶음입니다.<br />
+            · 데이터는 이 PC 밖으로 전송되지 않습니다.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">전북특별자치도교육청 · JB업무ON</div>
+  </div>
+
+  <div class="modal-back" id="summaryModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>중복 현황</h3>
+        <button class="btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="closeSummary()">닫기</button>
+      </div>
+      <div class="modal-body">
+        <table class="summary-table">
+          <thead>
+            <tr><th>중복 내용</th><th style="width:90px;text-align:center;">개수</th></tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-ghost" onclick="copySummary()">표 복사하기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var DEFAULT_ROWS = 200;
+    var DEFAULT_COLS = 8;
+    var MAX_ROWS = 10000;
+    var MAX_COLS = 40;
+
+    var PALETTE = [
+      { bg: '#e0f2fe', text: '#075985' },
+      { bg: '#fef3c7', text: '#92400e' },
+      { bg: '#dcfce7', text: '#166534' },
+      { bg: '#fae8ff', text: '#86198f' },
+      { bg: '#ffe4e6', text: '#9f1239' },
+      { bg: '#e0e7ff', text: '#3730a3' },
+      { bg: '#ccfbf1', text: '#115e59' },
+      { bg: '#ffedd5', text: '#9a3412' }
+    ];
+
+    var cols = DEFAULT_COLS;
+    var rows = makeRows(DEFAULT_ROWS, DEFAULT_COLS);
+    var checkedCols = {};
+    var duplicateRows = null;
+    var summaryData = [];
+    var filtered = false;
+
+    function makeRows(count, width) {
+      var out = [];
+      for (var i = 0; i < count; i++) {
+        out.push(new Array(width).fill(''));
+      }
+      return out;
+    }
+
+    function columnLetter(index) {
+      var name = '';
+      var n = index;
+      while (n >= 0) {
+        name = String.fromCharCode(65 + (n % 26)) + name;
+        n = Math.floor(n / 26) - 1;
+      }
+      return name;
+    }
+
+    function headerMode() {
+      return document.getElementById('headerMode').checked;
+    }
+
+    function smartMode() {
+      return document.getElementById('smartMode').checked;
+    }
+
+    function startRow() {
+      return headerMode() ? 1 : 0;
+    }
+
+    function columnLabel(index) {
+      if (headerMode()) {
+        var text = (rows[0] && rows[0][index] ? String(rows[0][index]).trim() : '');
+        if (text) return text;
+      }
+      return columnLetter(index) + '열';
+    }
+
+    function renderHead() {
+      var head = document.getElementById('gridHead');
+      head.innerHTML = '';
+
+      var corner = document.createElement('th');
+      corner.className = 'corner';
+      corner.textContent = '';
+      head.appendChild(corner);
+
+      for (var c = 0; c < cols; c++) {
+        var th = document.createElement('th');
+        th.textContent = columnLetter(c);
+        head.appendChild(th);
+      }
+    }
+
+    function renderBody() {
+      var body = document.getElementById('gridBody');
+      body.innerHTML = '';
+      var frag = document.createDocumentFragment();
+
+      for (var r = 0; r < rows.length; r++) {
+        var tr = document.createElement('tr');
+        if (headerMode() && r === 0) tr.className = 'headline';
+
+        var num = document.createElement('td');
+        num.className = 'rownum';
+        num.textContent = headerMode() && r === 0 ? '제목' : String(headerMode() ? r : r + 1);
+        tr.appendChild(num);
+
+        for (var c = 0; c < cols; c++) {
+          var td = document.createElement('td');
+          td.className = 'cell';
+          td.contentEditable = 'true';
+          td.spellcheck = false;
+          td.dataset.row = String(r);
+          td.dataset.col = String(c);
+          td.textContent = rows[r][c] || '';
+          tr.appendChild(td);
+        }
+
+        frag.appendChild(tr);
+      }
+
+      body.appendChild(frag);
+      document.getElementById('statRows').textContent = String(dataRowCount());
+    }
+
+    function dataRowCount() {
+      var count = 0;
+      for (var r = startRow(); r < rows.length; r++) {
+        if (rowHasValue(r)) count++;
+      }
+      return count;
+    }
+
+    function rowHasValue(r) {
+      for (var c = 0; c < cols; c++) {
+        if (rows[r][c] && String(rows[r][c]).trim() !== '') return true;
+      }
+      return false;
+    }
+
+    function render() {
+      renderHead();
+      renderBody();
+      renderColumnList();
+      resetResults();
+    }
+
+    function renderColumnList() {
+      var box = document.getElementById('colList');
+      box.innerHTML = '';
+
+      for (var c = 0; c < cols; c++) {
+        var label = document.createElement('label');
+        label.className = 'col-item';
+
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = String(c);
+        input.checked = !!checkedCols[c];
+        input.addEventListener('change', (function (index) {
+          return function (event) {
+            checkedCols[index] = event.target.checked;
+            resetResults();
+          };
+        })(c));
+
+        var key = document.createElement('span');
+        key.className = 'key';
+        key.textContent = columnLetter(c);
+
+        var text = document.createElement('span');
+        text.textContent = columnLabel(c);
+        text.style.overflow = 'hidden';
+        text.style.textOverflow = 'ellipsis';
+
+        label.appendChild(input);
+        label.appendChild(key);
+        label.appendChild(text);
+        box.appendChild(label);
+      }
+    }
+
+    function selectedColumns() {
+      var out = [];
+      for (var c = 0; c < cols; c++) {
+        if (checkedCols[c]) out.push(c);
+      }
+      return out;
+    }
+
+    function checkAllColumns(on) {
+      for (var c = 0; c < cols; c++) checkedCols[c] = on;
+      renderColumnList();
+      resetResults();
+    }
+
+    function clearStyles() {
+      var body = document.getElementById('gridBody');
+      for (var r = 0; r < body.children.length; r++) {
+        var tr = body.children[r];
+        for (var c = 1; c < tr.children.length; c++) {
+          var td = tr.children[c];
+          td.style.backgroundColor = '';
+          td.style.color = '';
+          td.style.fontWeight = '';
+        }
+      }
+    }
+
+    function showAllRows() {
+      var body = document.getElementById('gridBody');
+      for (var r = 0; r < body.children.length; r++) {
+        body.children[r].style.display = '';
+      }
+    }
+
+    function resetResults() {
+      clearStyles();
+      showAllRows();
+      filtered = false;
+      duplicateRows = null;
+      summaryData = [];
+      document.getElementById('statDup').textContent = '0';
+      var filterBtn = document.getElementById('btnFilter');
+      filterBtn.textContent = '중복만 보기';
+      filterBtn.classList.remove('on');
+      ['btnSummary', 'btnFilter', 'btnKeepFirst', 'btnKeepLast'].forEach(function (id) {
+        document.getElementById(id).disabled = true;
+      });
+      document.getElementById('statRows').textContent = String(dataRowCount());
+    }
+
+    function normalize(value) {
+      var text = (value === undefined || value === null) ? '' : String(value).trim();
+      if (smartMode()) text = text.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+      return text;
+    }
+
+    function buildGroups(selected) {
+      var map = new Map();
+
+      for (var r = startRow(); r < rows.length; r++) {
+        var empty = true;
+        for (var i = 0; i < selected.length; i++) {
+          var value = rows[r][selected[i]];
+          if (value && String(value).trim() !== '') { empty = false; break; }
+        }
+        if (empty) continue;
+
+        var parts = selected.map(function (c) { return normalize(rows[r][c]); });
+        var key = parts.join('␟');
+
+        if (!map.has(key)) map.set(key, { label: selected.map(function (c) {
+          var raw = rows[r][c];
+          return (raw === undefined || raw === null) ? '' : String(raw).trim();
+        }).join(' / '), indices: [] });
+
+        map.get(key).indices.push(r);
+      }
+
+      return map;
+    }
+
+    function runAnalysis() {
+      var selected = selectedColumns();
+      if (!selected.length) {
+        showToast('검사할 기준 열을 왼쪽 목록에서\n하나 이상 체크해 주세요.');
+        return;
+      }
+
+      clearStyles();
+      showAllRows();
+      filtered = false;
+      summaryData = [];
+
+      var body = document.getElementById('gridBody');
+      var map = buildGroups(selected);
+      var marked = new Set();
+      var duplicateCount = 0;
+      var groupIndex = 0;
+
+      map.forEach(function (group) {
+        if (group.indices.length < 2) return;
+
+        duplicateCount += group.indices.length;
+        summaryData.push({ label: group.label, count: group.indices.length });
+
+        var color = PALETTE[groupIndex % PALETTE.length];
+        groupIndex++;
+
+        group.indices.forEach(function (r) {
+          marked.add(r);
+          selected.forEach(function (c) {
+            var td = body.children[r].children[c + 1];
+            if (!td) return;
+            td.style.backgroundColor = color.bg;
+            td.style.color = color.text;
+            td.style.fontWeight = '700';
+          });
+        });
+      });
+
+      document.getElementById('statRows').textContent = String(dataRowCount());
+      document.getElementById('statDup').textContent = String(duplicateCount);
+
+      if (duplicateCount === 0) {
+        duplicateRows = null;
+        var names = selected.map(columnLabel).join(', ');
+        showToast('중복 데이터가 없습니다.\n(기준: ' + names + ')');
+        return;
+      }
+
+      duplicateRows = marked;
+      summaryData.sort(function (a, b) { return b.count - a.count; });
+
+      ['btnSummary', 'btnFilter', 'btnKeepFirst', 'btnKeepLast'].forEach(function (id) {
+        document.getElementById(id).disabled = false;
+      });
+
+      showToast(duplicateCount + '건의 중복을 찾았습니다.');
+    }
+
+    function toggleFilter() {
+      if (!duplicateRows) return;
+      var body = document.getElementById('gridBody');
+      var btn = document.getElementById('btnFilter');
+
+      if (filtered) {
+        showAllRows();
+        btn.textContent = '중복만 보기';
+        btn.classList.remove('on');
+        filtered = false;
+        return;
+      }
+
+      for (var r = startRow(); r < body.children.length; r++) {
+        if (!duplicateRows.has(r)) body.children[r].style.display = 'none';
+      }
+      btn.textContent = '전체 보기';
+      btn.classList.add('on');
+      filtered = true;
+    }
+
+    function removeDuplicates(mode) {
+      var selected = selectedColumns();
+      if (!selected.length) {
+        showToast('삭제 기준 열을 먼저 체크해 주세요.');
+        return;
+      }
+
+      var map = buildGroups(selected);
+      var doomed = [];
+
+      map.forEach(function (group) {
+        if (group.indices.length < 2) return;
+        if (mode === 'first') {
+          for (var i = 1; i < group.indices.length; i++) doomed.push(group.indices[i]);
+        } else {
+          for (var j = 0; j < group.indices.length - 1; j++) doomed.push(group.indices[j]);
+        }
+      });
+
+      if (!doomed.length) {
+        showToast('삭제할 중복 데이터가 없습니다.');
+        return;
+      }
+
+      var question = mode === 'first'
+        ? '중복된 행 중 아래쪽(나중) 행 ' + doomed.length + '개를 지웁니다. 계속할까요?'
+        : '중복된 행 중 위쪽(먼저) 행 ' + doomed.length + '개를 지웁니다. 계속할까요?';
+
+      if (!window.confirm(question)) return;
+
+      doomed.sort(function (a, b) { return b - a; });
+      doomed.forEach(function (index) { rows.splice(index, 1); });
+
+      while (rows.length < DEFAULT_ROWS) rows.push(new Array(cols).fill(''));
+
+      renderBody();
+      resetResults();
+      showToast('총 ' + doomed.length + '행을 지웠습니다.');
+    }
+
+    function openSummary() {
+      if (!summaryData.length) return;
+      var body = document.getElementById('summaryBody');
+      body.innerHTML = '';
+
+      summaryData.forEach(function (item) {
+        var tr = document.createElement('tr');
+        var label = document.createElement('td');
+        label.textContent = item.label || '(빈 값)';
+        var count = document.createElement('td');
+        count.className = 'count';
+        count.textContent = item.count + '건';
+        tr.appendChild(label);
+        tr.appendChild(count);
+        body.appendChild(tr);
+      });
+
+      document.getElementById('summaryModal').classList.add('show');
+    }
+
+    function closeSummary() {
+      document.getElementById('summaryModal').classList.remove('show');
+    }
+
+    function copySummary() {
+      if (!summaryData.length) return;
+      var lines = ['중복 내용\t개수'];
+      summaryData.forEach(function (item) {
+        lines.push((item.label || '(빈 값)') + '\t' + item.count);
+      });
+      copyText(lines.join('\n'), '현황표를 복사했습니다.');
+    }
+
+    function copyAll() {
+      var last = -1;
+      for (var r = 0; r < rows.length; r++) {
+        if (rowHasValue(r)) last = r;
+      }
+      if (last < 0) {
+        showToast('복사할 데이터가 없습니다.');
+        return;
+      }
+
+      var lastCol = 0;
+      for (var r2 = 0; r2 <= last; r2++) {
+        for (var c = 0; c < cols; c++) {
+          if (rows[r2][c] && String(rows[r2][c]).trim() !== '') lastCol = Math.max(lastCol, c);
+        }
+      }
+
+      var lines = [];
+      for (var r3 = 0; r3 <= last; r3++) {
+        lines.push(rows[r3].slice(0, lastCol + 1).join('\t'));
+      }
+      copyText(lines.join('\n'), (last + 1) + '행을 복사했습니다.');
+    }
+
+    function copyText(text, message) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+      document.body.removeChild(area);
+      showToast(ok ? message : '복사하지 못했습니다. 직접 선택해 복사하세요.');
+    }
+
+    function addRows(count) {
+      if (rows.length + count > MAX_ROWS) {
+        showToast('행은 ' + MAX_ROWS + '개까지만 쓸 수 있습니다.');
+        return;
+      }
+      for (var i = 0; i < count; i++) rows.push(new Array(cols).fill(''));
+      renderBody();
+      resetResults();
+    }
+
+    function addColumn() {
+      if (cols >= MAX_COLS) {
+        showToast('열은 ' + MAX_COLS + '개까지만 쓸 수 있습니다.');
+        return;
+      }
+      cols++;
+      for (var r = 0; r < rows.length; r++) rows[r].push('');
+      render();
+    }
+
+    function clearAll() {
+      if (!window.confirm('입력한 데이터를 모두 지웁니다. 계속할까요?')) return;
+      cols = DEFAULT_COLS;
+      rows = makeRows(DEFAULT_ROWS, DEFAULT_COLS);
+      checkedCols = {};
+      render();
+      showToast('모두 지웠습니다.');
+    }
+
+    function loadSample() {
+      var sample = [
+        ['학교명', '성명', '연락처', '비고'],
+        ['전주중앙초', '홍길동', '010-1234-5678', ''],
+        ['전주중앙초', '김영희', '010-2222-3333', ''],
+        ['군산남초', '이철수', '010-4444-5555', ''],
+        ['전주중앙초', '홍 길 동', '010-1234-5678', '띄어쓰기 차이'],
+        ['익산북초', '박민수', '010-6666-7777', ''],
+        ['군산남초', '이철수', '010-4444-5555', '완전 중복'],
+        ['남원서초', '최지우', '010-8888-9999', ''],
+        ['익산북초', '박민수', '010-0000-1111', '이름만 같음']
+      ];
+
+      cols = DEFAULT_COLS;
+      rows = makeRows(DEFAULT_ROWS, DEFAULT_COLS);
+      for (var r = 0; r < sample.length; r++) {
+        for (var c = 0; c < sample[r].length; c++) rows[r][c] = sample[r][c];
+      }
+
+      checkedCols = { 0: true, 1: true };
+      document.getElementById('headerMode').checked = true;
+      render();
+      showToast('예시를 채웠습니다. 학교명·성명 기준으로 검사해 보세요.');
+    }
+
+    function handlePaste(event) {
+      var cell = event.target;
+      if (!cell.classList || !cell.classList.contains('cell')) return;
+      event.preventDefault();
+
+      var text = (event.clipboardData || window.clipboardData).getData('text');
+      var startR = parseInt(cell.dataset.row, 10);
+      var startC = parseInt(cell.dataset.col, 10);
+
+      var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+      while (lines.length && lines[lines.length - 1] === '') lines.pop();
+      if (!lines.length) return;
+
+      var table = lines.map(function (line) { return line.split('\t'); });
+      var neededRows = startR + table.length;
+      var neededCols = startC;
+      table.forEach(function (line) {
+        neededCols = Math.max(neededCols, startC + line.length);
+      });
+
+      if (neededRows > MAX_ROWS || neededCols > MAX_COLS) {
+        showToast('붙여 넣을 수 있는 크기를 넘었습니다.\n(최대 ' + MAX_ROWS + '행 ' + MAX_COLS + '열)');
+        return;
+      }
+
+      var grew = false;
+
+      if (neededCols > cols) {
+        var extra = neededCols - cols;
+        cols = neededCols;
+        for (var r = 0; r < rows.length; r++) {
+          for (var e = 0; e < extra; e++) rows[r].push('');
+        }
+        grew = true;
+      }
+
+      while (rows.length < neededRows) {
+        rows.push(new Array(cols).fill(''));
+        grew = true;
+      }
+
+      for (var i = 0; i < table.length; i++) {
+        for (var j = 0; j < table[i].length; j++) {
+          rows[startR + i][startC + j] = table[i][j].trim();
+        }
+      }
+
+      if (grew) renderHead();
+      renderBody();
+      renderColumnList();
+      resetResults();
+      showToast(table.length + '행 ' + (neededCols - startC) + '열을 붙여 넣었습니다.');
+    }
+
+    function bindGrid() {
+      var body = document.getElementById('gridBody');
+
+      body.addEventListener('input', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('cell')) return;
+        var r = parseInt(cell.dataset.row, 10);
+        var c = parseInt(cell.dataset.col, 10);
+        rows[r][c] = cell.textContent.replace(/\s+$/, '');
+        if (headerMode() && r === 0) renderColumnList();
+        document.getElementById('statRows').textContent = String(dataRowCount());
+      });
+
+      body.addEventListener('paste', handlePaste);
+
+      body.addEventListener('keydown', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('cell')) return;
+
+        var r = parseInt(cell.dataset.row, 10);
+        var c = parseInt(cell.dataset.col, 10);
+        var target = null;
+
+        if (event.key === 'Enter' || event.key === 'ArrowDown') target = [r + 1, c];
+        else if (event.key === 'ArrowUp') target = [r - 1, c];
+        else if (event.key === 'Tab' && !event.shiftKey) target = [r, c + 1];
+        else if (event.key === 'Tab' && event.shiftKey) target = [r, c - 1];
+        else return;
+
+        event.preventDefault();
+        var next = body.querySelector('td.cell[data-row="' + target[0] + '"][data-col="' + target[1] + '"]');
+        if (next) next.focus();
+      });
+    }
+
+    document.getElementById('headerMode').addEventListener('change', function () {
+      renderBody();
+      renderColumnList();
+      resetResults();
+    });
+
+    document.getElementById('smartMode').addEventListener('change', resetResults);
+
+    document.getElementById('summaryModal').addEventListener('click', function (event) {
+      if (event.target === this) closeSummary();
+    });
+
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.remove('show');
+      }, 2200);
+    }
+
+    render();
+    bindGrid();
+  </script>
+</body>
+</html>

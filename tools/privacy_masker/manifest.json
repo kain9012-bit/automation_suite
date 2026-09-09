@@ -1,0 +1,18 @@
+{
+  "id": "privacy_masker",
+  "name": "개인정보 마스킹",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "이름·연락처·주민번호 등을 설정한 방식으로 가려 줍니다.",
+  "order": 44,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "마스킹",
+    "개인정보",
+    "비식별",
+    "가리기"
+  ]
+}

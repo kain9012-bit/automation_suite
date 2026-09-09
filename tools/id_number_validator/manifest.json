@@ -1,0 +1,18 @@
+{
+  "id": "id_number_validator",
+  "name": "번호 검증",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "주민등록번호와 사업자등록번호가 규칙에 맞는지 확인합니다.",
+  "order": 43,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "주민등록번호",
+    "사업자등록번호",
+    "검증",
+    "유효성"
+  ]
+}

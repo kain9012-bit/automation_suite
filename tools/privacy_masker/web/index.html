@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>개인정보 마스킹 도구(v1.0)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --ok-bg:#ecfdf3;
+      --ok-text:#027a48;
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --head-bg:#f8fafc;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{
+      max-width:1200px;
+      margin:0 auto;
+      padding:24px 16px 32px;
+    }
+
+    header{text-align:center;margin-bottom:16px;}
+
+    header h1{
+      font-size:24px;
+      font-weight:600;
+      letter-spacing:-0.02em;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      color:#111827;
+    }
+
+    .logo-badge{
+      width:32px;height:32px;border-radius:6px;background:var(--brand);
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:700;font-size:16px;
+    }
+
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+
+    .panel{
+      background:var(--card);
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+      box-shadow:var(--shadow-soft);
+      padding:16px;
+      min-width:0;
+      margin-top:16px;
+    }
+
+    .panel-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+    .panel-desc{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.55;}
+
+    .setting-grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      gap:16px;
+    }
+
+    @media(max-width:960px){
+      .setting-grid{grid-template-columns:1fr;}
+    }
+
+    .block-title{font-size:15px;font-weight:600;margin-bottom:8px;color:#111827;}
+
+    .type-list{display:flex;flex-wrap:wrap;gap:8px;}
+
+    .type-btn{
+      border:1px solid var(--border);
+      background:#fff;
+      color:#111827;
+      border-radius:6px;
+      padding:9px 14px;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+      position:relative;
+    }
+
+    .type-btn:hover{background:#f8fafc;}
+
+    .type-btn.active{
+      background:var(--brand-soft);
+      border-color:#b7cff0;
+      color:var(--brand);
+    }
+
+    .type-btn .badge{
+      position:absolute;
+      top:-7px;right:-7px;
+      background:var(--brand);
+      color:#fff;
+      font-size:10px;
+      font-weight:700;
+      border-radius:8px;
+      padding:1px 5px;
+    }
+
+    .format-list{display:flex;flex-direction:column;gap:6px;}
+
+    .format-item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:9px 12px;
+      font-size:13px;
+      cursor:pointer;
+      background:#fff;
+    }
+
+    .format-item:hover{background:#f8fafc;}
+
+    .format-item.active{
+      background:var(--brand-soft);
+      border-color:#b7cff0;
+      color:var(--brand);
+      font-weight:600;
+    }
+
+    .format-item input{margin:0;}
+
+    .custom-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:10px;
+    }
+
+    @media(max-width:700px){
+      .custom-grid{grid-template-columns:1fr;}
+    }
+
+    .field label{
+      display:block;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+
+    .field input[type="number"],
+    .field input[type="text"]{
+      width:100%;
+      padding:8px 10px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      font-size:13px;
+      color:#111827;
+      outline:none;
+      font-family:inherit;
+    }
+
+    .field input:focus{border-color:#8ab4f8;}
+
+    .check-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      margin-top:10px;
+      cursor:pointer;
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      margin-bottom:12px;
+    }
+
+    .btn-primary{
+      background:var(--brand);
+      color:#fff;
+      border:1px solid var(--brand);
+      border-radius:6px;
+      padding:8px 14px;
+      font-size:12px;
+      font-weight:600;
+      cursor:pointer;
+      font-family:inherit;
+    }
+
+    .btn-primary:hover{background:var(--brand-dark);}
+
+    .btn-ghost{
+      background:#fff;
+      color:#111827;
+      border-radius:6px;
+      border:1px solid var(--border);
+      padding:8px 12px;
+      font-size:12px;
+      cursor:pointer;
+      font-family:inherit;
+    }
+
+    .btn-ghost:hover{background:#f8fafc;}
+
+    .stats{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-left:auto;
+    }
+
+    .stat{
+      border:1px solid var(--border);
+      border-radius:6px;
+      padding:6px 12px;
+      font-size:12px;
+      color:var(--muted);
+      background:var(--head-bg);
+    }
+
+    .stat b{font-size:14px;color:#111827;margin-left:4px;}
+    .stat.ok b{color:var(--ok-text);}
+    .stat.bad b{color:var(--bad-text);}
+
+    .grid-wrap{
+      border:1px solid var(--border);
+      border-radius:6px;
+      overflow:auto;
+      max-height:460px;
+      background:#fff;
+    }
+
+    table.grid{
+      border-collapse:collapse;
+      width:100%;
+      font-size:13px;
+    }
+
+    table.grid th{
+      background:var(--head-bg);
+      border-bottom:1px solid var(--border);
+      border-right:1px solid var(--border);
+      padding:8px 10px;
+      font-weight:600;
+      text-align:left;
+      position:sticky;
+      top:0;
+      z-index:2;
+    }
+
+    table.grid td{
+      border-bottom:1px solid #eef2f7;
+      border-right:1px solid #eef2f7;
+      padding:6px 10px;
+      height:32px;
+      vertical-align:middle;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:320px;
+    }
+
+    table.grid td.rownum{
+      background:var(--head-bg);
+      color:var(--muted);
+      text-align:center;
+      width:52px;
+      font-size:12px;
+      position:sticky;
+      left:0;
+      z-index:1;
+    }
+
+    td.editable{outline:none;cursor:text;background:#fff;}
+    td.editable:focus{
+      background:#f5f9ff;
+      box-shadow:inset 0 0 0 2px var(--brand);
+    }
+
+    td.result{color:#111827;font-weight:600;}
+    td.status{width:110px;text-align:center;}
+
+    .tag{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:10px;
+      font-size:11px;
+      font-weight:600;
+    }
+
+    .tag.ok{background:var(--ok-bg);color:var(--ok-text);}
+    .tag.bad{background:var(--bad-bg);color:var(--bad-text);}
+
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:10px;
+      line-height:1.7;
+    }
+
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:28px;
+      transform:translateX(-50%) translateY(12px);
+      background:#111827;
+      color:#fff;
+      font-size:13px;
+      padding:10px 18px;
+      border-radius:6px;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s, transform .18s;
+      z-index:50;
+    }
+
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    .footer{
+      margin-top:10px;
+      font-size:11px;
+      color:var(--muted);
+      text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">M</span>
+        개인정보 마스킹 도구(v1.0)
+      </h1>
+      <p>엑셀에서 복사한 값을 붙여 넣으면 설정한 방식으로 바로 가려 줍니다. 모든 처리는 이 PC 안에서만 이루어집니다.</p>
+    </header>
+
+    <section class="panel">
+      <div class="panel-title">1. 마스킹 설정</div>
+      <div class="panel-desc">종류와 방식을 고르면 아래 표의 결과가 즉시 다시 계산됩니다.</div>
+
+      <div class="setting-grid">
+        <div>
+          <div class="block-title">무엇을 마스킹할까요?</div>
+          <div class="type-list" id="typeList"></div>
+        </div>
+        <div>
+          <div class="block-title">어떻게 마스킹할까요? <span style="font-weight:400;color:var(--muted);font-size:12px;">(실시간 적용)</span></div>
+          <div class="format-list" id="formatList"></div>
+
+          <div id="customBox" style="display:none;">
+            <div class="custom-grid">
+              <div class="field">
+                <label for="customFront">앞에서부터 남길 글자</label>
+                <input type="number" id="customFront" min="0" max="50" value="1" />
+              </div>
+              <div class="field">
+                <label for="customBack">뒤에서부터 남길 글자</label>
+                <input type="number" id="customBack" min="0" max="50" value="1" />
+              </div>
+              <div class="field">
+                <label for="customChar">치환할 기호</label>
+                <input type="text" id="customChar" maxlength="1" value="*" />
+              </div>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" id="customKeepSpecial" checked />
+              특수기호와 띄어쓰기는 그대로 둡니다
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">2. 데이터 붙여넣기</div>
+      <div class="panel-desc">엑셀에서 한 열을 복사해 <b>원본 데이터</b> 칸에 붙여넣기(Ctrl+V) 하세요. 여러 줄이 한 번에 채워집니다.</div>
+
+      <div class="actions">
+        <button class="btn-primary" onclick="copyResults()">결과물 전체 복사</button>
+        <button class="btn-ghost" onclick="loadSample()">예시 채우기</button>
+        <button class="btn-ghost" onclick="clearAll()">전체 지우기</button>
+        <div class="stats">
+          <span class="stat">총 데이터<b id="statTotal">0</b></span>
+          <span class="stat ok">변환 완료<b id="statDone">0</b></span>
+          <span class="stat bad">형식 오류<b id="statFail">0</b></span>
+        </div>
+      </div>
+
+      <div class="grid-wrap">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th style="width:52px;text-align:center;">#</th>
+              <th>원본 데이터</th>
+              <th>마스킹 결과</th>
+              <th style="width:110px;text-align:center;">상태</th>
+            </tr>
+          </thead>
+          <tbody id="gridBody"></tbody>
+        </table>
+      </div>
+
+      <div class="hint">
+        · 형식에 맞지 않는 값은 결과를 비워 두고 <b>형식 오류</b>로 표시합니다. 원본은 지우지 않으니 고쳐서 다시 확인하세요.<br />
+        · <b>결과물 전체 복사</b>는 마스킹 결과 열만 순서대로 복사합니다. 엑셀에 그대로 붙여 넣으면 됩니다.
+      </div>
+    </section>
+
+    <div class="footer">전북특별자치도교육청 · JB업무ON</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var ROWS = 200;
+
+    var MASKING = {
+      name: {
+        label: '이름',
+        formats: [
+          { id: 'name_std', label: '가운데 마스킹 (홍*동, 남**수)' },
+          { id: 'name_last', label: '끝자리 마스킹 (홍길*, 남궁민*)' },
+          { id: 'name_first_only', label: '성만 남기기 (홍**, 남***)' }
+        ],
+        sample: ['홍길동', '남궁민수', '김철', '이영희', '선우재덕'],
+        mask: function (value, formatId) {
+          var text = value.replace(/\s+/g, '');
+          if (text.length < 2) return null;
+          if (formatId === 'name_last') {
+            return text.slice(0, -1) + '*';
+          }
+          if (formatId === 'name_first_only') {
+            return text.charAt(0) + repeat('*', text.length - 1);
+          }
+          if (text.length === 2) return text.charAt(0) + '*';
+          return text.charAt(0) + repeat('*', text.length - 2) + text.charAt(text.length - 1);
+        }
+      },
+      phone: {
+        label: '연락처',
+        formats: [
+          { id: 'phone_mid', label: '가운데 마스킹 (010-****-5678)' },
+          { id: 'phone_end', label: '끝자리 마스킹 (010-1234-****)' },
+          { id: 'phone_all', label: '뒤 8자리 마스킹 (010-****-****)' }
+        ],
+        sample: ['010-1234-5678', '01098765432', '02-123-4567', '063-239-1234', '0212345678'],
+        mask: function (value, formatId) {
+          var parts = splitPhone(value);
+          if (!parts) return null;
+          var head = parts[0], mid = parts[1], tail = parts[2];
+          if (formatId === 'phone_end') return head + '-' + mid + '-' + repeat('*', tail.length);
+          if (formatId === 'phone_all') return head + '-' + repeat('*', mid.length) + '-' + repeat('*', tail.length);
+          return head + '-' + repeat('*', mid.length) + '-' + tail;
+        }
+      },
+      jumin: {
+        label: '주민번호',
+        formats: [
+          { id: 'jumin_std', label: '성별만 표시 (900101-1******)' },
+          { id: 'jumin_all', label: '뒷자리 전체 숨김 (900101-*******)' }
+        ],
+        sample: ['900101-1234567', '0305053456789', '850712-2345678'],
+        mask: function (value, formatId) {
+          var digits = value.replace(/[^0-9]/g, '');
+          if (digits.length !== 13) return null;
+          var front = digits.slice(0, 6);
+          if (formatId === 'jumin_all') return front + '-' + repeat('*', 7);
+          return front + '-' + digits.charAt(6) + repeat('*', 6);
+        }
+      },
+      email: {
+        label: '이메일',
+        formats: [
+          { id: 'email_std', label: '아이디 일부 숨김 (te***@mail.com)' },
+          { id: 'email_id_all', label: '아이디 전체 숨김 (***@mail.com)' }
+        ],
+        sample: ['teacher@jbe.go.kr', 'hong.gildong@korea.kr', 'ab@mail.com'],
+        mask: function (value, formatId) {
+          var at = value.indexOf('@');
+          if (at < 1 || at !== value.lastIndexOf('@') || at === value.length - 1) return null;
+          var id = value.slice(0, at);
+          var domain = value.slice(at + 1);
+          if (formatId === 'email_id_all') return repeat('*', id.length) + '@' + domain;
+          if (id.length <= 2) return id.charAt(0) + '*' + '@' + domain;
+          var visible = Math.ceil(id.length / 3);
+          return id.slice(0, visible) + repeat('*', id.length - visible) + '@' + domain;
+        }
+      },
+      card: {
+        label: '계좌·카드',
+        formats: [
+          { id: 'card_mid', label: '중간 부분 숨김 (1234-****-****-5678)' },
+          { id: 'card_last', label: '끝 4자리만 표시 (****-****-****-5678)' }
+        ],
+        sample: ['1234-5678-9012-3456', '110-123-456789', '1002-345-678901'],
+        mask: function (value, formatId) {
+          var digits = value.replace(/[^0-9]/g, '');
+          if (digits.length < 10) return null;
+          if (digits.length >= 14 && digits.length <= 16) {
+            var head = digits.slice(0, 4);
+            var tail = digits.slice(-4);
+            if (formatId === 'card_mid') {
+              return head + '-' + repeat('*', digits.length - 8) + '-' + tail;
+            }
+            return repeat('*', 4) + '-' + repeat('*', 4) + '-' + repeat('*', digits.length - 12) + '-' + tail;
+          }
+          var front = digits.slice(0, 3);
+          var back = digits.slice(-3);
+          if (formatId === 'card_mid') {
+            return front + repeat('*', digits.length - 6) + back;
+          }
+          return repeat('*', digits.length - 3) + back;
+        }
+      },
+      custom: {
+        label: '사용자 지정',
+        badge: '만능',
+        isCustom: true,
+        formats: [],
+        sample: ['전주시 덕진구 백제대로 123', '서울특별시 종로구 세종대로 1', 'JB-2026-000123'],
+        mask: function (value) {
+          if (!value) return null;
+          var front = clampInt(document.getElementById('customFront').value, 0, 50);
+          var back = clampInt(document.getElementById('customBack').value, 0, 50);
+          var symbol = document.getElementById('customChar').value || '*';
+          var keepSpecial = document.getElementById('customKeepSpecial').checked;
+          var chars = Array.from(value);
+          if (chars.length <= front + back) return value;
+          var out = '';
+          for (var i = 0; i < chars.length; i++) {
+            if (i < front || i >= chars.length - back) {
+              out += chars[i];
+            } else if (keepSpecial && /[^a-zA-Z0-9가-힣]/.test(chars[i])) {
+              out += chars[i];
+            } else {
+              out += symbol.charAt(0);
+            }
+          }
+          return out;
+        }
+      }
+    };
+
+    var TYPE_ORDER = ['name', 'phone', 'jumin', 'email', 'card', 'custom'];
+
+    var currentType = 'name';
+    var currentFormat = 'name_std';
+    var values = new Array(ROWS).fill('');
+
+    function repeat(ch, count) {
+      if (count <= 0) return '';
+      return new Array(count + 1).join(ch);
+    }
+
+    function clampInt(raw, min, max) {
+      var n = parseInt(raw, 10);
+      if (isNaN(n)) return min;
+      if (n < min) return min;
+      if (n > max) return max;
+      return n;
+    }
+
+    function splitPhone(value) {
+      var digits = value.replace(/[^0-9]/g, '');
+      if (digits.length === 11) {
+        return [digits.slice(0, 3), digits.slice(3, 7), digits.slice(7)];
+      }
+      if (digits.length === 10) {
+        if (digits.indexOf('02') === 0) {
+          return [digits.slice(0, 2), digits.slice(2, 6), digits.slice(6)];
+        }
+        return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6)];
+      }
+      if (digits.length === 9 && digits.indexOf('02') === 0) {
+        return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5)];
+      }
+      return null;
+    }
+
+    function renderTypes() {
+      var box = document.getElementById('typeList');
+      box.innerHTML = '';
+      TYPE_ORDER.forEach(function (key) {
+        var conf = MASKING[key];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'type-btn' + (key === currentType ? ' active' : '');
+        btn.textContent = conf.label;
+        if (conf.badge) {
+          var badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = conf.badge;
+          btn.appendChild(badge);
+        }
+        btn.addEventListener('click', function () {
+          selectType(key);
+        });
+        box.appendChild(btn);
+      });
+    }
+
+    function selectType(key) {
+      currentType = key;
+      var conf = MASKING[key];
+      currentFormat = conf.formats.length ? conf.formats[0].id : '';
+      renderTypes();
+      renderFormats();
+      recalculate();
+    }
+
+    function renderFormats() {
+      var conf = MASKING[currentType];
+      var list = document.getElementById('formatList');
+      var custom = document.getElementById('customBox');
+      list.innerHTML = '';
+
+      if (conf.isCustom) {
+        list.style.display = 'none';
+        custom.style.display = 'block';
+        return;
+      }
+
+      list.style.display = 'flex';
+      custom.style.display = 'none';
+
+      conf.formats.forEach(function (fmt) {
+        var label = document.createElement('label');
+        label.className = 'format-item' + (fmt.id === currentFormat ? ' active' : '');
+
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'maskFormat';
+        radio.value = fmt.id;
+        radio.checked = fmt.id === currentFormat;
+        radio.addEventListener('change', function () {
+          currentFormat = fmt.id;
+          renderFormats();
+          recalculate();
+        });
+
+        var text = document.createElement('span');
+        text.textContent = fmt.label;
+
+        label.appendChild(radio);
+        label.appendChild(text);
+        list.appendChild(label);
+      });
+    }
+
+    function buildGrid() {
+      var body = document.getElementById('gridBody');
+      body.innerHTML = '';
+      var frag = document.createDocumentFragment();
+
+      for (var i = 0; i < ROWS; i++) {
+        var tr = document.createElement('tr');
+
+        var num = document.createElement('td');
+        num.className = 'rownum';
+        num.textContent = String(i + 1);
+        tr.appendChild(num);
+
+        var input = document.createElement('td');
+        input.className = 'editable';
+        input.contentEditable = 'true';
+        input.spellcheck = false;
+        input.dataset.row = String(i);
+        tr.appendChild(input);
+
+        var result = document.createElement('td');
+        result.className = 'result';
+        tr.appendChild(result);
+
+        var status = document.createElement('td');
+        status.className = 'status';
+        tr.appendChild(status);
+
+        frag.appendChild(tr);
+      }
+
+      body.appendChild(frag);
+
+      body.addEventListener('input', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        var row = parseInt(cell.dataset.row, 10);
+        values[row] = cell.textContent.replace(/\s+$/, '');
+        paintRow(row);
+        updateStats();
+      });
+
+      body.addEventListener('paste', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        event.preventDefault();
+        var text = (event.clipboardData || window.clipboardData).getData('text');
+        var start = parseInt(cell.dataset.row, 10);
+        var lines = text.replace(/\r/g, '').split('\n');
+        while (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+        if (lines.length <= 1) {
+          values[start] = lines.length ? lines[0].split('\t')[0].trim() : '';
+        } else {
+          for (var i = 0; i < lines.length; i++) {
+            var row = start + i;
+            if (row >= ROWS) break;
+            values[row] = lines[i].split('\t')[0].trim();
+          }
+        }
+        recalculate();
+        showToast(Math.min(lines.length, ROWS - start) + '개 값을 붙여 넣었습니다.');
+      });
+
+      body.addEventListener('keydown', function (event) {
+        var cell = event.target;
+        if (!cell.classList || !cell.classList.contains('editable')) return;
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          var row = parseInt(cell.dataset.row, 10);
+          var next = body.querySelector('td.editable[data-row="' + (row + 1) + '"]');
+          if (next) next.focus();
+        }
+      });
+    }
+
+    function paintRow(row) {
+      var body = document.getElementById('gridBody');
+      var tr = body.children[row];
+      if (!tr) return;
+
+      var resultCell = tr.children[2];
+      var statusCell = tr.children[3];
+      var raw = (values[row] || '').trim();
+
+      if (!raw) {
+        resultCell.textContent = '';
+        statusCell.innerHTML = '';
+        return;
+      }
+
+      var masked = null;
+      try {
+        masked = MASKING[currentType].mask(raw, currentFormat);
+      } catch (error) {
+        masked = null;
+      }
+
+      if (masked === null || masked === undefined || masked === '') {
+        resultCell.textContent = '';
+        statusCell.innerHTML = '<span class="tag bad">형식 오류</span>';
+      } else {
+        resultCell.textContent = masked;
+        statusCell.innerHTML = '<span class="tag ok">완료</span>';
+      }
+    }
+
+    function syncInputCells() {
+      var body = document.getElementById('gridBody');
+      for (var i = 0; i < ROWS; i++) {
+        var cell = body.children[i].children[1];
+        if (cell.textContent !== values[i]) cell.textContent = values[i];
+      }
+    }
+
+    function recalculate() {
+      syncInputCells();
+      for (var i = 0; i < ROWS; i++) paintRow(i);
+      updateStats();
+    }
+
+    function updateStats() {
+      var total = 0, done = 0, fail = 0;
+      var body = document.getElementById('gridBody');
+      for (var i = 0; i < ROWS; i++) {
+        if (!(values[i] || '').trim()) continue;
+        total++;
+        var tag = body.children[i].children[3].firstChild;
+        if (tag && tag.className.indexOf('bad') >= 0) fail++;
+        else done++;
+      }
+      document.getElementById('statTotal').textContent = String(total);
+      document.getElementById('statDone').textContent = String(done);
+      document.getElementById('statFail').textContent = String(fail);
+    }
+
+    function copyResults() {
+      var body = document.getElementById('gridBody');
+      var lines = [];
+      var last = -1;
+      for (var i = 0; i < ROWS; i++) {
+        if ((values[i] || '').trim()) last = i;
+      }
+      if (last < 0) {
+        showToast('복사할 결과가 없습니다.');
+        return;
+      }
+      for (var j = 0; j <= last; j++) {
+        lines.push(body.children[j].children[2].textContent);
+      }
+      copyText(lines.join('\n'), lines.length + '행을 복사했습니다.');
+    }
+
+    function copyText(text, message) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+      document.body.removeChild(area);
+      showToast(ok ? message : '복사하지 못했습니다. 직접 선택해 복사하세요.');
+    }
+
+    function loadSample() {
+      var samples = MASKING[currentType].sample || [];
+      values = new Array(ROWS).fill('');
+      for (var i = 0; i < samples.length && i < ROWS; i++) values[i] = samples[i];
+      recalculate();
+      showToast('예시를 채웠습니다.');
+    }
+
+    function clearAll() {
+      values = new Array(ROWS).fill('');
+      recalculate();
+      showToast('모두 지웠습니다.');
+    }
+
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    ['customFront', 'customBack', 'customChar', 'customKeepSpecial'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', recalculate);
+      el.addEventListener('change', recalculate);
+    });
+
+    renderTypes();
+    renderFormats();
+    buildGrid();
+    recalculate();
+  </script>
+</body>
+</html>

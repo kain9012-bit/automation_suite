@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>번호 검증 도구(v1.0)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --card:#ffffff;
+      --text:#222222;
+      --muted:#6b7280;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --border:#d4dbe8;
+      --radius-lg:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --ok-bg:#ecfdf3;
+      --ok-text:#027a48;
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --head-bg:#f8fafc;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;}
+    body{
+      font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .app{max-width:1100px;margin:0 auto;padding:24px 16px 32px;}
+
+    header{text-align:center;margin-bottom:16px;}
+
+    header h1{
+      font-size:24px;font-weight:600;letter-spacing:-0.02em;
+      display:flex;align-items:center;justify-content:center;gap:8px;color:#111827;
+    }
+
+    .logo-badge{
+      width:32px;height:32px;border-radius:6px;background:var(--brand);
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:700;font-size:16px;
+    }
+
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+
+    .panel{
+      background:var(--card);border-radius:var(--radius-lg);
+      border:1px solid var(--border);box-shadow:var(--shadow-soft);
+      padding:16px;min-width:0;margin-top:16px;
+    }
+
+    .panel-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+    .panel-desc{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.55;}
+
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+
+    .tab-btn{
+      border:1px solid var(--border);background:#fff;color:#111827;
+      border-radius:6px;padding:10px 18px;font-size:13px;font-weight:600;
+      cursor:pointer;font-family:inherit;
+    }
+
+    .tab-btn:hover{background:#f8fafc;}
+
+    .tab-btn.active{
+      background:var(--brand-soft);border-color:#b7cff0;color:var(--brand);
+    }
+
+    textarea{
+      width:100%;min-height:180px;resize:vertical;padding:12px;
+      border:1px solid var(--border);border-radius:6px;background:#fff;
+      color:#111827;font-size:13px;line-height:1.6;outline:none;
+      font-family:Consolas,"Courier New",monospace;
+    }
+
+    textarea:focus{border-color:#8ab4f8;}
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px;}
+
+    .btn-primary{
+      background:var(--brand);color:#fff;border:1px solid var(--brand);
+      border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;
+      cursor:pointer;font-family:inherit;
+    }
+
+    .btn-primary:hover{background:var(--brand-dark);}
+
+    .btn-ghost{
+      background:#fff;color:#111827;border-radius:6px;border:1px solid var(--border);
+      padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit;
+    }
+
+    .btn-ghost:hover{background:#f8fafc;}
+
+    .stats{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;}
+
+    .stat{
+      border:1px solid var(--border);border-radius:6px;padding:6px 12px;
+      font-size:12px;color:var(--muted);background:var(--head-bg);
+    }
+
+    .stat b{font-size:14px;color:#111827;margin-left:4px;}
+    .stat.ok b{color:var(--ok-text);}
+    .stat.bad b{color:var(--bad-text);}
+
+    .table-wrap{
+      border:1px solid var(--border);border-radius:6px;
+      overflow:auto;max-height:460px;background:#fff;
+    }
+
+    table.result-table{border-collapse:collapse;width:100%;font-size:13px;}
+
+    table.result-table th{
+      background:var(--head-bg);border-bottom:1px solid var(--border);
+      padding:9px 12px;font-weight:600;text-align:left;
+      position:sticky;top:0;z-index:2;white-space:nowrap;
+    }
+
+    table.result-table td{
+      border-bottom:1px solid #eef2f7;padding:8px 12px;vertical-align:middle;
+    }
+
+    table.result-table tr.bad{background:#fff7f6;}
+
+    td.idx{width:56px;text-align:center;color:var(--muted);font-size:12px;}
+    td.value{font-family:Consolas,"Courier New",monospace;letter-spacing:.03em;}
+    td.state{width:96px;text-align:center;}
+
+    .tag{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;}
+    .tag.ok{background:var(--ok-bg);color:var(--ok-text);}
+    .tag.bad{background:var(--bad-bg);color:var(--bad-text);}
+
+    .empty{padding:28px 12px;text-align:center;color:var(--muted);font-size:13px;line-height:1.8;}
+
+    .notice{
+      margin-top:12px;border:1px solid var(--border);border-radius:6px;
+      background:var(--head-bg);padding:10px 12px;font-size:12px;
+      color:var(--muted);line-height:1.8;
+    }
+
+    .notice b{color:#111827;}
+
+    .toast{
+      position:fixed;left:50%;bottom:28px;
+      transform:translateX(-50%) translateY(12px);
+      background:#111827;color:#fff;font-size:13px;padding:10px 18px;
+      border-radius:6px;opacity:0;pointer-events:none;
+      transition:opacity .18s, transform .18s;z-index:50;
+    }
+
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    .footer{margin-top:10px;font-size:11px;color:var(--muted);text-align:center;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>
+        <span class="logo-badge">V</span>
+        번호 검증 도구(v1.0)
+      </h1>
+      <p>주민등록번호와 사업자등록번호가 규칙에 맞는 번호인지 한 번에 확인합니다.</p>
+    </header>
+
+    <section class="panel">
+      <div class="panel-title">1. 번호 입력</div>
+
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-rrn" onclick="switchMode('rrn')">주민등록번호 검증</button>
+        <button class="tab-btn" id="tab-biz" onclick="switchMode('biz')">사업자등록번호 검증</button>
+      </div>
+
+      <div class="panel-desc" id="inputGuide"></div>
+      <textarea id="inputArea" spellcheck="false"></textarea>
+
+      <div class="actions">
+        <button class="btn-primary" onclick="runValidation()">유효성 검사 실행</button>
+        <button class="btn-ghost" onclick="loadSample()">예시 채우기</button>
+        <button class="btn-ghost" onclick="clearAll()">지우기</button>
+        <div class="stats">
+          <span class="stat">검사<b id="statTotal">0</b></span>
+          <span class="stat ok">정상<b id="statOk">0</b></span>
+          <span class="stat bad">오류<b id="statBad">0</b></span>
+        </div>
+      </div>
+
+      <div class="notice">
+        · 한 줄에 번호 하나씩 넣으세요. 하이픈은 있어도 없어도 됩니다. 이름 같은 글자가 섞여 있으면 번호 부분만 골라 검사합니다.<br />
+        · <b>입력한 데이터는 이 PC 밖으로 전송되지 않습니다.</b> 모든 계산은 화면 안에서만 이루어집니다.<br />
+        · 검증은 <b>번호 규칙(체크섬)</b>만 확인합니다. 실제로 발급된 번호인지, 누구의 번호인지는 알 수 없습니다.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">2. 검증 결과</div>
+      <div class="panel-desc" id="resultSummary">검사를 실행하면 결과가 여기에 표시됩니다.</div>
+
+      <div class="actions" style="margin-top:0;margin-bottom:12px;">
+        <button class="btn-ghost" onclick="copyResults()">결과 복사</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th style="width:56px;text-align:center;">#</th>
+              <th id="thValue">주민등록번호</th>
+              <th style="width:96px;text-align:center;">상태</th>
+              <th>상세 내용</th>
+            </tr>
+          </thead>
+          <tbody id="resultBody">
+            <tr><td colspan="4"><div class="empty">번호를 넣고 <b>유효성 검사 실행</b>을 눌러 주세요.</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="footer">전북특별자치도교육청 · JB업무ON</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var MODES = {
+      rrn: {
+        title: '주민등록번호',
+        guide: '주민등록번호를 한 줄에 하나씩 넣으세요. (13자리, 하이픈 무관)',
+        placeholder: '800101-1234567\n9002021234567\n030505-3456789',
+        sample: '900101-1234568\n800101-1234567\n901301-1234567\n03050534567',
+        check: checkRrn
+      },
+      biz: {
+        title: '사업자등록번호',
+        guide: '사업자등록번호를 한 줄에 하나씩 넣으세요. (10자리, 하이픈 무관)',
+        placeholder: '123-45-67891\n1234567891\n220-81-62517',
+        sample: '220-81-62517\n1234567891\n123-45-67891\n2208162518',
+        check: checkBiz
+      }
+    };
+
+    var currentMode = 'rrn';
+    var lastRows = [];
+
+    function checkRrn(raw) {
+      var digits = raw.replace(/-/g, '').trim();
+
+      if (!/^\d+$/.test(digits)) return { valid: false, detail: '숫자가 아닌 문자가 섞여 있습니다.' };
+      if (digits.length !== 13) return { valid: false, detail: '자릿수 오류 (' + digits.length + '자리)' };
+
+      var month = parseInt(digits.slice(2, 4), 10);
+      var day = parseInt(digits.slice(4, 6), 10);
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        return { valid: false, detail: '생년월일 날짜 오류' };
+      }
+
+      if (digits.charAt(6) === '0') {
+        return { valid: false, detail: '성별 코드 오류 (7번째 자리가 0)' };
+      }
+
+      var weights = [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5];
+      var sum = 0;
+      for (var i = 0; i < 12; i++) {
+        sum += parseInt(digits.charAt(i), 10) * weights[i];
+      }
+      var expected = (11 - (sum % 11)) % 10;
+
+      if (expected !== parseInt(digits.charAt(12), 10)) {
+        return { valid: false, detail: '유효하지 않은 번호 (검증번호 불일치)' };
+      }
+
+      return { valid: true, detail: '정상' };
+    }
+
+    function checkBiz(raw) {
+      var digits = raw.replace(/-/g, '').trim();
+
+      if (!/^\d+$/.test(digits)) return { valid: false, detail: '숫자가 아닌 문자가 섞여 있습니다.' };
+      if (digits.length !== 10) return { valid: false, detail: '자릿수 오류 (' + digits.length + '자리)' };
+
+      var weights = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+      var sum = 0;
+      for (var i = 0; i < 9; i++) {
+        sum += parseInt(digits.charAt(i), 10) * weights[i];
+      }
+      sum += Math.floor((parseInt(digits.charAt(8), 10) * 5) / 10);
+
+      var expected = (10 - (sum % 10)) % 10;
+
+      if (expected !== parseInt(digits.charAt(9), 10)) {
+        return { valid: false, detail: '유효하지 않은 번호 (검증번호 불일치)' };
+      }
+
+      return { valid: true, detail: '정상' };
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('tab-rrn').classList.toggle('active', mode === 'rrn');
+      document.getElementById('tab-biz').classList.toggle('active', mode === 'biz');
+
+      var conf = MODES[mode];
+      document.getElementById('inputGuide').textContent = conf.guide;
+      document.getElementById('inputArea').placeholder = conf.placeholder;
+      document.getElementById('thValue').textContent = conf.title;
+      clearAll();
+    }
+
+    function runValidation() {
+      var text = document.getElementById('inputArea').value.trim();
+      var body = document.getElementById('resultBody');
+
+      if (!text) {
+        showToast('검증할 번호를 입력해 주세요.');
+        return;
+      }
+
+      var conf = MODES[currentMode];
+      var lines = text.split('\n');
+      var rows = [];
+
+      lines.forEach(function (line) {
+        var clean = line.trim();
+        if (!clean) return;
+        var match = clean.match(/[\d][\d-]*/);
+        var target = match ? match[0].replace(/-+$/, '') : clean;
+        var result = conf.check(target);
+        rows.push({ value: target, valid: result.valid, detail: result.detail });
+      });
+
+      lastRows = rows;
+      renderRows(rows);
+
+      var bad = rows.filter(function (row) { return !row.valid; }).length;
+      var summary = document.getElementById('resultSummary');
+
+      if (rows.length === 0) {
+        summary.textContent = '검사할 번호가 없습니다.';
+      } else if (bad === 0) {
+        summary.innerHTML = '총 <b>' + rows.length + '건</b>을 검사했고 <b>모두 유효</b>합니다.';
+        showToast('모든 번호가 유효합니다.');
+      } else {
+        summary.innerHTML = '총 <b>' + rows.length + '건</b> 중 <b style="color:var(--bad-text);">오류 ' + bad + '건</b>이 발견되었습니다.';
+        showToast('오류 ' + bad + '건을 찾았습니다.');
+      }
+
+      document.getElementById('statTotal').textContent = String(rows.length);
+      document.getElementById('statOk').textContent = String(rows.length - bad);
+      document.getElementById('statBad').textContent = String(bad);
+      body.scrollIntoView({ block: 'nearest' });
+    }
+
+    function renderRows(rows) {
+      var body = document.getElementById('resultBody');
+      body.innerHTML = '';
+
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="4"><div class="empty">검사할 번호가 없습니다.</div></td></tr>';
+        return;
+      }
+
+      var frag = document.createDocumentFragment();
+
+      rows.forEach(function (row, index) {
+        var tr = document.createElement('tr');
+        if (!row.valid) tr.className = 'bad';
+
+        var idx = document.createElement('td');
+        idx.className = 'idx';
+        idx.textContent = String(index + 1);
+
+        var value = document.createElement('td');
+        value.className = 'value';
+        value.textContent = row.value;
+
+        var state = document.createElement('td');
+        state.className = 'state';
+        state.innerHTML = row.valid
+          ? '<span class="tag ok">정상</span>'
+          : '<span class="tag bad">오류</span>';
+
+        var detail = document.createElement('td');
+        detail.textContent = row.detail;
+
+        tr.appendChild(idx);
+        tr.appendChild(value);
+        tr.appendChild(state);
+        tr.appendChild(detail);
+        frag.appendChild(tr);
+      });
+
+      body.appendChild(frag);
+    }
+
+    function copyResults() {
+      if (!lastRows.length) {
+        showToast('복사할 결과가 없습니다.');
+        return;
+      }
+      var header = ['번호', MODES[currentMode].title, '상태', '상세 내용'].join('\t');
+      var lines = lastRows.map(function (row, index) {
+        return [index + 1, row.value, row.valid ? '정상' : '오류', row.detail].join('\t');
+      });
+      copyText([header].concat(lines).join('\n'), lastRows.length + '건을 복사했습니다.');
+    }
+
+    function copyText(text, message) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+      document.body.removeChild(area);
+      showToast(ok ? message : '복사하지 못했습니다. 직접 선택해 복사하세요.');
+    }
+
+    function loadSample() {
+      document.getElementById('inputArea').value = MODES[currentMode].sample;
+      showToast('예시를 채웠습니다. 검사를 실행해 보세요.');
+    }
+
+    function clearAll() {
+      document.getElementById('inputArea').value = '';
+      lastRows = [];
+      document.getElementById('resultBody').innerHTML =
+        '<tr><td colspan="4"><div class="empty">번호를 넣고 <b>유효성 검사 실행</b>을 눌러 주세요.</div></td></tr>';
+      document.getElementById('resultSummary').textContent = '검사를 실행하면 결과가 여기에 표시됩니다.';
+      document.getElementById('statTotal').textContent = '0';
+      document.getElementById('statOk').textContent = '0';
+      document.getElementById('statBad').textContent = '0';
+    }
+
+    var toastTimer = null;
+    function showToast(message) {
+      var toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () {
+        toast.classList.remove('show');
+      }, 1800);
+    }
+
+    switchMode('rrn');
+  </script>
+</body>
+</html>

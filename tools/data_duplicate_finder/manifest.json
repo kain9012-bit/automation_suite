@@ -1,0 +1,19 @@
+{
+  "id": "data_duplicate_finder",
+  "name": "중복 데이터 확인",
+  "top_tab": "엑셀·데이터",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "엑셀 표를 붙여 넣고 기준 열을 골라 중복된 행을 찾고 지웁니다.",
+  "order": 41,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "중복",
+    "중복제거",
+    "데이터정리",
+    "명단",
+    "엑셀"
+  ]
+}
