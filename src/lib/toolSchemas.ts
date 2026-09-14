@@ -140,8 +140,13 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     outputLabel: "PDF 저장 폴더",
   },
   multi_format_pdf_combiner: {
-    extensions: ["pdf", "hwp", "hwpx", "doc", "docx", "ppt", "pptx"],
-    inputLabel: "통합할 파일을 선택하세요",
+    // 처리부(ensure_pdf)는 이미지도 PDF로 바꿔 붙일 수 있는데 화면에서 막고 있었다.
+    extensions: [
+      "pdf",
+      "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff",
+      "hwp", "hwpx", "doc", "docx", "ppt", "pptx",
+    ],
+    inputLabel: "통합할 파일을 선택하세요 (PDF·이미지·한글·워드·PPT)",
     orderable: true,
     outputLabel: "통합 PDF 파일",
     outputExtension: "pdf",

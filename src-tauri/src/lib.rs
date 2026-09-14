@@ -555,13 +555,18 @@ fn reveal_path(path: String) -> Result<(), String> {
 }
 
 fn bridge_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("bridge")
-        .join("runner.py");
-    if dev_path.is_file() {
-        return Ok(dev_path);
+    // 소스의 runner.py 는 개발 중에만 쓴다. 이 경로는 빌드할 때 문자열로 박히기
+    // 때문에, 설치본이 이걸 쓰면 그 PC에서만 다른 코드가 돈다. 그러면 남들에게만
+    // 나는 문제를 제작자는 영영 보지 못한다. 실제로 그 일이 있었다.
+    if cfg!(debug_assertions) {
+        let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("bridge")
+            .join("runner.py");
+        if dev_path.is_file() {
+            return Ok(dev_path);
+        }
     }
 
     let resource_dir = app

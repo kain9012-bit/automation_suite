@@ -307,6 +307,16 @@ export function NativeToolPanel({
       });
       const saved = resultPath(result);
       setDone(saved);
+
+      // 파일명 일괄 변경처럼 원본 이름을 바꾸는 도구는 새 경로를 돌려준다.
+      // 갈아 끼우지 않으면 이어서 한 번 더 돌릴 때 없는 파일을 가리켜 실패한다.
+      const nextInputs = (result as { inputs?: unknown }).inputs;
+      if (
+        Array.isArray(nextInputs) &&
+        nextInputs.every((item) => typeof item === "string")
+      ) {
+        setInputs(nextInputs as string[]);
+      }
       setLog((current) => [
         ...current,
         String(result.message ?? "작업이 완료되었습니다."),

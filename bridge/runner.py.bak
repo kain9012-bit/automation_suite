@@ -287,9 +287,26 @@ def run_rename_files(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("바꿀 문자열을 입력하세요.")
     changes = service.build_changes(files, before, after, mode)
     result = service.apply_changes(changes)
+
+    # 이름을 바꾸고 나면 화면이 들고 있는 경로는 더 이상 없는 파일을 가리킨다.
+    # 그대로 두면 이어서 한 번 더 바꾸려 할 때 "파일을 찾을 수 없습니다"가 뜬다.
+    # 바뀐 이름으로 목록을 갈아 끼워 돌려준다. 실패한 건 원래 이름 그대로 둔다.
+    renamed = {old_path: new_path for old_path, new_path in changes}
+    updated: list[str] = []
+    for path in files:
+        # 원본이 그대로 있으면 그 파일은 안 바뀐 것이다. 이름이 겹쳐 실패했을 때
+        # 새 이름을 넣어 버리면 남의 파일을 가리키게 된다.
+        if path.exists():
+            updated.append(str(path))
+            continue
+        candidate = renamed.get(path)
+        if candidate is not None and candidate.exists():
+            updated.append(str(candidate))
+
     return _success(
         f"파일명 {result.success_count}개를 변경했습니다.",
         result=result,
+        inputs=updated,
     )
 
 
