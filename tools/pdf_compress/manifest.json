@@ -8,7 +8,7 @@
   "description": "글자·도형은 그대로 두고 사진만 줄여 목표 용량 이하로 압축합니다.",
   "order": 50,
   "enabled": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "keywords": [],
   "context_menu": {
     "targets": ["pdf"],

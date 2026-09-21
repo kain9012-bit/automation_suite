@@ -388,24 +388,57 @@ def run_zip_extractor(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = [path for path in _paths(payload) if path.suffix.lower() == ".pdf"]
+    if not inputs:
+        raise ValueError("PDF 파일을 선택하세요.")
     service = _module("pdf_compress", "pdf_compress_service")
     cancel = FileCancel()
     target_mb = float(payload.get("target_mb") or 5)
-    outputs = []
-    for input_path in inputs:
-        raw_output = str(payload.get("output") or "").strip()
-        if raw_output and len(inputs) == 1:
-            output = Path(raw_output).expanduser().resolve()
-        else:
-            output = service.safe_output_path(input_path, target_mb)
-        size, achieved = service.compress_to_target(
-            input_path,
-            output,
-            int(target_mb * 1024 * 1024),
-            int(payload.get("max_tries") or 18),
+    target_bytes = int(target_mb * 1024 * 1024)
+    raw_output = str(payload.get("output") or "").strip()
+    folder = Path(raw_output).expanduser().resolve() if raw_output else None
+    if folder is not None:
+        folder.mkdir(parents=True, exist_ok=True)
+
+    # 전체 합계 방식: 여러 PDF 의 합계를 목표 용량 이하로.
+    if str(payload.get("target_mode") or "each") == "total":
+        group = service.compress_group_to_total(
+            inputs,
+            folder or inputs[0].parent,
+            target_bytes,
             progress=emit_progress,
             cancel=cancel.is_set,
         )
+        return _success(
+            f"PDF {len(group['results'])}개를 합계 {group['final_total'] / 1048576:.2f}MB로 저장했습니다.",
+            output=str(group["folder"]),
+            outputs=group["results"],
+            popup=_pdf_compress_total_popup(group, target_mb),
+        )
+
+    # 파일마다 방식: 한 파일이 실패해도 나머지는 계속한다.
+    outputs = []
+    failed = []
+    for index, input_path in enumerate(inputs, start=1):
+        if cancel.is_set():
+            break
+        if len(inputs) > 1:
+            emit_progress(f"[{index}/{len(inputs)}] {input_path.name}")
+        output = service.safe_output_path(input_path, target_mb, folder)
+        try:
+            size, achieved = service.compress_to_target(
+                input_path,
+                output,
+                target_bytes,
+                len(service.LEVELS),
+                progress=emit_progress,
+                cancel=cancel.is_set,
+            )
+        except service.CompressCancelled:
+            break
+        except Exception as error:
+            failed.append({"name": input_path.name, "error": str(error) or type(error).__name__})
+            emit_progress(f"{input_path.name}: 압축하지 못했습니다 ({error})")
+            continue
         outputs.append({
             "path": output,
             "name": input_path.name,
@@ -413,15 +446,31 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
             "size_mb": round(size / (1024 * 1024), 2),
             "target_achieved": achieved,
         })
+    if not outputs and failed:
+        raise RuntimeError(
+            "압축하지 못했습니다.\n\n" + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
+        )
     return _success(
         f"PDF {len(outputs)}개를 압축했습니다.",
+        output=str(folder) if folder else "",
         outputs=outputs,
-        popup=_pdf_compress_popup(outputs, target_mb),
+        popup=_pdf_compress_popup(outputs, target_mb, failed),
     )
 
 
-def _pdf_compress_popup(outputs: list[dict[str, Any]], target_mb: float) -> dict[str, str]:
-    """압축 결과를 화면 팝업으로 알릴 문구. 목표를 못 맞춘 파일이 있으면 경고로 띄운다."""
+def _failed_lines(failed: list[dict[str, str]]) -> str:
+    if not failed:
+        return ""
+    return "\n\n압축하지 못한 파일\n" + "\n".join(
+        f"· {item['name']}: {item['error']}" for item in failed
+    )
+
+
+def _pdf_compress_popup(
+    outputs: list[dict[str, Any]], target_mb: float, failed: list[dict[str, str]] | None = None
+) -> dict[str, str]:
+    """파일마다 방식의 결과 팝업. 목표를 못 맞췄거나 실패한 파일이 있으면 경고로 띄운다."""
+    failed = failed or []
     lines = []
     for item in outputs:
         mark = "달성" if item["target_achieved"] else "미달"
@@ -429,19 +478,49 @@ def _pdf_compress_popup(outputs: list[dict[str, Any]], target_mb: float) -> dict
             f"· {item['name']}\n   {item['original_mb']:.2f}MB → {item['size_mb']:.2f}MB ({mark})"
         )
     missed = [item for item in outputs if not item["target_achieved"]]
-    if not missed:
+    if not missed and not failed:
         return {
             "level": "success",
             "title": "압축에 성공했습니다",
-            "message": f"목표 {target_mb:g}MB 이하로 줄였습니다.\n\n" + "\n".join(lines),
+            "message": f"파일마다 {target_mb:g}MB 이하로 줄였습니다.\n\n" + "\n".join(lines),
+        }
+    head = []
+    if missed:
+        head.append(
+            f"{len(outputs)}개 중 {len(missed)}개가 목표 {target_mb:g}MB 보다 큽니다.\n"
+            "사진이 적고 글자·도형 위주인 파일은 더 줄일 수 없어, 가장 작게 만든 결과를 저장했습니다."
+        )
+    return {
+        "level": "warning",
+        "title": "목표 용량까지 줄이지 못했습니다" if missed else "일부 파일을 압축하지 못했습니다",
+        "message": ("\n".join(head) + "\n\n" if head else "") + "\n".join(lines) + _failed_lines(failed),
+    }
+
+
+def _pdf_compress_total_popup(group: dict[str, Any], target_mb: float) -> dict[str, str]:
+    """전체 합계 방식의 결과 팝업."""
+    before = group["original_total"] / 1048576
+    after = group["final_total"] / 1048576
+    lines = [
+        f"· {item['name']}\n   {item['original_mb']:.2f}MB → {item['size_mb']:.2f}MB"
+        + ("" if item["level"] else " (원본 유지)")
+        for item in group["results"]
+    ]
+    summary = f"합계 {before:.2f}MB → {after:.2f}MB (목표 {target_mb:g}MB)\n저장 폴더: {group['folder']}"
+    if group["achieved"]:
+        return {
+            "level": "warning" if group["failed"] else "success",
+            "title": "합계 목표 용량으로 압축했습니다",
+            "message": summary + "\n\n" + "\n".join(lines) + _failed_lines(group["failed"]),
         }
     return {
         "level": "warning",
-        "title": "목표 용량까지 줄이지 못했습니다",
+        "title": "합계 목표 용량까지 줄이지 못했습니다",
         "message": (
-            f"{len(outputs)}개 중 {len(missed)}개가 목표 {target_mb:g}MB 보다 큽니다.\n"
-            "사진이 적고 글자·도형 위주인 파일은 더 줄일 수 없어, 가장 작게 만든 결과를 저장했습니다.\n\n"
+            summary
+            + f"\n최대로 줄여도 합계 {after:.2f}MB입니다. 글자·도형 위주 파일은 더 줄지 않습니다.\n\n"
             + "\n".join(lines)
+            + _failed_lines(group["failed"])
         ),
     }
 

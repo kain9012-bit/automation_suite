@@ -41,10 +41,10 @@ def bytes_to_mb(n: int) -> float:
     return n / (1024 * 1024)
 
 
-def safe_output_path(in_fp: Path, target_mb: float) -> Path:
-    stem = in_fp.stem
-    out_name = f"{stem}_압축_{target_mb:.1f}MB.pdf"
-    return in_fp.with_name(out_name)
+def safe_output_path(in_fp: Path, target_mb: float = 0, folder: Optional[Path] = None) -> Path:
+    """'원본이름_압축.pdf'. 같은 이름이 있으면 번호를 붙인다. target_mb 는 예전 호출과 맞추려고 남겨 둔다."""
+    base = folder if folder is not None else in_fp.parent
+    return unique_path(base / f"{in_fp.stem}_압축.pdf")
 
 
 def _open(in_fp: Path) -> pymupdf.Document:
@@ -201,5 +201,151 @@ def compress_to_target(in_fp: Path, out_fp: Path, target_bytes: int, max_tries: 
             out_fp.unlink()
         shutil.move(str(best[1]), str(out_fp))
         return best[0], best[0] <= target_bytes
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def unique_path(path: Path) -> Path:
+    """같은 이름이 이미 있으면 '이름 (2).pdf' 처럼 번호를 붙인다. 기존 파일은 덮어쓰지 않는다."""
+    if not path.exists():
+        return path
+    for number in range(2, 10000):
+        candidate = path.with_name(f"{path.stem} ({number}){path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"저장할 이름을 정하지 못했습니다: {path.name}")
+
+
+def compress_group_to_total(
+    inputs: List[Path],
+    out_root: Path,
+    total_bytes: int,
+    progress: Optional[Callable[[str], None]] = None,
+    cancel: Optional[Callable[[], bool]] = None,
+) -> dict:
+    """여러 PDF 의 합계가 total_bytes 이하가 되도록 파일마다 압축 단계를 고른다.
+
+    모든 파일을 원본(0단계)에서 출발해, 합계가 목표를 넘는 동안
+    '한 단계 더 압축했을 때 가장 많이 줄어드는 파일'을 골라 그 파일만 한 단계 올린다.
+    잘 줄어드는 사진 위주 파일은 더 줄이고, 글자 위주·작은 파일은 원본에 가깝게 둔다.
+    결과는 out_root 아래 새 폴더에 원래 파일명 그대로 저장한다.
+    압축하지 못한 파일(암호 등)은 원본을 그대로 넣고 failed 에 적는다.
+    """
+    import datetime
+
+    def say(text: str) -> None:
+        if progress is not None:
+            progress(text)
+
+    def check_cancel() -> None:
+        if cancel is not None and cancel():
+            raise CompressCancelled("중지 요청으로 압축을 멈췄습니다.")
+
+    work_dir = Path(tempfile.mkdtemp(prefix="jbedu_pdfg_"))
+    try:
+        # 파일마다: 원본 크기, 단계별 결과(크기·임시 파일), 지금 고른 단계.
+        states = []
+        for index, path in enumerate(inputs):
+            states.append({
+                "path": path,
+                "original": path.stat().st_size,
+                "sizes": {0: path.stat().st_size},
+                "files": {0: path},
+                "level": 0,
+                "done": False,
+                "error": "",
+                "slot": index,
+            })
+
+        def measure(state: dict, level: int) -> int:
+            """level 단계로 압축했을 때의 크기. 한 번 잰 것은 다시 만들지 않는다."""
+            if level in state["sizes"]:
+                return state["sizes"][level]
+            check_cancel()
+            dpi, quality = LEVELS[level - 1]
+            tmp = work_dir / f"f{state['slot']:03d}_l{level}.pdf"
+            size = compress_once(state["path"], tmp, dpi, quality, cancel)
+            state["sizes"][level] = size
+            state["files"][level] = tmp
+            return size
+
+        def next_step(state: dict):
+            """지금 단계보다 실제로 더 작아지는 가장 가까운 단계와 그만큼 줄어드는 크기.
+            두 단계를 더 봐도 줄지 않으면 이 파일은 더 줄일 수 없는 것으로 본다."""
+            current = state["sizes"][state["level"]]
+            for level in range(state["level"] + 1, min(state["level"] + 3, len(LEVELS) + 1)):
+                size = measure(state, level)
+                if size < current * 0.995:
+                    return level, current - size
+            return None
+
+        total = sum(state["original"] for state in states)
+        say(f"PDF {len(states)}개, 합계 {bytes_to_mb(total):.2f}MB → 목표 {bytes_to_mb(total_bytes):.2f}MB")
+
+        steps = 0
+        while total > total_bytes:
+            check_cancel()
+            best = None
+            for state in states:
+                if state["done"]:
+                    continue
+                try:
+                    step = next_step(state)
+                except CompressCancelled:
+                    raise
+                except Exception as error:  # 이 파일만 원본 그대로 두고 넘어간다.
+                    state["error"] = str(error) or type(error).__name__
+                    state["level"] = 0
+                    state["done"] = True
+                    continue
+                if step is None:
+                    state["done"] = True
+                    continue
+                if best is None or step[1] > best[2]:
+                    best = (state, step[0], step[1])
+            if best is None:
+                break
+            state, level, saving = best
+            state["level"] = level
+            total -= saving
+            steps += 1
+            say(
+                f"{state['path'].name}: {level}단계로 줄임 → 합계 {bytes_to_mb(total):.2f}MB"
+            )
+
+        # 결과 폴더에 원래 이름으로 저장한다.
+        stamp = datetime.datetime.now().strftime("%m%d_%H%M")
+        target_label = f"{bytes_to_mb(total_bytes):g}".rstrip(".")
+        folder = unique_path(out_root / f"PDF압축_합계{target_label}MB_{stamp}")
+        folder.mkdir(parents=True, exist_ok=True)
+
+        results = []
+        failed = []
+        for state in states:
+            chosen = state["files"][state["level"]]
+            target = unique_path(folder / state["path"].name)
+            shutil.copyfile(chosen, target)
+            size = target.stat().st_size
+            results.append({
+                "path": target,
+                # 이름이 겹쳐 번호가 붙었으면 실제로 저장된 이름을 보여 준다.
+                "name": target.name,
+                "original_mb": round(bytes_to_mb(state["original"]), 2),
+                "size_mb": round(bytes_to_mb(size), 2),
+                "level": state["level"],
+            })
+            if state["error"]:
+                failed.append({"name": state["path"].name, "error": state["error"]})
+
+        final_total = sum(item["path"].stat().st_size for item in results)
+        return {
+            "folder": folder,
+            "results": results,
+            "failed": failed,
+            "original_total": sum(state["original"] for state in states),
+            "final_total": final_total,
+            "target_bytes": total_bytes,
+            "achieved": final_total <= total_bytes,
+        }
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)

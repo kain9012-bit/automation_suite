@@ -157,14 +157,19 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     extensions: ["pdf"],
     cancellable: true,
     resultPopup: true,
-    outputLabel: "압축 PDF 파일",
-    outputExtension: "pdf",
+    // 파일마다: 비우면 원본 옆에 '이름_압축.pdf'. 전체 합계: 이 폴더 아래 새 폴더에 원래 이름으로.
+    outputMode: "folder",
+    outputLabel: "저장 폴더",
     fields: [
       {
-        key: "max_tries",
-        label: "압축 시도 횟수",
-        type: "number",
-        defaultValue: 18,
+        key: "target_mode",
+        label: "목표 방식",
+        type: "select",
+        defaultValue: "each",
+        choices: [
+          { label: "파일마다 목표 용량 이하", value: "each" },
+          { label: "전체 합계를 목표 용량 이하", value: "total" },
+        ],
       },
       {
         key: "target_mb",
