@@ -376,13 +376,120 @@ HANDLERS = {
 HANDLERS.update(EXTRA_HANDLERS)
 
 
+def run_selftest() -> dict[str, Any]:
+    """설치본에 들어갈 사이드카가 모든 파이썬 도구를 실제로 불러올 수 있는지 본다.
+
+    도구 코드는 실행 중에 디스크에서 불러오기 때문에, 빌드할 때 빠진 라이브러리는
+    그 도구를 누군가 처음 눌렀을 때에야 드러난다. 그래서 빌드 직후 여기서 전부
+    한 번씩 불러 보고, 하나라도 실패하면 배포를 멈추게 한다.
+    """
+    import subprocess
+
+    checked: list[str] = []
+    failed: list[str] = []
+
+    manifests = sorted(TOOLS_ROOT.glob("*/manifest.json"))
+    python_tools = 0
+    for manifest_path in manifests:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception as error:
+            failed.append(f"{manifest_path.parent.name}: manifest 를 읽지 못함 ({error})")
+            continue
+        if manifest.get("type") != "internal_python" or not manifest.get("enabled", True):
+            continue
+        python_tools += 1
+        tool_id = str(manifest.get("id") or manifest_path.parent.name)
+        tool_root = manifest_path.parent
+
+        modules = [path.stem for path in sorted(tool_root.glob("*_service.py"))]
+        if not modules:
+            modules = [
+                f"services.{path.stem}"
+                for path in sorted((tool_root / "services").glob("*_service.py"))
+            ]
+        if not modules:
+            failed.append(f"{tool_id}: 처리 모듈(*_service.py)을 찾지 못함")
+            continue
+
+        # 여러 도구가 같은 이름의 services 패키지를 쓴다. 앞 도구 것이 남아 있으면
+        # 뒤 도구가 엉뚱한 모듈을 불러오므로 매번 지운다.
+        for name in list(sys.modules):
+            if name == "services" or name.startswith("services."):
+                del sys.modules[name]
+        sys.path.insert(0, str(tool_root))
+        try:
+            for module_name in modules:
+                try:
+                    importlib.import_module(module_name)
+                    checked.append(f"{tool_id}: {module_name}")
+                except Exception as error:
+                    failed.append(
+                        f"{tool_id}: {module_name} → {type(error).__name__}: {error}"
+                    )
+        finally:
+            try:
+                sys.path.remove(str(tool_root))
+            except ValueError:
+                pass
+
+    if python_tools == 0:
+        failed.append(f"파이썬 도구를 하나도 찾지 못함 (도구 폴더: {TOOLS_ROOT})")
+
+    # PDF 용량 압축: 사이드카 안에 넣은 Ghostscript 를 실제로 찾고 실행할 수 있는지.
+    # 이 PC 에 Ghostscript 가 따로 설치돼 있으면 그걸 찾아 통과해 버리므로,
+    # 설치본(frozen)일 때는 반드시 사이드카 안의 것이어야 통과시킨다.
+    try:
+        sys.path.insert(0, str(TOOLS_ROOT / "pdf_compress"))
+        compress = importlib.import_module("pdf_compress_service")
+        gs_path = compress.find_ghostscript()
+        if not gs_path:
+            failed.append("Ghostscript: 찾지 못함")
+        else:
+            frozen_root = getattr(sys, "_MEIPASS", None)
+            if getattr(sys, "frozen", False) and frozen_root:
+                bundled = Path(frozen_root).resolve()
+                if bundled not in Path(gs_path).resolve().parents:
+                    failed.append(
+                        f"Ghostscript: 사이드카 안이 아닌 {gs_path} 를 찾음 (내장본이 빠짐)"
+                    )
+            flags = 0x08000000 if os.name == "nt" else 0
+            probe = subprocess.run(
+                [gs_path, "-v"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                creationflags=flags,
+            )
+            first_line = (probe.stdout or probe.stderr or "").strip().splitlines()[:1]
+            if probe.returncode != 0:
+                failed.append(f"Ghostscript: 실행 실패 ({probe.returncode}) {first_line}")
+            else:
+                checked.append(f"Ghostscript: {first_line[0] if first_line else gs_path}")
+    except Exception as error:
+        failed.append(f"Ghostscript: 확인 중 오류 → {type(error).__name__}: {error}")
+
+    return {
+        "ok": not failed,
+        "python_tools": python_tools,
+        "checked": checked,
+        "failed": failed,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tool")
     parser.add_argument("--payload")
     parser.add_argument("--payload-b64")
     parser.add_argument("--macro-action-b64")
+    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
+
+    if args.selftest:
+        report = run_selftest()
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report["ok"] else 1
 
     try:
         if args.macro_action_b64:

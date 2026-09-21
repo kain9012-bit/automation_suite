@@ -85,7 +85,8 @@ jobs:
           python-version: "3.12"
 
       # Python sidecar(bridge-runner)는 용량이 커서 저장소에 넣지 않는다.
-      # 배포할 때마다 여기서 새로 만든다.
+      # 배포할 때마다 여기서 새로 만든다. PDF 압축용 Ghostscript 는 vendor/gs 에
+      # 들어 있고 runner.spec 이 사이드카 안에 함께 넣는다.
       - name: sidecar 의존성 설치
         run: |
           python -m pip install --upgrade pip
@@ -101,6 +102,18 @@ jobs:
           $exe = "src-tauri/binaries/bridge-runner-x86_64-pc-windows-msvc.exe"
           if (-not (Test-Path $exe)) { throw "sidecar 빌드 결과를 찾지 못했습니다: $exe" }
           "{0:N1} MB" -f ((Get-Item $exe).Length / 1MB)
+
+      # 모든 파이썬 도구를 사이드카로 실제로 불러와 본다. 빌드에서 빠진 라이브러리나
+      # Ghostscript 는 도구를 처음 누를 때에야 드러나므로 여기서 막는다.
+      - name: sidecar 자가검사
+        shell: pwsh
+        env:
+          JBEDU_TOOLS_ROOT: ${{ github.workspace }}/tools
+          JBEDU_PROJECT_ROOT: ${{ github.workspace }}/tools
+          PYTHONIOENCODING: utf-8
+        run: |
+          & "src-tauri/binaries/bridge-runner-x86_64-pc-windows-msvc.exe" --selftest
+          if ($LASTEXITCODE -ne 0) { throw "sidecar 자가검사 실패" }
 
       - name: pnpm 준비
         uses: pnpm/action-setup@v4

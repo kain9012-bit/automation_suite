@@ -1,0 +1,32 @@
+%!
+% cidfmap generated automatically by mkcidfm.ps from fonts found in
+%   C:/WINDOWS/Fonts
+
+% Substitutions
+/GulimChe << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
+/Gulim << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
+/DotumChe << /SubfontID 3 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
+/NSimSun << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] >> ;
+/Batang << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
+/BatangChe << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
+/Dotum << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
+/GungsuhChe << /SubfontID 3 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
+/MalgunGothicRegular << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/malgun.ttf) /CSI [(Korea1) 3] >> ;
+/MS-PGothic << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
+/SimSun << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] >> ;
+/NewGulim << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/ngulim.ttf) /CSI [(Korea1) 3] >> ;
+/MalgunGothicBold << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/malgunbd.ttf) /CSI [(Korea1) 3] >> ;
+/Gungsuh << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
+/MS-Gothic << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
+/MS-UI-Gothic << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
+
+% Aliases
+/STSong-Light /SimSun ;
+/AdobeSongStd-Light /SimSun ;
+/HYRGoThic-Medium /Gulim ;
+/STFangsong-Light /SimSun ;
+/GothicBBB-Medium /MS-Gothic ;
+/HYSMyeongJo-Medium /Batang ;
+/HYGoThic-Medium /Dotum ;
+/HeiseiKakuGo-W5 /MS-Gothic ;
+/AdobeMyungjoStd-Medium /Batang ;
