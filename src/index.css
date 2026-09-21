@@ -843,7 +843,7 @@ kbd {
   border-radius: 8px;
   color: var(--text-primary);
   background: var(--bg-primary);
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .selected-files li {
