@@ -114,16 +114,13 @@ export function NativeToolPanel({
   }, [schema, tool.id, presetPaths]);
 
   /**
-   * 순서가 중요한 도구는 고른 파일을 목록 뒤에 덧붙인다. 여러 폴더에서 나눠
-   * 가져오는 일이 많아서다. 나머지 도구는 지금까지처럼 통째로 갈아 끼운다.
+   * 여러 개를 받는 도구는 새로 고른 파일을 목록 뒤에 덧붙인다. 한 번에 다 고르지 않고
+   * 여러 폴더에서 나눠 넣을 수 있게 하려는 것이다. 목록을 비우려면 초기화나 빼기 버튼을 쓴다.
+   * 파일 하나만 받는 도구는 새로 고른 것으로 바꾼다.
    */
   const takeInputs = (paths: string[]) => {
     if (!schema.multiple) {
       setInputs(paths.slice(0, 1));
-      return;
-    }
-    if (!orderable) {
-      setInputs(paths);
       return;
     }
     setInputs((current) => {
@@ -329,14 +326,23 @@ export function NativeToolPanel({
         String(result.message ?? "작업이 완료되었습니다."),
         saved ? `저장 위치: ${saved}` : "",
       ].filter(Boolean));
-      const resultPopup = readResultPopup((result as { popup?: unknown }).popup);
-      if (resultPopup) setPopup(resultPopup);
+      // 도구가 따로 문구를 주면 그것을, 아니면 결과 메시지와 저장 위치로 팝업을 띄운다.
+      setPopup(
+        readResultPopup((result as { popup?: unknown }).popup) ?? {
+          level: "success",
+          title: "작업을 마쳤습니다",
+          message: [
+            String(result.message ?? "작업이 완료되었습니다."),
+            saved ? `저장 위치: ${saved}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      );
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       setLog((current) => [...current, `실패: ${message}`]);
-      if (schema.resultPopup) {
-        setPopup({ level: "error", title: "작업을 마치지 못했습니다", message });
-      }
+      setPopup({ level: "error", title: "작업을 마치지 못했습니다", message });
     } finally {
       setRunning(false);
       setStopping(false);
@@ -374,17 +380,35 @@ export function NativeToolPanel({
           <span>
             {dropping
               ? "여기에 놓으면 처리 대상으로 넣습니다."
-              : orderable && inputs.length
+              : schema.multiple && inputs.length
                 ? "클릭하거나 끌어다 놓으면 목록 뒤에 더 넣습니다."
                 : "클릭해서 고르거나, 창으로 끌어다 놓으세요."}
           </span>
         </button>
         {!!inputs.length && !orderable && (
-          <ul className="selected-files">
-            {inputs.map((path) => (
-              <li key={path}>{path}</li>
-            ))}
-          </ul>
+          <div className="picked-files">
+            {schema.multiple && (
+              <div className="picked-files-head">
+                <span>
+                  <b>{inputs.length}개</b>를 넣었습니다.
+                </span>
+                <button className="link-button" onClick={() => setInputs([])}>
+                  <Trash2 size={14} />
+                  모두 지우기
+                </button>
+              </div>
+            )}
+            <ul className="selected-files">
+              {inputs.map((path, index) => (
+                <li key={path} title={path}>
+                  <span>{fileName(path)}</span>
+                  <button title="목록에서 빼기" onClick={() => removeInput(index)}>
+                    <X size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {!!inputs.length && orderable && (
@@ -431,8 +455,7 @@ export function NativeToolPanel({
                   <GripVertical className="drag-grip" size={15} />
                   <span className="file-order">{index + 1}</span>
                   <span className="file-label">
-                    <b>{fileName(path)}</b>
-                    <small title={path}>{path}</small>
+                    <b title={path}>{fileName(path)}</b>
                   </span>
                   <span className="file-actions">
                     <button

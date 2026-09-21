@@ -14,6 +14,9 @@ import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
 import "./excel-split-panel.css";
+import { ResultDialog, readResultPopup, type ResultPopup } from "./ResultDialog";
+
+const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 
 interface SheetInfo {
   name: string;
@@ -53,6 +56,7 @@ export function ExcelSplitPanel({
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [done, setDone] = useState("");
+  const [popup, setPopup] = useState<ResultPopup | null>(null);
 
   const [mode, setMode] = useState<Mode>("sheet");
   const [autoHeader, setAutoHeader] = useState(true);
@@ -158,11 +162,19 @@ export function ExcelSplitPanel({
       const saved = resultPath(result as unknown as Record<string, unknown>);
       setDone(saved);
       setLog((items) => [...items, result.message, saved ? `저장 위치: ${saved}` : ""].filter(Boolean));
+      setPopup(
+        readResultPopup((result as unknown as { popup?: unknown }).popup) ?? {
+          level: "success",
+          title: "작업을 마쳤습니다",
+          message: [result.message || "분할했습니다.", saved ? `저장 위치: ${saved}` : ""]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      );
     } catch (reason) {
-      setLog((items) => [
-        ...items,
-        `실패: ${reason instanceof Error ? reason.message : String(reason)}`,
-      ]);
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setLog((items) => [...items, `실패: ${message}`]);
+      setPopup({ level: "error", title: "작업을 마치지 못했습니다", message });
     } finally {
       setRunning(false);
     }
@@ -208,7 +220,9 @@ export function ExcelSplitPanel({
         </button>
         {!!source && (
           <ul className="selected-files">
-            <li>{source}</li>
+            <li title={source}>
+              <span>{fileName(source)}</span>
+            </li>
           </ul>
         )}
       </section>
@@ -410,6 +424,13 @@ export function ExcelSplitPanel({
         </div>
         <pre>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
       </section>
+      {popup && (
+        <ResultDialog
+          popup={popup}
+          onClose={() => setPopup(null)}
+          onReveal={done ? () => void revealPath(done).catch(() => undefined) : undefined}
+        />
+      )}
     </div>
   );
 }

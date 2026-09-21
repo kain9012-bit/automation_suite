@@ -831,15 +831,66 @@ kbd {
   font-size: 11px;
 }
 
+/* 넣은 파일 목록. 경로 대신 파일 이름을 크게 보여 준다(전체 경로는 마우스를 올리면 보임). */
 .selected-files {
-  max-height: 120px;
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
   margin: 11px 0 0;
-  padding: 8px 8px 8px 27px;
+  padding: 8px;
   overflow: auto;
+  list-style: none;
   border-radius: 8px;
-  color: var(--text-muted);
+  color: var(--text-primary);
   background: var(--bg-primary);
-  font-size: 10px;
+  font-size: 20px;
+}
+
+.selected-files li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  line-height: 1.35;
+}
+
+.selected-files li > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.selected-files li > button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.selected-files li > button:hover {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+.picked-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 11px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.picked-files-head + .selected-files {
+  margin-top: 6px;
 }
 
 .text-input {
