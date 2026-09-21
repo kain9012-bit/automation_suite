@@ -449,7 +449,7 @@ export function PdfOrganizerPanel({
   const multiDocs = docs.length > 1;
 
   return (
-    <div className="native-tool content-column">
+    <div className={`native-tool content-column ${pages.length ? "po-wide" : ""}`}>
       <div className="native-hero">
         <div className="tool-icon type-internal_python">
           <FileInput size={23} />
