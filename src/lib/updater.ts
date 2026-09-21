@@ -69,8 +69,13 @@ export async function downloadUpdateIfAvailable(
   lastMessage = check.message;
   if (!check.configured || !check.update) return "";
 
-  // 미뤄 둔 사이에 더 새 버전이 나왔으면 그쪽을 받는다.
-  if (pendingVersion === check.update.version) return pendingVersion;
+  // 이미 받아 둔 버전이면 다시 받지 않는다. 다만 '나중에'로 숨긴 띠는 다시 띄워야 하므로
+  // 알림은 보낸다. (설정의 '지금 확인'을 눌렀는데 띠가 안 나오던 원인)
+  // 미뤄 둔 사이에 더 새 버전이 나왔으면 아래에서 그쪽을 받는다.
+  if (pendingVersion === check.update.version) {
+    window.dispatchEvent(new CustomEvent(UPDATE_READY));
+    return pendingVersion;
+  }
 
   onProgress?.(`새 버전 ${check.update.version}을 내려받는 중입니다.`);
   const path = await invoke<string>("download_board_update", { update: check.update });
