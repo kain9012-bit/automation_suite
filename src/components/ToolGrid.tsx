@@ -48,10 +48,6 @@ export function ToolGrid({
       )
     : tools;
 
-  // 한 분류만 모인 화면(엑셀·데이터 등)은 제목에 분류가 이미 있으니 카드마다 적지 않는다.
-  // 즐겨찾기·최근·전체처럼 여러 분류가 섞인 화면에서만 어느 분류인지 보여 준다.
-  const mixedCategories = new Set(filtered.map((tool) => tool.top_tab)).size > 1;
-
   return (
     <section className="tool-section">
       <div className="section-heading">
@@ -100,11 +96,9 @@ export function ToolGrid({
                   <Star size={16} fill={favorite ? "currentColor" : "none"} />
                 </button>
                 <div className="tool-copy">
-                  {mixedCategories && (
-                    <div className="tool-meta">
-                      <span>{tool.top_tab}</span>
-                    </div>
-                  )}
+                  <div className="tool-meta">
+                    <span>{tool.top_tab}</span>
+                  </div>
                   <h3>{tool.name}</h3>
                   <p>{tool.description || "업무 자동화 도구"}</p>
                 </div>
