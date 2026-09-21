@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   FileSpreadsheet,
@@ -33,6 +34,9 @@ type SheetInfo = {
   data_rows?: number;
   header_row?: number;
   auto_header_row?: number;
+  excluded?: boolean;
+  filled_total?: number;
+  filled_upto?: number[];
   missing_formula_values?: number;
   preview?: Cell[][];
   result_title?: string;
@@ -72,6 +76,8 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
   },
 ];
 
+type SheetRef = { file: string; sheet: string };
+
 const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const sheetKey = (file: string, sheet: string) => `${file}\u0000${sheet}`;
 const cellText = (value: Cell | undefined) =>
@@ -93,7 +99,15 @@ export function ExcelMergePanel({
   const [includeHidden, setIncludeHidden] = useState(false);
   // 직접 고친 항목명 줄. 키: 파일+시트.
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  // 체크를 풀어 병합에서 뺀 시트. 키: 파일+시트. 새로 넣은 파일의 시트는 기본으로 모두 들어간다.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  // 항목명 줄을 한꺼번에 바꿀 시트.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRow, setBulkRow] = useState("");
+  // 숫자를 입력하는 도중의 글자(비우고 다시 쓰는 중에도 칸이 튀지 않게).
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analyzedFor, setAnalyzedFor] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -114,41 +128,60 @@ export function ExcelMergePanel({
       }),
     [overrides],
   );
+  const excludedList = useMemo<SheetRef[]>(
+    () =>
+      [...excluded].map((key) => {
+        const [file, sheet] = key.split("\u0000");
+        return { file, sheet };
+      }),
+    [excluded],
+  );
 
-  // 파일·방식·항목명 줄을 바꿀 때마다 잠시 뒤 다시 읽어 미리보기를 새로 만든다. 파일은 만들지 않는다.
+  const request = useMemo(
+    () => ({
+      inputs,
+      mode,
+      include_hidden_sheets: includeHidden,
+      add_source_file: addSourceFile,
+      add_source_sheet: addSourceSheet,
+      header_overrides: overrideList,
+      excluded_sheets: excludedList,
+    }),
+    [inputs, mode, includeHidden, addSourceFile, addSourceSheet, overrideList, excludedList],
+  );
+  const requestKey = useMemo(() => JSON.stringify(request), [request]);
+
+  // 설정이 바뀌면 잠시 뒤 다시 읽어 결과 미리보기를 새로 만든다. 파일은 만들지 않는다.
+  // 항목명 줄 색·데이터 행 수는 화면에서 바로 다시 그리고, 이 조회는 결과 미리보기만 늦게 따라온다.
   useEffect(() => {
     if (!inputs.length) {
       setAnalysis(null);
+      setAnalyzedFor("");
       setAnalyzeError("");
       return;
     }
     const id = ++requestId.current;
     setAnalyzing(true);
     const timer = window.setTimeout(() => {
-      runNativeTool(`${TOOL_ID}__analyze`, {
-        inputs,
-        mode,
-        include_hidden_sheets: includeHidden,
-        add_source_file: addSourceFile,
-        add_source_sheet: addSourceSheet,
-        header_overrides: overrideList,
-      })
+      runNativeTool(`${TOOL_ID}__analyze`, request)
         .then((result) => {
           if (id !== requestId.current) return;
           setAnalysis(result as unknown as Analysis);
+          setAnalyzedFor(requestKey);
           setAnalyzeError("");
         })
         .catch((reason) => {
           if (id !== requestId.current) return;
           setAnalysis(null);
+          setAnalyzedFor("");
           setAnalyzeError(reason instanceof Error ? reason.message : String(reason));
         })
         .finally(() => {
           if (id === requestId.current) setAnalyzing(false);
         });
-    }, 350);
+    }, 450);
     return () => window.clearTimeout(timer);
-  }, [inputs, mode, includeHidden, addSourceFile, addSourceSheet, overrideList]);
+  }, [request, requestKey, inputs.length]);
 
   const takeInputs = (paths: string[]) => {
     const usable = filterByExtension(paths, EXTENSIONS);
@@ -171,36 +204,119 @@ export function ExcelMergePanel({
 
   const dropping = useFileDrop(takeInputs, !running);
 
+  const dropKeysOf = <T,>(record: Record<string, T>, path: string) =>
+    Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith(`${path}\u0000`)));
+  const dropSetOf = (set: Set<string>, path: string) =>
+    new Set([...set].filter((key) => !key.startsWith(`${path}\u0000`)));
+
   const removeInput = (path: string) => {
     setInputs((current) => current.filter((item) => item !== path));
-    setOverrides((current) =>
-      Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${path}\u0000`))),
-    );
+    setOverrides((current) => dropKeysOf(current, path));
+    setDrafts((current) => dropKeysOf(current, path));
+    setExcluded((current) => dropSetOf(current, path));
+    setSelected((current) => dropSetOf(current, path));
   };
 
-  const setHeader = (sheet: SheetInfo, row: number) => {
-    const key = sheetKey(sheet.file, sheet.sheet);
-    const max = sheet.row_count ?? row;
-    const value = Math.max(1, Math.min(Math.round(row) || 1, max));
+  const clearInputs = () => {
+    setInputs([]);
+    setOverrides({});
+    setDrafts({});
+    setExcluded(new Set());
+    setSelected(new Set());
+  };
+
+  const headerOf = (sheet: SheetInfo) =>
+    overrides[sheetKey(sheet.file, sheet.sheet)] ?? sheet.auto_header_row ?? sheet.header_row ?? 1;
+
+  const clampRow = (sheet: SheetInfo, row: number) =>
+    Math.max(1, Math.min(Math.round(row) || 1, sheet.row_count ?? Math.max(1, Math.round(row) || 1)));
+
+  /** 여러 시트의 항목명 줄을 한 번에 정한다. 자동으로 찾은 값과 같으면 '직접 고침' 표시를 지운다. */
+  const applyHeaders = (targets: SheetInfo[], pick: (sheet: SheetInfo) => number) => {
     setOverrides((current) => {
       const next = { ...current };
-      if (value === sheet.auto_header_row) delete next[key];
-      else next[key] = value;
+      for (const sheet of targets) {
+        const key = sheetKey(sheet.file, sheet.sheet);
+        const value = clampRow(sheet, pick(sheet));
+        if (value === sheet.auto_header_row) delete next[key];
+        else next[key] = value;
+      }
       return next;
     });
   };
+  const setHeader = (sheet: SheetInfo, row: number) => applyHeaders([sheet], () => row);
 
-  const toggle = (key: string) =>
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+  const typeHeader = (sheet: SheetInfo, text: string) => {
+    const key = sheetKey(sheet.file, sheet.sheet);
+    setDrafts((current) => ({ ...current, [key]: text }));
+    const value = Number(text);
+    if (text.trim() && Number.isInteger(value) && value >= 1 && value <= (sheet.row_count ?? value)) {
+      setHeader(sheet, value);
+    }
+  };
+  const endTyping = (sheet: SheetInfo) =>
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[sheetKey(sheet.file, sheet.sheet)];
       return next;
     });
+
+  const toggleIn = (setter: typeof setExcluded, keys: string[], on: boolean) =>
+    setter((current) => {
+      const next = new Set(current);
+      for (const key of keys) {
+        if (on) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+
+  const toggle = (key: string) => toggleIn(setExpanded, [key], !expanded.has(key));
 
   const pickOutput = async () => {
     const chosen = await openDialog({ directory: true, multiple: false, title: "저장 폴더 선택" });
     if (typeof chosen === "string") setOutput(chosen);
+  };
+
+  const allSheets = analysis?.mode === mode ? analysis.sheets : [];
+  const liveKeys = new Set(allSheets.map((sheet) => sheetKey(sheet.file, sheet.sheet)));
+  // 목록에 지금 있는 시트에 대해서만 뺀 표시를 보낸다(숨긴 시트를 다시 감추는 등).
+  const isIn = (sheet: SheetInfo) => !excluded.has(sheetKey(sheet.file, sheet.sheet));
+  const chosenSheets = allSheets.filter(isIn);
+  const results = analysis?.mode === mode && analyzedFor === requestKey ? analysis.results : [];
+  const staleResults = analysis?.mode === mode && analyzedFor !== requestKey ? analysis.results : [];
+  const shownResults = results.length ? results : staleResults;
+  const resultsStale = !results.length && !!staleResults.length;
+  const changedCount = chosenSheets.filter((sheet) => sheetKey(sheet.file, sheet.sheet) in overrides).length;
+  const selectedSheets = chosenSheets.filter((sheet) => selected.has(sheetKey(sheet.file, sheet.sheet)));
+  const allSelected = !!chosenSheets.length && selectedSheets.length === chosenSheets.length;
+  const nothingChosen = !!allSheets.length && !chosenSheets.length;
+
+  // 시트 이름별로 묶어 '3월만' 처럼 한 번에 고를 수 있게 한다.
+  const sheetNames = useMemo(() => {
+    const names = new Map<string, string[]>();
+    for (const sheet of allSheets) {
+      const list = names.get(sheet.sheet) ?? [];
+      list.push(sheetKey(sheet.file, sheet.sheet));
+      names.set(sheet.sheet, list);
+    }
+    return [...names.entries()];
+  }, [allSheets]);
+  const byFile = useMemo(() => {
+    const files = new Map<string, SheetInfo[]>();
+    for (const sheet of allSheets) {
+      const list = files.get(sheet.file) ?? [];
+      list.push(sheet);
+      files.set(sheet.file, list);
+    }
+    return [...files.entries()];
+  }, [allSheets]);
+
+  const dataRowsOf = (sheet: SheetInfo, header: number): number | null => {
+    const upto = sheet.filled_upto;
+    if (upto && sheet.filled_total !== undefined && header < upto.length) return sheet.filled_total - upto[header];
+    if (sheet.header_row === header && sheet.data_rows !== undefined) return sheet.data_rows;
+    return null;
   };
 
   const run = async () => {
@@ -215,6 +331,7 @@ export function ExcelMergePanel({
         add_source_sheet: merging && addSourceSheet,
         include_hidden_sheets: includeHidden,
         header_overrides: merging ? overrideList : [],
+        excluded_sheets: excludedList.filter((ref) => liveKeys.has(sheetKey(ref.file, ref.sheet))),
       });
       const saved = resultPath(result);
       setDone(saved);
@@ -237,9 +354,8 @@ export function ExcelMergePanel({
     }
   };
 
-  const sheets = analysis?.mode === mode ? analysis.sheets : [];
-  const results = analysis?.mode === mode ? analysis.results : [];
-  const changedCount = Object.keys(overrides).length;
+  const bulkValue = Number(bulkRow);
+  const bulkValid = !!bulkRow.trim() && Number.isInteger(bulkValue) && bulkValue >= 1;
 
   return (
     <div className="native-tool content-column">
@@ -282,13 +398,7 @@ export function ExcelMergePanel({
               <span>
                 <b>{inputs.length}개</b>를 넣었습니다.
               </span>
-              <button
-                className="link-button"
-                onClick={() => {
-                  setInputs([]);
-                  setOverrides({});
-                }}
-              >
+              <button className="link-button" onClick={clearInputs}>
                 <Trash2 size={14} />
                 모두 지우기
               </button>
@@ -354,9 +464,9 @@ export function ExcelMergePanel({
           <div className="task-heading">
             <div>
               <span className="step-badge">3</span>
-              <strong>{merging ? "시트별 항목명 줄 확인" : "결과 파일에 들어갈 시트"}</strong>
+              <strong>병합할 시트 고르기</strong>
             </div>
-            {analyzing && (
+            {analyzing && !allSheets.length && (
               <span className="em-busy">
                 <LoaderCircle className="spin" size={14} />
                 읽는 중
@@ -365,7 +475,7 @@ export function ExcelMergePanel({
           </div>
 
           {analyzeError && <p className="em-error">파일을 읽지 못했습니다: {analyzeError}</p>}
-          {!!analysis?.errors.length && (
+          {!!analysis?.errors.length && analysis.mode === mode && (
             <ul className="em-notes is-error">
               {analysis.errors.map((text) => (
                 <li key={text}>
@@ -376,117 +486,252 @@ export function ExcelMergePanel({
             </ul>
           )}
 
-          {merging ? (
+          {!!allSheets.length && (
             <>
-              <p className="em-help">
-                각 시트는 <b>항목명 줄(학교명·학생수처럼 칸 이름이 적힌 줄) 아래부터</b> 이어 붙입니다. 자동으로 찾은 줄이 틀리면 숫자를 고치거나,
-                미리보기에서 행 번호를 누르세요.
-                {changedCount > 0 && <b className="em-changed"> 직접 고친 시트 {changedCount}개</b>}
-              </p>
-              <div className="em-sheets">
-                {sheets.map((sheet) => {
-                  const key = sheetKey(sheet.file, sheet.sheet);
-                  const open = expanded.has(key);
-                  const manual = key in overrides;
-                  const header = sheet.header_row ?? 1;
-                  return (
-                    <div key={key} className={`em-sheet ${manual ? "is-manual" : ""}`}>
-                      <div className="em-sheet-head">
-                        <button className="em-toggle" onClick={() => toggle(key)} title="위쪽 행 미리보기">
-                          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                          <span className="em-sheet-name">
-                            {fileName(sheet.file)} <em>›</em> {sheet.sheet}
-                            {sheet.hidden && <small> (숨긴 시트)</small>}
-                          </span>
-                        </button>
-                        <span className="em-rows">데이터 {(sheet.data_rows ?? 0).toLocaleString()}행</span>
-                        <label className="em-header-input">
-                          항목명
-                          <input
-                            type="number"
-                            min={1}
-                            max={sheet.row_count}
-                            value={header}
-                            onChange={(event) => setHeader(sheet, Number(event.target.value))}
-                          />
-                          번째 줄
-                        </label>
-                        {manual ? (
-                          <button className="em-badge is-manual" onClick={() => setHeader(sheet, sheet.auto_header_row ?? 1)}>
-                            직접 고침 · 자동({sheet.auto_header_row})으로
-                          </button>
-                        ) : (
-                          <span className="em-badge">자동</span>
-                        )}
-                      </div>
-                      {!!sheet.missing_formula_values && (
-                        <p className="em-warn">
-                          <TriangleAlert size={14} />
-                          수식 결과가 저장돼 있지 않은 셀 {sheet.missing_formula_values}개가 빈 칸이 됩니다. 원본을
-                          엑셀에서 열어 저장한 뒤 다시 넣으세요.
-                        </p>
-                      )}
-                      {open && (
-                        <div className="em-table-wrap">
-                          <table className="em-table">
-                            <tbody>
-                              {(sheet.preview ?? []).map((row, index) => {
-                                const rowNo = index + 1;
-                                const kind = rowNo < header ? "is-above" : rowNo === header ? "is-header" : "is-data";
-                                return (
-                                  <tr key={rowNo} className={kind}>
-                                    <th>
-                                      <button
-                                        title={`${rowNo}번째 줄을 항목명 줄로`}
-                                        onClick={() => setHeader(sheet, rowNo)}
-                                      >
-                                        {rowNo}
-                                      </button>
-                                    </th>
-                                    {row.map((value, col) => (
-                                      <td key={col}>{cellText(value)}</td>
-                                    ))}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          <p className="em-legend">
-                            <span className="is-header" /> 항목명 줄(결과에 한 번만 남음)
-                            <span className="is-above" /> 표 제목 등(결과에서 빠짐)
-                            <span className="is-data" /> 이어 붙일 데이터
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="em-pick-bar">
+                <span className="em-pick-count">
+                  시트 {allSheets.length}개 중 <b>{chosenSheets.length}개</b>를 넣습니다.
+                </span>
+                <button className="link-button" onClick={() => setExcluded(new Set())}>
+                  모두 넣기
+                </button>
+                <button className="link-button" onClick={() => setExcluded(new Set(liveKeys))}>
+                  모두 빼기
+                </button>
               </div>
+              {sheetNames.length > 1 && (
+                <div className="em-name-chips">
+                  <span>시트 이름으로 한 번에</span>
+                  {sheetNames.map(([name, keys]) => {
+                    const inCount = keys.filter((key) => !excluded.has(key)).length;
+                    const state = inCount === keys.length ? "is-all" : inCount ? "is-some" : "is-none";
+                    return (
+                      <button
+                        key={name}
+                        className={`em-name-chip ${state}`}
+                        title={state === "is-all" ? `'${name}' 시트를 모두 뺍니다` : `'${name}' 시트를 모두 넣습니다`}
+                        onClick={() => toggleIn(setExcluded, keys, state === "is-all")}
+                      >
+                        {name}
+                        <small>
+                          {inCount}/{keys.length}
+                        </small>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {sheetNames.length > 1 && (
+                <p className="em-help">
+                  이름을 누르면 모든 파일의 그 시트를 한꺼번에 넣거나 뺍니다. 한 가지 시트만 쓰려면 '모두 빼기'를 누른 뒤 그
+                  이름을 누르세요.
+                </p>
+              )}
+              <div className="em-files">
+                {byFile.map(([file, list]) => (
+                  <div key={file} className="em-file">
+                    <strong title={file}>{fileName(file)}</strong>
+                    <div className="em-file-sheets">
+                      {list.map((sheet) => {
+                        const key = sheetKey(sheet.file, sheet.sheet);
+                        const on = isIn(sheet);
+                        return (
+                          <label key={key} className={`em-sheet-check ${on ? "is-on" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={(event) => toggleIn(setExcluded, [key], !event.target.checked)}
+                            />
+                            {sheet.sheet}
+                            {sheet.hidden && <small> (숨김)</small>}
+                            {!merging && on && sheet.result_title && <em>→ '{sheet.result_title}'</em>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {nothingChosen && <p className="em-error">병합할 시트를 하나 이상 고르세요.</p>}
             </>
-          ) : (
-            <ul className="em-plan">
-              {sheets.map((sheet) => (
-                <li key={sheetKey(sheet.file, sheet.sheet)}>
-                  <span>
-                    {fileName(sheet.file)} <em>›</em> {sheet.sheet}
-                  </span>
-                  <b>→ '{sheet.result_title}' 시트</b>
-                </li>
-              ))}
-            </ul>
           )}
         </section>
       )}
 
-      {merging && !!results.length && (
+      {merging && !!chosenSheets.length && (
         <section className="task-card split-card">
           <div className="task-heading">
             <div>
               <span className="step-badge">4</span>
-              <strong>결과 미리보기</strong>
+              <strong>시트별 항목명 줄 확인</strong>
             </div>
           </div>
-          {results.map((item) => (
+          <p className="em-help">
+            각 시트는 <b>항목명 줄(학교명·학생수처럼 칸 이름이 적힌 줄) 아래부터</b> 이어 붙입니다. 자동으로 찾은 줄이 틀리면
+            숫자를 고치거나, 미리보기에서 행 번호를 누르세요.
+            {changedCount > 0 && <b className="em-changed"> 직접 고친 시트 {changedCount}개</b>}
+          </p>
+
+          <div className="em-bulk">
+            <label className="em-bulk-all">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(node) => {
+                  if (node) node.indeterminate = !allSelected && selectedSheets.length > 0;
+                }}
+                onChange={(event) =>
+                  setSelected(
+                    event.target.checked
+                      ? new Set(chosenSheets.map((sheet) => sheetKey(sheet.file, sheet.sheet)))
+                      : new Set(),
+                  )
+                }
+              />
+              전체 선택
+            </label>
+            <span className="em-bulk-text">
+              <CheckSquare size={14} />
+              선택한 시트 <b>{selectedSheets.length}개</b>의 항목명 줄을
+            </span>
+            <input
+              className="em-bulk-input"
+              type="number"
+              min={1}
+              value={bulkRow}
+              placeholder="번호"
+              onChange={(event) => setBulkRow(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && bulkValid && selectedSheets.length) applyHeaders(selectedSheets, () => bulkValue);
+              }}
+            />
+            <span className="em-bulk-text">번째 줄로</span>
+            <button
+              className="secondary-button"
+              disabled={!bulkValid || !selectedSheets.length}
+              onClick={() => applyHeaders(selectedSheets, () => bulkValue)}
+            >
+              바꾸기
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!selectedSheets.length}
+              onClick={() => applyHeaders(selectedSheets, (sheet) => sheet.auto_header_row ?? 1)}
+            >
+              자동으로 되돌리기
+            </button>
+          </div>
+
+          <div className="em-sheets">
+            {chosenSheets.map((sheet) => {
+              const key = sheetKey(sheet.file, sheet.sheet);
+              const open = expanded.has(key);
+              const manual = key in overrides;
+              const header = headerOf(sheet);
+              const rowsCount = dataRowsOf(sheet, header);
+              const preview = sheet.preview ?? [];
+              const shown = Math.min(preview.length, Math.max(10, header + 6));
+              return (
+                <div key={key} className={`em-sheet ${manual ? "is-manual" : ""} ${selected.has(key) ? "is-selected" : ""}`}>
+                  <div className="em-sheet-head">
+                    <input
+                      className="em-select"
+                      type="checkbox"
+                      title="한꺼번에 바꿀 시트로 선택"
+                      checked={selected.has(key)}
+                      onChange={(event) => toggleIn(setSelected, [key], event.target.checked)}
+                    />
+                    <button className="em-toggle" onClick={() => toggle(key)} title="위쪽 행 미리보기">
+                      {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <span className="em-sheet-name">
+                        {fileName(sheet.file)} <em>›</em> {sheet.sheet}
+                        {sheet.hidden && <small> (숨긴 시트)</small>}
+                      </span>
+                    </button>
+                    <span className="em-rows">
+                      데이터 {rowsCount === null ? "…" : rowsCount.toLocaleString()}행
+                    </span>
+                    <label className="em-header-input">
+                      항목명
+                      <input
+                        type="number"
+                        min={1}
+                        max={sheet.row_count}
+                        value={drafts[key] ?? String(header)}
+                        onChange={(event) => typeHeader(sheet, event.target.value)}
+                        onBlur={() => endTyping(sheet)}
+                      />
+                      번째 줄
+                    </label>
+                    {manual ? (
+                      <button className="em-badge is-manual" onClick={() => setHeader(sheet, sheet.auto_header_row ?? 1)}>
+                        직접 고침 · 자동({sheet.auto_header_row})으로
+                      </button>
+                    ) : (
+                      <span className="em-badge">자동</span>
+                    )}
+                  </div>
+                  {!!sheet.missing_formula_values && (
+                    <p className="em-warn">
+                      <TriangleAlert size={14} />
+                      수식 결과가 저장돼 있지 않은 셀 {sheet.missing_formula_values}개가 빈 칸이 됩니다. 원본을
+                      엑셀에서 열어 저장한 뒤 다시 넣으세요.
+                    </p>
+                  )}
+                  {open && (
+                    <div className="em-table-wrap">
+                      <table className="em-table">
+                        <tbody>
+                          {preview.slice(0, shown).map((row, index) => {
+                            const rowNo = index + 1;
+                            const kind = rowNo < header ? "is-above" : rowNo === header ? "is-header" : "is-data";
+                            return (
+                              <tr key={rowNo} className={kind}>
+                                <th>
+                                  <button title={`${rowNo}번째 줄을 항목명 줄로`} onClick={() => setHeader(sheet, rowNo)}>
+                                    {rowNo}
+                                  </button>
+                                </th>
+                                {row.map((value, col) => (
+                                  <td key={col}>{cellText(value)}</td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {header > preview.length && (
+                        <p className="em-more">미리보기는 위쪽 {preview.length}줄까지만 보여 줍니다.</p>
+                      )}
+                      <p className="em-legend">
+                        <span className="is-header" /> 항목명 줄(결과에 한 번만 남음)
+                        <span className="is-above" /> 표 제목 등(결과에서 빠짐)
+                        <span className="is-data" /> 이어 붙일 데이터
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {merging && !!chosenSheets.length && !!shownResults.length && (
+        <section className={`task-card split-card ${resultsStale ? "em-stale" : ""}`}>
+          <div className="task-heading">
+            <div>
+              <span className="step-badge">5</span>
+              <strong>결과 미리보기</strong>
+            </div>
+            {resultsStale && (
+              <span className="em-busy">
+                <LoaderCircle className="spin" size={14} />
+                바뀐 설정으로 새로 만드는 중
+              </span>
+            )}
+          </div>
+          {shownResults.map((item) => (
             <div key={item.title} className="em-result">
               <div className="em-result-head">
                 <strong>'{item.title}' 시트</strong>
@@ -552,7 +797,7 @@ export function ExcelMergePanel({
             초기화
           </button>
         )}
-        <button className="primary-button" onClick={() => void run()} disabled={running || !inputs.length}>
+        <button className="primary-button" onClick={() => void run()} disabled={running || !inputs.length || nothingChosen}>
           {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
           {running ? "병합 중" : "병합 실행"}
         </button>

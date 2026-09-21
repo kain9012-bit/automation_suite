@@ -325,6 +325,7 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
         add_source_sheet=bool(payload.get("add_source_sheet", False)),
         include_hidden_sheets=bool(payload.get("include_hidden_sheets", False)),
         header_overrides=_header_overrides(payload),
+        excluded_sheets=_excluded_sheets(payload),
     )
     logs: list[str] = []
     result = service.merge_excel(options, logs.append)
@@ -335,12 +336,12 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
         "skipped_count": result.skipped_count,
         "warnings": result.warnings[-30:],
         "logs": logs[-20:],
-        "popup": _excel_merge_popup(service, mode, result),
+        "popup": _excel_merge_popup(service, mode, result, len(options.excluded_sheets)),
     }
 
 
 def _header_overrides(payload: dict[str, Any]) -> dict:
-    """화면에서 직접 고친 헤더 행: [{file, sheet, header_row}] → {(file, sheet): row}"""
+    """화면에서 직접 고친 항목명 줄: [{file, sheet, header_row}] → {(file, sheet): row}"""
     result = {}
     for item in payload.get("header_overrides") or []:
         try:
@@ -350,13 +351,26 @@ def _header_overrides(payload: dict[str, Any]) -> dict:
     return result
 
 
-def _excel_merge_popup(service, mode: str, result) -> dict[str, str]:
+def _excluded_sheets(payload: dict[str, Any]) -> set:
+    """화면에서 체크를 푼 시트: [{file, sheet}] → {(file, sheet)}"""
+    result = set()
+    for item in payload.get("excluded_sheets") or []:
+        try:
+            result.add((str(Path(str(item["file"])).expanduser().resolve()), str(item["sheet"])))
+        except (KeyError, TypeError):
+            continue
+    return result
+
+
+def _excel_merge_popup(service, mode: str, result, excluded_count: int = 0) -> dict[str, str]:
     what = (
         f"시트 {result.sheet_count}개를 한 파일에 모았습니다."
         if mode == service.MODE_FILES_TO_SHEETS
         else f"데이터 {result.data_row_count:,}행을 시트 {result.sheet_count}개로 병합했습니다."
     )
     lines = [what, f"저장 파일: {result.output_path.name}"]
+    if excluded_count:
+        lines.append(f"체크를 푼 시트 {excluded_count}개는 넣지 않았습니다.")
     lines.append(("✔ " if result.verified else "⚠ ") + (result.verify_message or ""))
     if result.warnings:
         lines.append("")
@@ -383,6 +397,7 @@ def analyze_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
         header_overrides=_header_overrides(payload),
         add_source_file=bool(payload.get("add_source_file", False)),
         add_source_sheet=bool(payload.get("add_source_sheet", False)),
+        excluded_sheets=_excluded_sheets(payload),
     )
     return {"ok": True, "message": "", **info}
 

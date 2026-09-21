@@ -46,6 +46,8 @@ class MergeOptions:
     include_hidden_sheets: bool = False
     # (파일 경로 문자열, 시트 이름) → 헤더 마지막 행 번호(1부터). 화면에서 직접 고친 값.
     header_overrides: dict = field(default_factory=dict)
+    # 병합에서 뺄 시트: {(파일 경로 문자열, 시트 이름)}. 화면에서 체크를 푼 시트.
+    excluded_sheets: set = field(default_factory=set)
 
 
 @dataclass
@@ -251,12 +253,15 @@ def collect_sheet_data(
     include_hidden_sheets: bool = False,
     header_overrides: dict | None = None,
     check_formulas: bool = True,
+    excluded_sheets: set | None = None,
 ) -> list[SheetData]:
     wb_values, _ = load_source_workbook(path, data_only=True)
     collected: list[SheetData] = []
     for ws in wb_values.worksheets:
         hidden = ws.sheet_state != "visible"
         if not include_hidden_sheets and hidden:
+            continue
+        if excluded_sheets and (str(path), ws.title) in excluded_sheets:
             continue
         rows, formats = worksheet_rows_and_formats(ws)
         if not rows:
@@ -583,14 +588,23 @@ def _verify_output(path: Path, expected: dict[str, tuple[int, int]]) -> tuple[bo
 
 # ---------------------------------------------------------------- 병합 실행
 
+def _all_excluded(path: Path, options: MergeOptions) -> bool:
+    """이 파일의 시트를 화면에서 모두 뺐는지. 뺀 파일은 '내용 없음' 경고를 내지 않는다."""
+    return any(key[0] == str(path) for key in options.excluded_sheets)
+
+
 def _collect_all(options: MergeOptions, result: MergeResult, log) -> list[SheetData]:
     sheets: list[SheetData] = []
     for path in options.source_paths:
         try:
-            found = collect_sheet_data(path, options.include_hidden_sheets, options.header_overrides)
+            found = collect_sheet_data(
+                path, options.include_hidden_sheets, options.header_overrides,
+                excluded_sheets=options.excluded_sheets,
+            )
             if not found:
-                result.warnings.append(f"{path.name}: 내용이 있는 시트가 없습니다.")
-                result.skipped_count += 1
+                if not _all_excluded(path, options):
+                    result.warnings.append(f"{path.name}: 내용이 있는 시트가 없습니다.")
+                    result.skipped_count += 1
             sheets.extend(found)
         except Exception as exc:
             result.skipped_count += 1
@@ -662,7 +676,8 @@ def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, 
     for path in options.source_paths:
         try:
             if path.suffix.lower() == ".csv":
-                names = [path.stem]
+                # 불러올 때 붙는 시트 이름과 같게 한다(시트 고르기 키가 맞아야 한다).
+                names = [safe_sheet_title(path.stem)]
             else:
                 wb = load_workbook(path, read_only=True)
                 names = [
@@ -673,6 +688,7 @@ def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, 
             if not names:
                 warnings.append(f"{path.name}: 보이는 시트가 없습니다.")
                 continue
+            names = [name for name in names if (str(path), name) not in options.excluded_sheets]
             for name in names:
                 base = path.stem if len(names) == 1 else f"{path.stem}_{name}"
                 plan.append((path, name, unique_sheet_title(base, used)))
@@ -734,6 +750,9 @@ def merge_excel(options: MergeOptions, log: Callable[[str], None] | None = None)
         if path.resolve() == options.output_path.resolve():
             raise ValueError(f"결과 파일이 원본과 같습니다: {path.name}")
 
+    if options.excluded_sheets and not _files_to_sheets_plan(options)[0]:
+        raise ValueError("병합할 시트를 하나 이상 고르세요.")
+
     options.output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if log:
@@ -779,6 +798,9 @@ def _preview_table(rows: list[list], count: int, max_cols: int = 30, formats: li
     return table
 
 
+PREVIEW_SHEET_ROWS = 60
+
+
 def analyze_merge(
     paths: list[Path],
     mode: str,
@@ -787,17 +809,34 @@ def analyze_merge(
     add_source_file: bool = False,
     add_source_sheet: bool = False,
     preview_rows: int = 15,
+    excluded_sheets: set | None = None,
 ) -> dict:
-    """병합 전에 화면에 보여 줄 정보: 시트별 자동 헤더와 위쪽 행, 결과 미리보기."""
+    """병합 전에 화면에 보여 줄 정보: 시트 목록(뺀 시트 포함), 시트별 자동 항목명 줄과 위쪽 행,
+    결과 미리보기. 결과 미리보기는 뺀 시트를 제외하고 만든다.
+
+    화면이 항목명 줄 번호를 바꾸자마자 색·데이터 행 수를 스스로 다시 그릴 수 있도록
+    위쪽 PREVIEW_SHEET_ROWS 줄과 '앞에서부터 센 빈 줄 아닌 행 수'를 함께 보낸다.
+    """
+    excluded = set(excluded_sheets or ())
     errors = []
     if mode == MODE_FILES_TO_SHEETS:
-        options = MergeOptions(mode, paths, Path("."), include_hidden_sheets=include_hidden_sheets)
-        plan, warnings = _files_to_sheets_plan(options)
+        every = MergeOptions(mode, paths, Path("."), include_hidden_sheets=include_hidden_sheets)
+        all_plan, warnings = _files_to_sheets_plan(every)
+        chosen = MergeOptions(
+            mode, paths, Path("."), include_hidden_sheets=include_hidden_sheets, excluded_sheets=excluded
+        )
+        titles = {(str(p), sname): title for p, sname, title in _files_to_sheets_plan(chosen)[0]}
         return {
             "mode": mode,
             "sheets": [
-                {"file": str(p), "file_name": p.name, "sheet": s, "result_title": t}
-                for p, s, t in plan
+                {
+                    "file": str(p),
+                    "file_name": p.name,
+                    "sheet": sname,
+                    "excluded": (str(p), sname) in excluded,
+                    "result_title": titles.get((str(p), sname), ""),
+                }
+                for p, sname, _ in all_plan
             ],
             "results": [],
             "errors": warnings,
@@ -815,28 +854,39 @@ def analyze_merge(
 
     sheet_infos = []
     for sheet in sheets:
-        show = min(len(sheet.rows), max(10, sheet.header_row + 6))
+        top = min(len(sheet.rows), PREVIEW_SHEET_ROWS)
+        counts = [0]
+        for row in sheet.rows[:top]:
+            counts.append(counts[-1] + (0 if is_empty_row(row) else 1))
         sheet_infos.append({
             "file": str(sheet.file_path),
             "file_name": sheet.file_path.name,
             "sheet": sheet.sheet_name,
             "hidden": sheet.hidden,
+            "excluded": sheet.key in excluded,
             "row_count": len(sheet.rows),
             "data_rows": sum(1 for row in sheet.rows[sheet.header_row:] if not is_empty_row(row)),
+            "filled_total": sum(1 for row in sheet.rows if not is_empty_row(row)),
+            # filled_upto[n] = 1~n행 중 빈 줄 아닌 행 수 (n ≤ 미리보기 줄 수)
+            "filled_upto": counts,
             "header_row": sheet.header_row,
             "auto_header_row": sheet.auto_header_row,
             "missing_formula_values": sheet.missing_formula_values,
-            "preview": _preview_table(sheet.rows, show, formats=sheet.formats),
+            "preview": _preview_table(sheet.rows, top, formats=sheet.formats),
         })
+
+    chosen = [sheet for sheet in sheets if sheet.key not in excluded]
+    if sheets and not chosen:
+        errors.append("병합할 시트를 하나 이상 고르세요.")
 
     groups: list[tuple[str, list[SheetData]]] = []
     if mode == MODE_SAME_SHEETS_TOGETHER:
         by_name: dict[str, list[SheetData]] = {}
-        for sheet in sheets:
+        for sheet in chosen:
             by_name.setdefault(sheet.sheet_name, []).append(sheet)
         groups = list(by_name.items())
-    elif sheets:
-        groups = [("병합", sheets)]
+    elif chosen:
+        groups = [("병합", chosen)]
 
     results = []
     for title, group in groups:
