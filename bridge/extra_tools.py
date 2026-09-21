@@ -31,6 +31,28 @@ def emit_progress(text: Any) -> None:
     print(f"{PROGRESS_PREFIX}{line}", flush=True)
 
 
+def unique_path(path: Path, folder: bool = False) -> Path:
+    """같은 이름이 이미 있으면 '이름(1).확장자', '이름(2).확장자' 처럼 번호를 붙인다.
+    결과물이 기존 파일을 덮어쓰지 않게 한다. folder=True 면 확장자 없이 이름 뒤에 붙인다."""
+    if not path.exists():
+        return path
+    for number in range(1, 10000):
+        if folder:
+            candidate = path.with_name(f"{path.name}({number})")
+        else:
+            candidate = path.with_name(f"{path.stem}({number}){path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"저장할 이름을 정하지 못했습니다: {path.name}")
+
+
+def time_stamp() -> str:
+    """결과 파일 이름에 붙이는 일시. 예: 20260922_1530"""
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y%m%d_%H%M")
+
+
 class FileCancel:
     """중지 신호 파일이 생기면 멈추라고 알리는 물건.
 
@@ -280,14 +302,17 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
     if not sources:
         raise ValueError("병합할 엑셀 파일을 선택하세요.")
 
+    # 저장 위치를 비우거나 폴더만 고르면 '엑셀병합_일시.xlsx' 로 새로 만든다.
+    # 같은 이름을 계속 쓰면 다시 병합할 때마다 앞 결과를 덮어써 버린다.
+    default_name = f"엑셀병합_{time_stamp()}.xlsx"
     output_text = str(payload.get("output") or "").strip()
     output_path = (
         Path(output_text).expanduser().resolve()
         if output_text
-        else sources[0].parent / f"병합_{sources[0].stem}.xlsx"
+        else unique_path(sources[0].parent / default_name)
     )
     if output_path.is_dir():
-        output_path = output_path / f"병합_{sources[0].stem}.xlsx"
+        output_path = unique_path(output_path / default_name)
     if output_path.suffix.lower() != ".xlsx":
         output_path = output_path.with_suffix(".xlsx")
 
@@ -358,7 +383,8 @@ def run_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
     output_folder = (
         Path(output_text).expanduser().resolve()
         if output_text
-        else source.parent / f"{source.stem}_분할"
+        # 다시 분할해도 앞 결과를 덮어쓰지 않게 '이름_분할(1)' 처럼 새 폴더를 만든다.
+        else unique_path(source.parent / f"{source.stem}_분할", folder=True)
     )
     if output_folder.suffix:
         output_folder = output_folder.parent

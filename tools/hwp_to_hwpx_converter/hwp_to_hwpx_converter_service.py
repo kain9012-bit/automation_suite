@@ -333,15 +333,22 @@ def convert_hwp_files_to_hwpx(
         emit()
 
         for index, src_path in enumerate(ordered, start=1):
+            # 같은 이름의 HWPX 가 이미 있으면 덮어쓰지 않고 '이름(1).hwpx' 로 저장한다.
             dst_path = output_hwpx_path(src_path)
-            overwritten = dst_path.exists()
+            renamed = dst_path.exists()
+            if renamed:
+                index = 1
+                while (dst_path.parent / f"{dst_path.stem}({index}).hwpx").exists():
+                    index += 1
+                dst_path = dst_path.parent / f"{dst_path.stem}({index}).hwpx"
+            overwritten = False
 
             set_status(src_path, "변환 중")
             emit(f"[{index}/{len(ordered)}] {src_path.name}")
             emit(f"  - 원본 HWP: {src_path}")
             emit(f"  - 변환 HWPX: {dst_path}")
-            if overwritten:
-                emit("  - 안내: 같은 이름의 HWPX가 있어 덮어씁니다.")
+            if renamed:
+                emit(f"  - 안내: 같은 이름의 HWPX가 있어 {dst_path.name} 로 저장합니다.")
 
             try:
                 convert_hwp_to_hwpx_via_temp(hwp, src_path, dst_path)

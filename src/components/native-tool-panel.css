@@ -263,3 +263,76 @@
 .option-grid > label:has(.path-picker) {
   grid-column: 1 / -1;
 }
+
+/* 드롭다운 대신 펼쳐 보여 주는 선택지 (예: PDF 압축의 목표 방식) */
+.choice-field {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+}
+
+.choice-field > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.choice-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.choice-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+
+.choice-card:hover {
+  border-color: var(--border-hover);
+}
+
+.choice-card strong {
+  font-size: 14px;
+}
+
+.choice-card small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.choice-card.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-secondary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.choice-card.is-active strong {
+  color: var(--accent);
+}
+
+/* 파일 크기 표시 */
+.file-size {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-label .file-size {
+  font-size: 11px;
+}
+
+.size-total {
+  color: var(--accent);
+}

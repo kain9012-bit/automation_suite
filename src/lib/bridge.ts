@@ -66,6 +66,12 @@ export async function revealPath(path: string): Promise<void> {
   return invoke<void>("reveal_path", { path });
 }
 
+/** 파일 크기(바이트). 없는 파일·폴더는 null. 앱 밖(브라우저)에서는 모두 null. */
+export async function fileSizes(paths: string[]): Promise<(number | null)[]> {
+  if (!isTauri() || !paths.length) return paths.map(() => null);
+  return invoke<(number | null)[]>("file_sizes", { paths });
+}
+
 /** 도구가 돌려준 결과에서 열어 볼 만한 경로를 찾는다. */
 export function resultPath(result: Record<string, unknown>): string {
   const direct = result.output ?? result.output_path ?? result.folder;

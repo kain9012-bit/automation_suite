@@ -205,15 +205,20 @@ def compress_to_target(in_fp: Path, out_fp: Path, target_bytes: int, max_tries: 
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def unique_path(path: Path) -> Path:
-    """같은 이름이 이미 있으면 '이름 (2).pdf' 처럼 번호를 붙인다. 기존 파일은 덮어쓰지 않는다."""
+def unique_path(path: Path, folder: bool = False) -> Path:
+    """같은 이름이 이미 있으면 '이름(1).확장자', '이름(2).확장자' 처럼 번호를 붙인다.
+    결과물이 기존 파일을 덮어쓰지 않게 한다. folder=True 면 확장자 없이 이름 뒤에 붙인다."""
     if not path.exists():
         return path
-    for number in range(2, 10000):
-        candidate = path.with_name(f"{path.stem} ({number}){path.suffix}")
+    for number in range(1, 10000):
+        if folder:
+            candidate = path.with_name(f"{path.name}({number})")
+        else:
+            candidate = path.with_name(f"{path.stem}({number}){path.suffix}")
         if not candidate.exists():
             return candidate
     raise RuntimeError(f"저장할 이름을 정하지 못했습니다: {path.name}")
+
 
 
 def compress_group_to_total(
@@ -316,7 +321,7 @@ def compress_group_to_total(
         # 결과 폴더에 원래 이름으로 저장한다.
         stamp = datetime.datetime.now().strftime("%m%d_%H%M")
         target_label = f"{bytes_to_mb(total_bytes):g}".rstrip(".")
-        folder = unique_path(out_root / f"PDF압축_합계{target_label}MB_{stamp}")
+        folder = unique_path(out_root / f"PDF압축_합계{target_label}MB_{stamp}", folder=True)
         folder.mkdir(parents=True, exist_ok=True)
 
         results = []

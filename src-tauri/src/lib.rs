@@ -531,6 +531,21 @@ fn take_context_request() -> Option<Value> {
     Some(json!({ "toolId": taken.0, "paths": taken.1 }))
 }
 
+/// 넣은 파일들의 크기(바이트). 없는 파일이나 폴더는 None.
+/// PDF 용량 압축처럼 크기가 중요한 도구에서 목록 옆에 보여 준다.
+#[tauri::command]
+fn file_sizes(paths: Vec<String>) -> Vec<Option<u64>> {
+    paths
+        .iter()
+        .map(|path| {
+            fs::metadata(path)
+                .ok()
+                .filter(|meta| meta.is_file())
+                .map(|meta| meta.len())
+        })
+        .collect()
+}
+
 /// 작업 결과가 저장된 파일이나 폴더를 탐색기로 연다.
 /// 파일 경로를 주면 그 파일이 든 폴더를 연다.
 #[tauri::command]
@@ -825,6 +840,7 @@ pub fn run() {
             read_tool_html,
             open_tool_in_browser,
             reveal_path,
+            file_sizes,
             list_context_menu,
             set_context_menu,
             clear_context_menus,

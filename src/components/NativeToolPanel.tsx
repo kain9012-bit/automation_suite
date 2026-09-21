@@ -22,7 +22,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { cancelNativeTool, resultPath, revealPath, runNativeTool } from "../lib/bridge";
+import { cancelNativeTool, fileSizes, resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import {
   getToolSchema,
   initialToolOptions,
@@ -36,6 +36,12 @@ import { ResultDialog, readResultPopup, type ResultPopup } from "./ResultDialog"
 type Options = Record<string, string | number | boolean>;
 
 /** 목록에는 파일 이름을 크게 보여주고 전체 경로는 아래에 작게 붙인다. */
+/** 1MB 이상은 MB, 그보다 작으면 KB 로. */
+function formatSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+
 function fileName(path: string) {
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || path;
@@ -63,6 +69,8 @@ export function NativeToolPanel({
   const [done, setDone] = useState("");
   // 작업이 끝나면 결과를 크게 띄우는 창. 도구가 popup 을 돌려줄 때만 쓴다.
   const [popup, setPopup] = useState<ResultPopup | null>(null);
+  // 크기를 보여 주는 도구에서 쓰는 파일별 크기. 한 번 잰 파일은 다시 묻지 않는다.
+  const [sizes, setSizes] = useState<Record<string, number | null>>({});
   // 합치는 순서가 결과를 바꾸는 도구에서만 순서 조작 목록을 쓴다.
   const orderable = schema.orderable === true && schema.multiple;
   // 끌어 옮기는 중인 줄과 지금 가리키고 있는 자리.
@@ -84,6 +92,30 @@ export function NativeToolPanel({
       .catch(() => undefined);
     return () => stop?.();
   }, [tool.id]);
+
+  useEffect(() => {
+    if (!schema.showSizes) return;
+    const missing = inputs.filter((path) => !(path in sizes));
+    if (!missing.length) return;
+    let cancelled = false;
+    void fileSizes(missing)
+      .then((values) => {
+        if (cancelled) return;
+        setSizes((current) => {
+          const next = { ...current };
+          missing.forEach((path, index) => { next[path] = values[index] ?? null; });
+          return next;
+        });
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [inputs, sizes, schema.showSizes]);
+
+  const totalSize = schema.showSizes
+    ? inputs.reduce((sum, path) => sum + (sizes[path] ?? 0), 0)
+    : 0;
+  const sizeOf = (path: string) =>
+    schema.showSizes && typeof sizes[path] === "number" ? formatSize(sizes[path] as number) : "";
 
   // 새 줄이 붙으면 아래로 따라 내린다.
   useEffect(() => {
@@ -391,6 +423,11 @@ export function NativeToolPanel({
               <div className="picked-files-head">
                 <span>
                   <b>{inputs.length}개</b>를 넣었습니다.
+                  {schema.showSizes && totalSize > 0 && (
+                    <>
+                      {" "}합계 <b className="size-total">{formatSize(totalSize)}</b>
+                    </>
+                  )}
                 </span>
                 <button className="link-button" onClick={() => setInputs([])}>
                   <Trash2 size={14} />
@@ -402,6 +439,7 @@ export function NativeToolPanel({
               {inputs.map((path, index) => (
                 <li key={path} title={path}>
                   <span>{fileName(path)}</span>
+                  {!!sizeOf(path) && <em className="file-size">{sizeOf(path)}</em>}
                   <button title="목록에서 빼기" onClick={() => removeInput(index)}>
                     <X size={16} />
                   </button>
@@ -415,7 +453,9 @@ export function NativeToolPanel({
           <div className="ordered-files">
             <div className="ordered-files-head">
               <span className="ordered-files-hint">
-                <b>{inputs.length}개</b> — 위에서부터 이 순서로 합칩니다. 끌어서 옮길 수도 있습니다.
+                <b>{inputs.length}개</b>
+                {schema.showSizes && totalSize > 0 && <> · 합계 <b>{formatSize(totalSize)}</b></>}
+                {" "}— 위에서부터 이 순서로 합칩니다. 끌어서 옮길 수도 있습니다.
               </span>
               <span className="ordered-files-tools">
                 <button
@@ -456,6 +496,7 @@ export function NativeToolPanel({
                   <span className="file-order">{index + 1}</span>
                   <span className="file-label">
                     <b title={path}>{fileName(path)}</b>
+                    {!!sizeOf(path) && <em className="file-size">{sizeOf(path)}</em>}
                   </span>
                   <span className="file-actions">
                     <button
@@ -631,6 +672,32 @@ function OptionField({
   onAction?: () => void;
   onChange: (value: string | number | boolean) => void;
 }) {
+  if (field.type === "select" && field.appearance === "cards") {
+    return (
+      <div className="choice-field">
+        <span>{field.label}</span>
+        <div className="choice-cards" role="radiogroup" aria-label={field.label}>
+          {(field.choices ?? []).map((choice) => {
+            const active = String(value ?? "") === choice.value;
+            return (
+              <button
+                key={choice.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`choice-card ${active ? "is-active" : ""}`}
+                onClick={() => onChange(choice.value)}
+              >
+                <strong>{choice.label}</strong>
+                {choice.hint && <small>{choice.hint}</small>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   if (field.type === "checkbox") {
     return (
       <label className="check-field">

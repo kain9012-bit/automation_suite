@@ -3,6 +3,8 @@ import { extraToolSchemas } from "./toolSchemasExtras";
 export interface Choice {
   label: string;
   value: string;
+  /** 카드 모양 선택지 아래에 붙는 짧은 설명. */
+  hint?: string;
 }
 
 export interface FieldAction {
@@ -20,6 +22,8 @@ export interface ToolField {
   defaultValue?: string | number | boolean;
   placeholder?: string;
   choices?: Choice[];
+  /** "cards": 드롭다운 대신 선택지를 모두 펼쳐 카드로 보여 준다. 어떤 방식이 있는지 한눈에 보이게. */
+  appearance?: "cards";
   /**
    * 칸 옆에 붙는 확인 버튼. 값을 검사한 결과를 작업 기록에 남기고,
    * 돌려받은 `fill`로 다른 칸을 채운다.
@@ -46,6 +50,8 @@ export interface ToolUiSchema {
   cancellable?: boolean;
   /** 끝나면 결과를 팝업으로 크게 알리는 도구. 실패도 팝업으로 알린다. */
   resultPopup?: boolean;
+  /** 넣은 파일마다 크기와 전체 합계를 보여 주는 도구. */
+  showSizes?: boolean;
 }
 
 const defaultSchema: ToolUiSchema = {
@@ -157,6 +163,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     extensions: ["pdf"],
     cancellable: true,
     resultPopup: true,
+    showSizes: true,
     // 파일마다: 비우면 원본 옆에 '이름_압축.pdf'. 전체 합계: 이 폴더 아래 새 폴더에 원래 이름으로.
     outputMode: "folder",
     outputLabel: "저장 폴더",
@@ -165,10 +172,19 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
         key: "target_mode",
         label: "목표 방식",
         type: "select",
+        appearance: "cards",
         defaultValue: "each",
         choices: [
-          { label: "파일마다 목표 용량 이하", value: "each" },
-          { label: "전체 합계를 목표 용량 이하", value: "total" },
+          {
+            label: "파일마다 목표 용량 이하",
+            value: "each",
+            hint: "파일 하나하나를 목표 용량 이하로 줄입니다. 결과: 원본이름_압축.pdf",
+          },
+          {
+            label: "전체 합계를 목표 용량 이하",
+            value: "total",
+            hint: "넣은 파일을 모두 합친 용량을 목표 이하로 맞춥니다. 새 폴더에 원래 이름으로 저장",
+          },
         ],
       },
       {

@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-from extra_tools import EXTRA_HANDLERS, FileCancel, emit_progress
+from extra_tools import EXTRA_HANDLERS, FileCancel, emit_progress, time_stamp, unique_path
 from macro_actions import run_action as run_macro_action
 
 # Windows 기본 코드페이지로 나가면 한글 메시지가 앱에서 깨진다.
@@ -79,7 +79,9 @@ def _output_path(
         output = Path(raw).expanduser().resolve()
     else:
         base = inputs[0] if inputs[0].is_dir() else inputs[0].parent
-        output = base if directory else base / default_name
+        # 기본 이름으로 저장할 때 같은 이름이 있으면 번호를 붙여 덮어쓰지 않는다.
+        # (직접 고른 파일은 저장 창에서 이미 덮어쓸지 물어보므로 그대로 둔다.)
+        output = base if directory else unique_path(base / default_name)
     if directory:
         output.mkdir(parents=True, exist_ok=True)
     else:
@@ -105,7 +107,7 @@ def _success(message: str, **extra: Any) -> dict[str, Any]:
 
 def run_hwp_collector(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
-    output = _output_path(payload, inputs, "한글문서_취합본.hwpx")
+    output = _output_path(payload, inputs, f"한글취합_{time_stamp()}.hwpx")
     service = _module("hwp_collector", "hwp_collector_service")
     service.merge_han_files(inputs, output)
     return _success("한글 문서 취합을 완료했습니다.", output=output)
@@ -113,7 +115,7 @@ def run_hwp_collector(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_multi_format_pdf_combiner(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
-    output = _output_path(payload, inputs, "문서_통합본.pdf")
+    output = _output_path(payload, inputs, f"PDF통합_{time_stamp()}.pdf")
     service = _module(
         "multi_format_pdf_combiner", "multi_format_pdf_combiner_service"
     )

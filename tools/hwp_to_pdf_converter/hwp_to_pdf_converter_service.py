@@ -123,8 +123,14 @@ def convert_with_hancom(input_path: Path, output_path: Path) -> Tuple[bool, str]
 
 
 def build_output_pdf_path(src: Path, output_dir: Path) -> Path:
+    """같은 이름의 PDF 가 이미 있으면 덮어쓰지 않고 '이름(1).pdf' 로 만든다."""
     base = safe_basename(src.stem)
-    return output_dir / f"{base}.pdf"
+    path = output_dir / f"{base}.pdf"
+    index = 1
+    while path.exists():
+        path = output_dir / f"{base}({index}).pdf"
+        index += 1
+    return path
 
 
 def convert_files(file_paths: list[Path], output_dir: Path) -> tuple[list[str], list[tuple[str, str]]]:
