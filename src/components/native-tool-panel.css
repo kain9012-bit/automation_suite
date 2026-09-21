@@ -170,7 +170,7 @@
 .file-order {
   min-width: 20px;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -185,7 +185,7 @@
 .file-label b {
   overflow: hidden;
   color: var(--text);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
   line-height: 1.35;
   overflow-wrap: anywhere;
