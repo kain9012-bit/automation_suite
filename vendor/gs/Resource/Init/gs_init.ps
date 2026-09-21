@@ -1,4 +1,4 @@
-% Copyright (C) 2001-2026 Artifex Software, Inc.
+% Copyright (C) 2001-2025 Artifex Software, Inc.
 % All Rights Reserved.
 %
 % This software is provided AS-IS with no warranty, either express or
@@ -34,7 +34,7 @@
 % Interpreter library version number
 % NOTE: the interpreter code requires that the first non-comment token
 % in this file be an integer, and that it match the compiled-in version!
-10071
+10060
 
 % Check the interpreter revision.
 dup revision ne
@@ -218,6 +218,10 @@ currentdict /SHORTERRORS known   /SHORTERRORS exch def
 currentdict /TTYPAUSE known   /TTYPAUSE exch def
 currentdict /WRITESYSTEMDICT known   /WRITESYSTEMDICT exch def
 currentdict /RENDERTTNOTDEF known /RENDERTTNOTDEF exch def
+currentdict /SCANCONVERTERTYPE known
+{
+  currentdict /SCANCONVERTERTYPE get .setscanconverter
+} if
 
 currentdict /EPSFitPage known { /PSFitPage //true def } if
 % This is a "convenience" option that sets a combination of EPSFitPage, PDFFitPage and PSFitPage
@@ -2313,11 +2317,8 @@ gsave
 <1b45> cvn { } def		% PJL reset prologue (ESC E)
 <1b451b> cvn <1b> cvn load def	% PJL reset epilogue (ESC E + UEL)
 (\001M) cvn			% TBCP initiator
- { (\n!! ERROR !!\n) print
- (In-job PJL tried to select TBCP communications Protocol which is no longer supported.\n) print
- (You must recreate the input file without requiring TBCP support.\n\n) print
- /TBCPDecode /filter /undefined signalerror.
- } odef
+ { currentfile /TBCPDecode filter cvx exec
+ } .internalbind def
 /@PJL				% H-P job control
  {
    % Windows 2000 driver includes PJL into %%BeginFeature block.
@@ -2362,6 +2363,20 @@ readonly def
   //systemdict /SAFERUndefinePostScriptOperators .forceundef
 } .forcebind def % must be bound and hidden for .forceundef
 
+/tempfilepaths
+[
+  (TMPDIR) getenv not
+  {
+    (TEMP) getenv not
+    {
+      (TMP) getenv not
+      {
+        (/temp) (/tmp)
+      } if
+    } if
+  } if
+] def
+
 /.lockfileaccess {
   .currentpathcontrolstate
   {
@@ -2373,6 +2388,7 @@ readonly def
   }
   {
     [
+      //tempfilepaths (*) .generate_dir_list_templates
       /FONTPATH .systemvar (*) .generate_dir_list_templates
       /level2dict where {
           pop
@@ -2386,6 +2402,14 @@ readonly def
       } if
     ] {/PermitFileReading exch .addcontrolpath} forall
 
+    [
+      //tempfilepaths (*) .generate_dir_list_templates
+    ] {/PermitFileWriting exch .addcontrolpath} forall
+
+    [
+      //tempfilepaths (*) .generate_dir_list_templates
+    ] {/PermitFileControl exch .addcontrolpath} forall
+
     .activatepathcontrol
   } ifelse
 } .internalbind def
@@ -2395,6 +2419,7 @@ readonly def
     <<
       /PermitFileReading [
         currentuserparams /PermitFileReading get aload pop
+        //tempfilepaths (*) .generate_dir_list_templates
         /FONTPATH .systemvar (*) .generate_dir_list_templates
           % Library files :
         /LIBPATH  .systemvar (*) .generate_dir_list_templates
@@ -2414,12 +2439,21 @@ readonly def
           .generate_dir_list_templates
         } if
       ]
+      /PermitFileWriting [
+          currentuserparams /PermitFileWriting get aload pop
+          //tempfilepaths (*) .generate_dir_list_templates
+      ]
+      /PermitFileControl [
+          currentuserparams /PermitFileControl get aload pop
+          //tempfilepaths (*) .generate_dir_list_templates
+      ]
       /LockFilePermissions //true
     >> setuserparams
   }
   if
 } .forcebind def
 
+currentdict /tempfilepaths undef
 
 %% --- These are documented extensions ---
 /.locksafe {
@@ -2528,7 +2562,7 @@ currentdict /.locksafeglobal .undef
   /.setdefaultmatrix /.updatematrices /.isprocfilter /.unread /.psstringencode
   /.buildsampledfunction /.isencapfunction /.currentaccuratecurves /.currentcurvejoin /.currentdashadapt /.currentdotlength
   /.currentlimitclamp /.dotorientation /.setaccuratecurves /.setcurvejoin /.setdashadapt /.setdotorientation
-  /.setlimitclamp /.currentscreenlevels /.dashpath /.pathbbox /.identeq /.identne /.tokenexec /.pantonecallback
+  /.setlimitclamp /.currentscreenlevels /.dashpath /.pathbbox /.identeq /.identne /.tokenexec /.forgetsave /.pantonecallback
 
   % Used by our own test suite files
   %/.setdotlength % Bug687720.ps
@@ -2606,7 +2640,6 @@ currentdict /.locksafeglobal .undef
   /.beginpage /.endpage
   /.getpath
   /.confirm /.confirmread
-  /.tempfile
 
   % Used by a free user in the Library of Congress. Apparently this is used to
   % draw a partial page, which is then filled in by the results of a barcode
@@ -2627,7 +2660,7 @@ currentdict /.locksafeglobal .undef
   %/.buildfont32 /.buildfont42 /.swapcolors
   %/currentdevice  /.quit /.setuseciecolor /.needinput /.setoverprintmode /.special_op /.dicttomark /.knownget
   %/.FAPIBuildGlyph /.FAPIBuildChar /.FAPIBuildGlyph9
-  %/.max /.min /.setglobal
+  %/.tempfile /.max /.min /.setglobal
   %/.setdebug /.mementolistnewblocks /getenv
   ]
   {systemdict exch .forceundef} forall

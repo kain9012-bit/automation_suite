@@ -3,24 +3,25 @@
 %   C:/WINDOWS/Fonts
 
 % Substitutions
-/GulimChe << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
-/Gulim << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
-/DotumChe << /SubfontID 3 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
-/NSimSun << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] >> ;
-/Batang << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
-/BatangChe << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
-/Dotum << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] >> ;
-/GungsuhChe << /SubfontID 3 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
-/MalgunGothicRegular << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/malgun.ttf) /CSI [(Korea1) 3] >> ;
-/MS-PGothic << /SubfontID 1 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
-/SimSun << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] >> ;
-/NewGulim << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/ngulim.ttf) /CSI [(Korea1) 3] >> ;
-/MalgunGothicBold << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/malgunbd.ttf) /CSI [(Korea1) 3] >> ;
-/Gungsuh << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] >> ;
-/MS-Gothic << /SubfontID 0 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
-/MS-UI-Gothic << /SubfontID 2 /FileType /TrueType /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] >> ;
+/GulimChe << /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] /SubfontID 1 /FileType /TrueType >> ;
+/Gulim << /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/GungsuhChe << /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] /SubfontID 3 /FileType /TrueType >> ;
+/Batang << /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/MalgunGothicBold << /Path (C:/WINDOWS/Fonts/malgunbd.ttf) /CSI [(Korea1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/Gungsuh << /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] /SubfontID 2 /FileType /TrueType >> ;
+/MS-UI-Gothic << /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] /SubfontID 2 /FileType /TrueType >> ;
+/MalgunGothicRegular << /Path (C:/WINDOWS/Fonts/malgun.ttf) /CSI [(Korea1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/SimSun << /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] /SubfontID 0 /FileType /TrueType >> ;
+/NewGulim << /Path (C:/WINDOWS/Fonts/ngulim.ttf) /CSI [(Korea1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/DotumChe << /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] /SubfontID 3 /FileType /TrueType >> ;
+/NSimSun << /Path (C:/WINDOWS/Fonts/simsun.ttc) /CSI [(GB1) 2] /SubfontID 1 /FileType /TrueType >> ;
+/BatangChe << /Path (C:/WINDOWS/Fonts/batang.ttc) /CSI [(Korea1) 3] /SubfontID 1 /FileType /TrueType >> ;
+/MS-Gothic << /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] /SubfontID 0 /FileType /TrueType >> ;
+/Dotum << /Path (C:/WINDOWS/Fonts/gulim.ttc) /CSI [(Korea1) 3] /SubfontID 2 /FileType /TrueType >> ;
+/MS-PGothic << /Path (C:/WINDOWS/Fonts/msgothic.ttc) /CSI [(Japan1) 3] /SubfontID 1 /FileType /TrueType >> ;
 
 % Aliases
+/AdobeMyungjoStd-Medium /Batang ;
 /STSong-Light /SimSun ;
 /AdobeSongStd-Light /SimSun ;
 /HYRGoThic-Medium /Gulim ;
@@ -29,4 +30,3 @@
 /HYSMyeongJo-Medium /Batang ;
 /HYGoThic-Medium /Dotum ;
 /HeiseiKakuGo-W5 /MS-Gothic ;
-/AdobeMyungjoStd-Medium /Batang ;

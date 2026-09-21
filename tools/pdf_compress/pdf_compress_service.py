@@ -96,6 +96,9 @@ def safe_output_path(in_fp: Path, target_mb: float) -> Path:
     return in_fp.with_name(out_name)
 
 
+_GS_CONTENT_ERROR = "error executing PDF token"
+
+
 def run_gs_compress(gs: str, in_fp: Path, out_fp: Path, preset: str, dpi: int) -> None:
     creationflags = 0
     if os.name == "nt":
@@ -125,16 +128,38 @@ def run_gs_compress(gs: str, in_fp: Path, out_fp: Path, preset: str, dpi: int) -
         str(in_fp),
     ]
 
-    cp = subprocess.run(args, capture_output=True, text=True, creationflags=creationflags)
-    if cp.returncode != 0:
-        err = (cp.stderr or "").strip()
-        out = (cp.stdout or "").strip()
-        raise RuntimeError(f"Ghostscript 실패 (code={cp.returncode})\n\nSTDERR:\n{err}\n\nSTDOUT:\n{out}")
+    def _run(extra: List[str]) -> Tuple[int, str]:
+        cp = subprocess.run(args[:-2] + extra + args[-2:], capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", creationflags=creationflags)
+        return cp.returncode, ((cp.stderr or "") + "\n" + (cp.stdout or "")).strip()
+
+    code, log = _run([])
+    if code != 0:
+        raise RuntimeError(f"Ghostscript 실패 (code={code})\n\n{log}")
+
+    # Ghostscript 는 페이지 내용 처리 중 오류가 나도 종료 코드 0 으로 끝내고
+    # 그 뒤 내용을 빼 버린 PDF 를 만든다. 로그로 확인해 색 변환 없이 다시 시도하고,
+    # 그래도 안 되면 망가진 파일을 결과로 내지 않는다.
+    if _GS_CONTENT_ERROR in log:
+        code, log = _run(["-sColorConversionStrategy=LeaveColorUnchanged"])
+        if code != 0 or _GS_CONTENT_ERROR in log:
+            try:
+                out_fp.unlink()
+            except Exception:
+                pass
+            raise RuntimeError("Ghostscript 가 이 PDF 의 일부 내용을 처리하지 못해 압축을 중단했습니다.\n\n" + log[-1500:])
 
 
 def compress_to_target(gs: str, in_fp: Path, out_fp: Path, target_bytes: int, max_tries: int) -> Tuple[int, bool]:
     presets = ["/ebook", "/screen"]
     dpis = [200, 170, 150, 130, 120, 110, 100, 90, 80]
+
+    # 원본이 이미 목표 이하이면 다시 압축하지 않고 그대로 복사한다.
+    in_size = in_fp.stat().st_size
+    if in_size <= target_bytes:
+        if in_fp.resolve() != out_fp.resolve():
+            shutil.copyfile(in_fp, out_fp)
+        return in_size, True
 
     tries = 0
     last_size = -1

@@ -8,7 +8,7 @@
   "description": "목표 용량 이하가 될 때까지 Ghostscript로 PDF를 자동 압축합니다.",
   "order": 50,
   "enabled": true,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "keywords": [],
   "context_menu": {
     "targets": ["pdf"],
