@@ -1,5 +1,4 @@
 import {
-  ArrowUpRight,
   Code2,
   FileSpreadsheet,
   FileText,
@@ -71,14 +70,29 @@ export function ToolGrid({
                 className="tool-card stagger-item"
                 style={{ animationDelay: `${Math.min(index, 10) * 25}ms` }}
                 key={tool.id}
-                onDoubleClick={() => onOpen(tool)}
+                // 카드 어디를 눌러도 바로 연다. 키보드로는 Tab 으로 옮겨 Enter/Space.
+                role="button"
+                tabIndex={0}
+                title={`${tool.name} 열기`}
+                onClick={() => onOpen(tool)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpen(tool);
+                  }
+                }}
               >
                 <div className={`tool-icon type-${tool.type}`}>
                   <ToolGlyph tool={tool} />
                 </div>
                 <button
                   className={`favorite-button ${favorite ? "is-active" : ""}`}
-                  onClick={() => onToggleFavorite(tool.id)}
+                  onClick={(event) => {
+                    // 별을 눌렀을 때 카드가 같이 열리지 않게 한다.
+                    event.stopPropagation();
+                    onToggleFavorite(tool.id);
+                  }}
                   aria-label={
                     favorite ? "즐겨찾기에서 제거" : "즐겨찾기에 추가"
                   }
@@ -94,10 +108,6 @@ export function ToolGrid({
                   <h3>{tool.name}</h3>
                   <p>{tool.description || "업무 자동화 도구"}</p>
                 </div>
-                <button className="open-tool" onClick={() => onOpen(tool)}>
-                  열기
-                  <ArrowUpRight size={15} />
-                </button>
               </article>
             );
           })}
