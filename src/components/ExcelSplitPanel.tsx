@@ -8,6 +8,7 @@ import {
   Play,
   RotateCw,
   ShieldCheck,
+  RotateCcw,
 } from "lucide-react";
 import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
@@ -36,7 +37,13 @@ const MODE_HINTS: Record<Mode, string> = {
   column: "기준 열의 값이 같은 행끼리 모아 파일을 만듭니다.",
 };
 
-export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
+export function ExcelSplitPanel({
+  tool,
+  onReset,
+}: {
+  tool: ToolManifest;
+  onReset?: () => void;
+}) {
   const [source, setSource] = useState("");
   const [output, setOutput] = useState("");
   const [sheets, setSheets] = useState<SheetInfo[]>([]);
@@ -374,6 +381,17 @@ export function ExcelSplitPanel({ tool }: { tool: ToolManifest }) {
           </section>
 
       <div className="run-row">
+        {onReset && (
+          <button
+            className="secondary-button"
+            onClick={onReset}
+            disabled={running}
+            title="넣은 파일과 설정을 모두 지우고 처음 상태로 돌아갑니다."
+          >
+            <RotateCcw size={15} />
+            초기화
+          </button>
+        )}
         <button className="primary-button" onClick={() => void run()} disabled={running || !source}>
           {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
           {running ? "처리 중" : "분할 실행"}

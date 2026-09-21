@@ -46,6 +46,13 @@ export default function App() {
   const registry = useTools();
   const updater = useAutoUpdater(registry.refresh);
   const [view, setView] = useState<View>({ kind: "home" });
+  // 도구 화면의 초기화 버튼. 화면을 새로 만들어 넣은 파일·설정·기록을 모두 비운다.
+  // 탐색기 우클릭으로 받아 온 파일도 지운다.
+  const [toolResetKey, setToolResetKey] = useState(0);
+  const resetTool = () => {
+    setView((current) => (current.kind === "tool" ? { kind: "tool", tool: current.tool } : current));
+    setToolResetKey((key) => key + 1);
+  };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dark, setDark] = useState(
     () => localStorage.getItem("jbedu-suite:theme") === "dark",
@@ -247,12 +254,19 @@ export default function App() {
       }
       // 일부 도구는 파일을 먼저 읽어 선택지를 만들어야 해서 전용 화면을 쓴다.
       if (view.tool.id === "excel_split") {
-        return <ExcelSplitPanel tool={view.tool} />;
+        return <ExcelSplitPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
       if (view.tool.id === "pdf_page_organizer") {
-        return <PdfOrganizerPanel tool={view.tool} />;
+        return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
-      return <NativeToolPanel tool={view.tool} presetPaths={view.presetPaths} />;
+      return (
+        <NativeToolPanel
+          key={`${view.tool.id}-${toolResetKey}`}
+          tool={view.tool}
+          presetPaths={view.presetPaths}
+          onReset={resetTool}
+        />
+      );
     }
     if (view.kind === "home") {
       return (

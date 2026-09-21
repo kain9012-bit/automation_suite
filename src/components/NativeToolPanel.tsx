@@ -19,6 +19,7 @@ import {
   Trash2,
   TriangleAlert,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { cancelNativeTool, resultPath, revealPath, runNativeTool } from "../lib/bridge";
@@ -30,6 +31,7 @@ import {
 import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
 import "./native-tool-panel.css";
+import { ResultDialog, readResultPopup, type ResultPopup } from "./ResultDialog";
 
 type Options = Record<string, string | number | boolean>;
 
@@ -43,9 +45,12 @@ export function NativeToolPanel({
   tool,
   // 탐색기 우클릭으로 열렸을 때 이미 정해진 처리 대상.
   presetPaths,
+  // 초기화: 넣은 파일·설정·기록을 모두 지우고 처음 들어온 상태로 되돌린다.
+  onReset,
 }: {
   tool: ToolManifest;
   presetPaths?: string[];
+  onReset?: () => void;
 }) {
   const schema = useMemo(() => getToolSchema(tool.id), [tool.id]);
   const [inputs, setInputs] = useState<string[]>([]);
@@ -56,6 +61,8 @@ export function NativeToolPanel({
   const [log, setLog] = useState<string[]>([]);
   // 작업이 끝난 뒤 결과를 바로 열어 볼 수 있도록 저장 경로를 기억한다.
   const [done, setDone] = useState("");
+  // 작업이 끝나면 결과를 크게 띄우는 창. 도구가 popup 을 돌려줄 때만 쓴다.
+  const [popup, setPopup] = useState<ResultPopup | null>(null);
   // 합치는 순서가 결과를 바꾸는 도구에서만 순서 조작 목록을 쓴다.
   const orderable = schema.orderable === true && schema.multiple;
   // 끌어 옮기는 중인 줄과 지금 가리키고 있는 자리.
@@ -322,11 +329,14 @@ export function NativeToolPanel({
         String(result.message ?? "작업이 완료되었습니다."),
         saved ? `저장 위치: ${saved}` : "",
       ].filter(Boolean));
+      const resultPopup = readResultPopup((result as { popup?: unknown }).popup);
+      if (resultPopup) setPopup(resultPopup);
     } catch (reason) {
-      setLog((current) => [
-        ...current,
-        `실패: ${reason instanceof Error ? reason.message : String(reason)}`,
-      ]);
+      const message = reason instanceof Error ? reason.message : String(reason);
+      setLog((current) => [...current, `실패: ${message}`]);
+      if (schema.resultPopup) {
+        setPopup({ level: "error", title: "작업을 마치지 못했습니다", message });
+      }
     } finally {
       setRunning(false);
       setStopping(false);
@@ -522,6 +532,17 @@ export function NativeToolPanel({
       )}
 
       <div className="run-row">
+        {onReset && (
+          <button
+            className="secondary-button"
+            onClick={onReset}
+            disabled={running}
+            title="넣은 파일과 설정을 모두 지우고 처음 상태로 돌아갑니다."
+          >
+            <RotateCcw size={15} />
+            초기화
+          </button>
+        )}
         <button
           className="primary-button"
           onClick={run}
@@ -562,6 +583,14 @@ export function NativeToolPanel({
         </div>
         <pre ref={logRef}>{log.length ? log.join("\n") : "아직 실행한 작업이 없습니다."}</pre>
       </section>
+
+      {popup && (
+        <ResultDialog
+          popup={popup}
+          onClose={() => setPopup(null)}
+          onReveal={done ? () => void revealPath(done).catch(() => undefined) : undefined}
+        />
+      )}
     </div>
   );
 }

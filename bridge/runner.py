@@ -356,10 +356,42 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
         )
         outputs.append({
             "path": output,
+            "name": input_path.name,
+            "original_mb": round(input_path.stat().st_size / (1024 * 1024), 2),
             "size_mb": round(size / (1024 * 1024), 2),
             "target_achieved": achieved,
         })
-    return _success(f"PDF {len(outputs)}개를 압축했습니다.", outputs=outputs)
+    return _success(
+        f"PDF {len(outputs)}개를 압축했습니다.",
+        outputs=outputs,
+        popup=_pdf_compress_popup(outputs, target_mb),
+    )
+
+
+def _pdf_compress_popup(outputs: list[dict[str, Any]], target_mb: float) -> dict[str, str]:
+    """압축 결과를 화면 팝업으로 알릴 문구. 목표를 못 맞춘 파일이 있으면 경고로 띄운다."""
+    lines = []
+    for item in outputs:
+        mark = "달성" if item["target_achieved"] else "미달"
+        lines.append(
+            f"· {item['name']}\n   {item['original_mb']:.2f}MB → {item['size_mb']:.2f}MB ({mark})"
+        )
+    missed = [item for item in outputs if not item["target_achieved"]]
+    if not missed:
+        return {
+            "level": "success",
+            "title": "압축에 성공했습니다",
+            "message": f"목표 {target_mb:g}MB 이하로 줄였습니다.\n\n" + "\n".join(lines),
+        }
+    return {
+        "level": "warning",
+        "title": "목표 용량까지 줄이지 못했습니다",
+        "message": (
+            f"{len(outputs)}개 중 {len(missed)}개가 목표 {target_mb:g}MB 보다 큽니다.\n"
+            "사진이 적고 글자·도형 위주인 파일은 더 줄일 수 없어, 가장 작게 만든 결과를 저장했습니다.\n\n"
+            + "\n".join(lines)
+        ),
+    }
 
 
 HANDLERS = {

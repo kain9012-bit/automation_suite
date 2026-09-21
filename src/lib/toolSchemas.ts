@@ -44,6 +44,8 @@ export interface ToolUiSchema {
   orderable?: boolean;
   /** 실행 중에 중지할 수 있는 도구. 하던 항목까지 마치고 결과를 저장한 뒤 멈춘다. */
   cancellable?: boolean;
+  /** 끝나면 결과를 팝업으로 크게 알리는 도구. 실패도 팝업으로 알린다. */
+  resultPopup?: boolean;
 }
 
 const defaultSchema: ToolUiSchema = {
@@ -153,6 +155,8 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
   },
   pdf_compress: {
     extensions: ["pdf"],
+    cancellable: true,
+    resultPopup: true,
     outputLabel: "압축 PDF 파일",
     outputExtension: "pdf",
     fields: [

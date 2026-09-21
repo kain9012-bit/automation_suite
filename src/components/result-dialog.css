@@ -1,0 +1,69 @@
+.result-dialog-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 28, 46, 0.45);
+}
+
+.result-dialog {
+  --tone: var(--accent);
+  width: min(460px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  padding: 26px 26px 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 24px 70px rgba(0, 32, 64, 0.28);
+  text-align: center;
+}
+
+.result-dialog.is-success { --tone: #15803d; }
+.result-dialog.is-warning { --tone: var(--warning); }
+.result-dialog.is-error { --tone: var(--error); }
+
+.result-dialog-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+  color: var(--tone);
+}
+
+.result-dialog h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: var(--tone);
+}
+
+.result-dialog-message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  font-size: 15px;
+  line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.result-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.result-dialog-actions .primary-button {
+  min-width: 96px;
+  justify-content: center;
+}

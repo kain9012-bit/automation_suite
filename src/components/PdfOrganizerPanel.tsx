@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { FileInput, FolderOpen, LoaderCircle, Play, ShieldCheck } from "lucide-react";
+import { FileInput, FolderOpen, LoaderCircle, Play, RotateCcw, ShieldCheck } from "lucide-react";
 import { resultPath, revealPath, runNativeTool } from "../lib/bridge";
 import { filterByExtension, useFileDrop } from "../hooks/useFileDrop";
 import type { ToolManifest } from "../types";
@@ -39,7 +39,13 @@ const MODES: Record<Action, { id: string; label: string; spec?: string }[]> = {
   ],
 };
 
-export function PdfOrganizerPanel({ tool }: { tool: ToolManifest }) {
+export function PdfOrganizerPanel({
+  tool,
+  onReset,
+}: {
+  tool: ToolManifest;
+  onReset?: () => void;
+}) {
   const [source, setSource] = useState("");
   const [output, setOutput] = useState("");
   const [action, setAction] = useState<Action>("extract");
@@ -267,6 +273,17 @@ export function PdfOrganizerPanel({ tool }: { tool: ToolManifest }) {
       </section>
 
       <div className="run-row">
+        {onReset && (
+          <button
+            className="secondary-button"
+            onClick={onReset}
+            disabled={running}
+            title="넣은 파일과 설정을 모두 지우고 처음 상태로 돌아갑니다."
+          >
+            <RotateCcw size={15} />
+            초기화
+          </button>
+        )}
         <button className="primary-button" onClick={() => void run()} disabled={running || !source}>
           {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
           {running ? "처리 중" : "작업 실행"}
