@@ -17,6 +17,7 @@ import { HtmlToolView } from "./components/HtmlToolView";
 import { NativeToolPanel } from "./components/NativeToolPanel";
 import { ExcelSplitPanel } from "./components/ExcelSplitPanel";
 import { PdfOrganizerPanel } from "./components/PdfOrganizerPanel";
+import { ExcelMergePanel } from "./components/ExcelMergePanel";
 import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -255,6 +256,10 @@ export default function App() {
       // 일부 도구는 파일을 먼저 읽어 선택지를 만들어야 해서 전용 화면을 쓴다.
       if (view.tool.id === "excel_split") {
         return <ExcelSplitPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
+      }
+      // 엑셀 병합: 시트별 헤더 확인과 결과 미리보기를 보여 주는 전용 화면.
+      if (view.tool.id === "excel_merge") {
+        return <ExcelMergePanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
       }
       if (view.tool.id === "pdf_page_organizer") {
         return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;

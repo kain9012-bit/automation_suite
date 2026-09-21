@@ -324,6 +324,7 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
         add_source_file=bool(payload.get("add_source_file", False)),
         add_source_sheet=bool(payload.get("add_source_sheet", False)),
         include_hidden_sheets=bool(payload.get("include_hidden_sheets", False)),
+        header_overrides=_header_overrides(payload),
     )
     logs: list[str] = []
     result = service.merge_excel(options, logs.append)
@@ -332,9 +333,58 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
         "message": f"시트 {result.sheet_count}개, 데이터 {result.data_row_count}행을 병합했습니다.",
         "output": str(result.output_path),
         "skipped_count": result.skipped_count,
-        "warnings": result.warnings[-10:],
+        "warnings": result.warnings[-30:],
         "logs": logs[-20:],
+        "popup": _excel_merge_popup(service, mode, result),
     }
+
+
+def _header_overrides(payload: dict[str, Any]) -> dict:
+    """화면에서 직접 고친 헤더 행: [{file, sheet, header_row}] → {(file, sheet): row}"""
+    result = {}
+    for item in payload.get("header_overrides") or []:
+        try:
+            result[(str(Path(str(item["file"])).expanduser().resolve()), str(item["sheet"]))] = int(item["header_row"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return result
+
+
+def _excel_merge_popup(service, mode: str, result) -> dict[str, str]:
+    what = (
+        f"시트 {result.sheet_count}개를 한 파일에 모았습니다."
+        if mode == service.MODE_FILES_TO_SHEETS
+        else f"데이터 {result.data_row_count:,}행을 시트 {result.sheet_count}개로 병합했습니다."
+    )
+    lines = [what, f"저장 파일: {result.output_path.name}"]
+    lines.append(("✔ " if result.verified else "⚠ ") + (result.verify_message or ""))
+    if result.warnings:
+        lines.append("")
+        lines.append("확인할 점")
+        lines.extend(f"· {text}" for text in result.warnings[:12])
+        if len(result.warnings) > 12:
+            lines.append(f"· 외 {len(result.warnings) - 12}건")
+    problem = (not result.verified) or result.skipped_count > 0
+    return {
+        "level": "warning" if problem or result.warnings else "success",
+        "title": "엑셀 병합을 마쳤습니다" if not problem else "엑셀 병합을 마쳤지만 확인이 필요합니다",
+        "message": "\n".join(lines),
+    }
+
+
+def analyze_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
+    """병합 전에 화면에 보여 줄 시트별 자동 헤더·위쪽 행·결과 미리보기. 파일은 만들지 않는다."""
+    service = _module("excel_merge", "excel_merge_service")
+    sources = [path for path in _paths(payload) if path.is_file()]
+    info = service.analyze_merge(
+        sources,
+        str(payload.get("mode") or service.MODE_FILES_TO_SHEETS),
+        include_hidden_sheets=bool(payload.get("include_hidden_sheets", False)),
+        header_overrides=_header_overrides(payload),
+        add_source_file=bool(payload.get("add_source_file", False)),
+        add_source_sheet=bool(payload.get("add_source_sheet", False)),
+    )
+    return {"ok": True, "message": "", **info}
 
 
 def analyze_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
@@ -416,6 +466,7 @@ EXTRA_HANDLERS = {
     "certificate_pdf_splitter": run_certificate_splitter,
     "empty_folder_cleaner": run_empty_folder_cleaner,
     "excel_merge": run_excel_merge,
+    "excel_merge__analyze": analyze_excel_merge,
     "excel_split": run_excel_split,
     "excel_split__analyze": analyze_excel_split,
     "homepage_post_collector": run_homepage_collector,
