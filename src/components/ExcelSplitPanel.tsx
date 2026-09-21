@@ -277,7 +277,7 @@ export function ExcelSplitPanel({
               </label>
 
               <label>
-                <span>헤더 행</span>
+                <span>항목명 줄 (몇 번째 줄)</span>
                 <div className="field-inline">
                   <input
                     type="number"
@@ -367,7 +367,7 @@ export function ExcelSplitPanel({
               </div>
             </div>
             <p className="split-hint">
-              앞쪽 30행까지만 보여 줍니다. 파란 줄이 헤더 행으로 잡힌 위치입니다.
+              앞쪽 30행까지만 보여 줍니다. 파란 줄이 항목명 줄(칸 이름이 적힌 줄)로 잡힌 위치입니다.
             </p>
             {preview.length ? (
               <div className="preview-wrap">

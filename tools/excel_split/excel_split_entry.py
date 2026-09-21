@@ -275,12 +275,12 @@ class ExcelSplitPage(QWidget):
         self.sheet_combo.currentTextChanged.connect(self.on_sheet_changed)
         option_layout.addWidget(self.sheet_combo, 0, 1, 1, 3)
 
-        self.chk_auto_header = QCheckBox("헤더 행 자동 감지")
+        self.chk_auto_header = QCheckBox("항목명 줄 자동 찾기")
         self.chk_auto_header.setChecked(True)
         self.chk_auto_header.stateChanged.connect(self.apply_auto_header)
         option_layout.addWidget(self.chk_auto_header, 1, 0, 1, 2)
 
-        option_layout.addWidget(QLabel("헤더 행"), 1, 2)
+        option_layout.addWidget(QLabel("항목명 줄"), 1, 2)
         self.header_spin = QSpinBox()
         self.header_spin.setRange(1, 100000)
         self.header_spin.setValue(1)

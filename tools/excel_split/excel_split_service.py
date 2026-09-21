@@ -298,7 +298,7 @@ def split_by_chunk(options: SplitOptions, log: Callable[[str], None] | None = No
     rows_per_file = max(1, options.rows_per_file)
     last_row = ws.max_row or header_row
     if last_row <= header_row:
-        result.errors.append("헤더 아래에 데이터 행이 없습니다.")
+        result.errors.append("항목명 줄 아래에 데이터 행이 없습니다.")
         return result
 
     data_start = header_row + 1
