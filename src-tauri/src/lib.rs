@@ -99,12 +99,17 @@ fn tool_roots(app: &AppHandle) -> Vec<(PathBuf, &'static str)> {
         }
     }
 
-    let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("tools");
-    if let Some(path) = canonical_if_dir(dev_root) {
-        roots.push((path, "builtin"));
+    // 소스의 tools 폴더는 개발 중에만 본다. 이 경로는 빌드할 때 문자열로 박히므로,
+    // 설치본이 이걸 보면 그 PC에서만 다른 도구 코드가 돈다. bridge/runner.py 와
+    // 같은 함정이고, 실제로 그 때문에 남들에게만 나는 문제를 오래 못 봤다.
+    if cfg!(debug_assertions) {
+        let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("tools");
+        if let Some(path) = canonical_if_dir(dev_root) {
+            roots.push((path, "builtin"));
+        }
     }
 
     roots

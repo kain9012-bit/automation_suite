@@ -69,21 +69,64 @@ def action_page_break(hwp):
     run_action(hwp, "BreakPage")
 
 
+def _set_param_path(ps, path: str):
+    """파라미터 개체에 파일 경로를 넣는다. 넣었으면 (True, 시도기록, 가진이름들).
+
+    타입 라이브러리로 만들어진 개체(이른 바인딩)는 속성 이름의 대소문자를 가린다.
+    같은 한글이라도 늦은 바인딩이면 안 가린다. 실습장에서는 되고 다른 PC에서는
+    안 되던 것이 이 차이 때문이었다. 그래서 이름을 찍어 맞추지 않고, 개체가
+    실제로 가진 이름을 읽어 대소문자를 무시하고 고른다.
+    """
+    available = []
+    try:
+        available.extend(getattr(ps, "_prop_map_put_", {}).keys())
+    except Exception:
+        pass
+    if not available:
+        try:
+            available = [n for n in dir(ps) if not n.startswith("_")]
+        except Exception:
+            available = []
+
+    lookup = {}
+    for name in available:
+        lookup.setdefault(name.lower(), name)
+
+    order = []
+    for want in ("filename", "fullname", "path", "name"):
+        real = lookup.get(want)
+        if real and real not in order:
+            order.append(real)
+    # 이름 목록을 못 읽었을 때를 위해 흔한 표기도 뒤에 붙인다.
+    for fallback in ("filename", "FileName", "Filename", "FullName", "Path", "Name"):
+        if fallback not in order:
+            order.append(fallback)
+
+    tried = []
+    for name in order:
+        try:
+            setattr(ps, name, path)
+            return True, tried, available
+        except Exception as error:
+            tried.append(f"{name}: {type(error).__name__}: {error}")
+
+    return False, tried, available
+
+
 def action_insert_file(hwp, path: str, keep_section: int = 0):
     try:
         ps = hwp.HParameterSet.HInsertFile
         hwp.HAction.GetDefault("InsertFile", ps.HSet)
 
-        set_ok = False
-        for f in ["FileName", "Filename", "FullName", "Path", "Name"]:
-            try:
-                setattr(ps, f, path)
-                set_ok = True
-                break
-            except Exception:
-                continue
+        set_ok, tried, available = _set_param_path(ps, path)
         if not set_ok:
-            raise RuntimeError("파일 삽입 파라미터에 경로를 설정할 수 없습니다.")
+            detail = "\n".join("  - " + line for line in tried)
+            names = ", ".join(sorted(available)) if available else "(이름을 읽지 못함)"
+            raise RuntimeError(
+                "파일 삽입 파라미터에 경로를 설정할 수 없습니다.\n"
+                f"파라미터 개체가 가진 이름: {names}\n"
+                "시도한 이름과 실제 오류:\n" + detail
+            )
 
         try:
             ps.KeepSection = keep_section
@@ -134,9 +177,11 @@ def merge_han_files(file_paths: list[Path], output_path: str | Path):
         raise ValueError("취합할 파일이 없습니다.")
 
     pythoncom.CoInitialize()
-    hwp = get_hwp_object()
+    hwp = None
 
     try:
+        hwp = get_hwp_object()
+
         try:
             hwp.RegisterModule("FilePathCheckDLL", "SecurityModule")
         except Exception:
@@ -165,7 +210,23 @@ def merge_han_files(file_paths: list[Path], output_path: str | Path):
         action_file_save_as(hwp, str(Path(output_path).resolve()))
 
     finally:
+        # 한글은 COM으로 띄우면 이 함수가 끝나도 프로세스가 살아남는다. 그러면
+        # 취합에 쓴 파일을 계속 붙잡아, 작업이 끝난 뒤에도 그 파일을 지울 수 없다.
+        # CoUninitialize() 는 이쪽 연결만 끊을 뿐 한글을 끄지 않는다.
+        # Clear(1) 로 저장 여부를 묻지 않고 문서를 비운 뒤 Quit() 으로 끝낸다.
+        # 다형식 PDF 통합의 convert_with_hancom 이 쓰는 것과 같은 방식이다.
         try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
+            if hwp is not None:
+                try:
+                    hwp.Clear(1)
+                except Exception:
+                    pass
+                try:
+                    hwp.Quit()
+                except Exception:
+                    pass
+        finally:
+            try:
+                pythoncom.CoUninitialize()
+            except Exception:
+                pass
