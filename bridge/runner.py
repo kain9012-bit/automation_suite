@@ -197,6 +197,9 @@ def run_pdf_page_number(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
+    # 미리보기 편집 화면은 페이지 순서(sequence)를 통째로 넘긴다.
+    if payload.get("sequence") is not None:
+        return _run_pdf_organizer_sequence(payload)
     inputs = _paths(payload)
     if len(inputs) != 1:
         raise ValueError("정리할 PDF 파일 하나를 선택하세요.")
@@ -230,6 +233,55 @@ def run_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
             bool(payload.get("zip_output", False)),
         )
     return _success("PDF 페이지 작업을 완료했습니다.", output=result)
+
+
+def _run_pdf_organizer_sequence(payload: dict[str, Any]) -> dict[str, Any]:
+    sequence = payload.get("sequence") or []
+    if not isinstance(sequence, list) or not sequence:
+        raise ValueError("저장할 페이지가 없습니다.")
+    first = Path(str(sequence[0].get("path") or "")).expanduser().resolve()
+    if not first.exists():
+        raise FileNotFoundError(f"원본 PDF 를 찾을 수 없습니다: {first}")
+    service = _module("pdf_page_organizer", "pdf_page_organizer_service")
+    output_dir = _output_path(payload, [first], "", directory=True)
+    save_mode = str(payload.get("save_mode") or "single")
+    outputs = service.save_sequence(
+        sequence,
+        output_dir,
+        save_mode,
+        int(payload.get("number") or 1),
+        bool(payload.get("zip_output", False)),
+    )
+    pdfs = [path for path in outputs if path.suffix.lower() == ".pdf"]
+    names = "\n".join(f"· {path.name}" for path in outputs[:12])
+    if len(outputs) > 12:
+        names += f"\n· 외 {len(outputs) - 12}개"
+    return _success(
+        f"PDF {len(pdfs)}개를 저장했습니다. ({len(sequence)}쪽)",
+        output=str(output_dir),
+        outputs=[{"path": path} for path in outputs],
+        popup={
+            "level": "success",
+            "title": "PDF를 저장했습니다",
+            "message": f"{len(sequence)}쪽을 PDF {len(pdfs)}개로 저장했습니다.\n저장 폴더: {output_dir}\n\n{names}",
+        },
+    )
+
+
+def load_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
+    inputs = [path for path in _paths(payload) if path.suffix.lower() == ".pdf"]
+    if not inputs:
+        raise ValueError("PDF 파일을 선택하세요.")
+    service = _module("pdf_page_organizer", "pdf_page_organizer_service")
+    documents = service.load_documents(inputs, progress=emit_progress, cancel=FileCancel().is_set)
+    return _success(f"PDF {len(documents)}개를 불러왔습니다.", documents=documents)
+
+
+def preview_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
+    inputs = _paths(payload)
+    service = _module("pdf_page_organizer", "pdf_page_organizer_service")
+    image = service.render_preview(inputs[0], int(payload.get("page") or 0))
+    return _success("", **image)
 
 
 def run_file_inventory(payload: dict[str, Any]) -> dict[str, Any]:
@@ -405,6 +457,8 @@ HANDLERS = {
     "pdf_compress": run_pdf_compress,
     "pdf_page_number_adder": run_pdf_page_number,
     "pdf_page_organizer": run_pdf_organizer,
+    "pdf_page_organizer__load": load_pdf_organizer,
+    "pdf_page_organizer__preview": preview_pdf_organizer,
     "rename_files": run_rename_files,
     "zip_batch_extractor": run_zip_extractor,
 }

@@ -368,3 +368,147 @@ def run_split(pdf_path: Path, output_dir: Path, mode: str, number: int = 0, spec
                 zf.write(f, arcname=f.name)
 
     return outputs
+
+
+# ==========================================================
+# 미리보기 편집 (PyMuPDF)
+# 페이지 그림을 보면서 지우고, 순서를 바꾸고, 돌리고, 여러 PDF 를 섞어 저장한다.
+# ==========================================================
+
+THUMB_LONG_SIDE = 260
+PREVIEW_LONG_SIDE = 1600
+
+
+def _open_pdf(path: Path):
+    import pymupdf
+
+    doc = pymupdf.open(str(path))
+    if doc.needs_pass and not doc.authenticate(""):
+        doc.close()
+        raise ValueError(f"암호가 걸린 PDF 는 열 수 없습니다: {Path(path).name}")
+    return doc
+
+
+def _render_jpeg(page, long_side: int, quality: int) -> dict:
+    """페이지를 긴 변 long_side 픽셀 JPEG 로 그려 data URL 로 돌려준다. 페이지의 원래 회전은 반영된다."""
+    import base64
+
+    import pymupdf
+
+    zoom = long_side / max(page.rect.width, page.rect.height, 1)
+    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+    data = pix.tobytes("jpeg", jpg_quality=quality)
+    return {
+        "image": "data:image/jpeg;base64," + base64.b64encode(data).decode("ascii"),
+        "width": pix.width,
+        "height": pix.height,
+    }
+
+
+def load_documents(paths: list[Path], progress=None, cancel=None) -> list[dict]:
+    """PDF 마다 쪽수와 페이지 미리보기 그림을 만든다."""
+    documents = []
+    for path in paths:
+        doc = _open_pdf(path)
+        try:
+            pages = []
+            total = doc.page_count
+            for index in range(total):
+                if cancel is not None and cancel():
+                    raise RuntimeError("중지 요청으로 불러오기를 멈췄습니다.")
+                pages.append(_render_jpeg(doc[index], THUMB_LONG_SIDE, 72))
+                if progress is not None and (index + 1 == total or (index + 1) % 20 == 0):
+                    progress(f"{path.name}: {index + 1}/{total}쪽 미리보기를 만들었습니다.")
+            documents.append({
+                "path": str(path),
+                "name": path.name,
+                "page_count": total,
+                "pages": pages,
+            })
+        finally:
+            doc.close()
+    return documents
+
+
+def render_preview(path: Path, page_index: int) -> dict:
+    """크게 보기용 그림."""
+    doc = _open_pdf(path)
+    try:
+        if not 0 <= page_index < doc.page_count:
+            raise ValueError(f"{path.name} 에 {page_index + 1}쪽이 없습니다.")
+        return _render_jpeg(doc[page_index], PREVIEW_LONG_SIDE, 85)
+    finally:
+        doc.close()
+
+
+def _sequence_groups(sequence: list[dict], save_mode: str, number: int) -> list[list[dict]]:
+    if save_mode == "each":
+        return [[item] for item in sequence]
+    if save_mode == "every_n":
+        size = max(1, int(number))
+        return [sequence[start:start + size] for start in range(0, len(sequence), size)]
+    return [sequence]
+
+
+def save_sequence(
+    sequence: list[dict],
+    output_dir: Path,
+    save_mode: str = "single",
+    number: int = 1,
+    zip_output: bool = False,
+) -> list[Path]:
+    """화면에서 정한 순서·회전대로 새 PDF 를 만든다.
+
+    sequence 항목: {"path": 원본 PDF, "page": 0부터 센 쪽 번호, "rotate": 더 돌릴 각도(0/90/180/270)}
+    save_mode: single(한 파일) / every_n(N쪽씩) / each(한 쪽씩)
+    """
+    import pymupdf
+
+    if not sequence:
+        raise ValueError("저장할 페이지가 없습니다.")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    first = Path(str(sequence[0]["path"]))
+    stem = _safe_stem(first.stem)
+    groups = _sequence_groups(sequence, save_mode, number)
+
+    sources: dict[str, object] = {}
+    outputs: list[Path] = []
+    try:
+        for group_index, group in enumerate(groups, start=1):
+            out = pymupdf.open()
+            try:
+                for item in group:
+                    key = str(item["path"])
+                    if key not in sources:
+                        sources[key] = _open_pdf(Path(key))
+                    src = sources[key]
+                    page_no = int(item["page"])
+                    if not 0 <= page_no < src.page_count:
+                        raise ValueError(f"{Path(key).name} 에 {page_no + 1}쪽이 없습니다.")
+                    out.insert_pdf(src, from_page=page_no, to_page=page_no)
+                    turn = int(item.get("rotate") or 0) % 360
+                    new_page = out[out.page_count - 1]
+                    new_page.set_rotation((src[page_no].rotation + turn) % 360)
+                if len(groups) == 1:
+                    name = f"{stem}_편집.pdf"
+                else:
+                    name = f"{stem}_분할_{group_index:03d}.pdf"
+                target = build_unique_path(output_dir / name)
+                out.save(str(target), garbage=3, deflate=True)
+                outputs.append(target)
+            finally:
+                out.close()
+    finally:
+        for src in sources.values():
+            try:
+                src.close()
+            except Exception:
+                pass
+
+    if zip_output and len(outputs) > 1:
+        zip_path = build_unique_path(output_dir / f"{stem}_분할.zip")
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in outputs:
+                archive.write(path, arcname=path.name)
+        outputs.append(zip_path)
+    return outputs

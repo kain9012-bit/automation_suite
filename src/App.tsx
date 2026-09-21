@@ -257,7 +257,7 @@ export default function App() {
         return <ExcelSplitPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
       if (view.tool.id === "pdf_page_organizer") {
-        return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
+        return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
       }
       return (
         <NativeToolPanel

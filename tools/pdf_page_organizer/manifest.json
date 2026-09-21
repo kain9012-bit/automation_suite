@@ -5,9 +5,9 @@
   "type": "internal_python",
   "entry": "pdf_page_organizer_entry.py",
   "icon": "",
-  "description": "PDF 페이지 추출, 삭제, 분할, 재배열을 수행합니다.",
+  "description": "PDF 페이지를 미리 보면서 지우고, 순서를 바꾸고, 돌리고, 여러 PDF를 섞어 저장합니다.",
   "order": 60,
   "enabled": true,
-  "version": "2.2.0",
+  "version": "3.0.0",
   "keywords": []
 }

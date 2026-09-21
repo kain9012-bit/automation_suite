@@ -1,0 +1,320 @@
+/* PDF 페이지 정리: 미리보기 편집 */
+
+.po-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.po-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.po-toolbar-group:last-child {
+  margin-left: auto;
+}
+
+.po-danger:not(:disabled) {
+  color: var(--error);
+}
+
+.po-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.po-status strong {
+  color: var(--text);
+}
+
+.po-tip {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.po-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(138px, 1fr));
+  gap: 14px;
+  padding: 14px;
+  min-height: 180px;
+  max-height: 62vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  user-select: none;
+}
+
+.po-grid.is-dropping {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.po-card {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  touch-action: none;
+}
+
+.po-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 6px 16px rgba(0, 32, 64, 0.1);
+}
+
+.po-card.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.po-card.is-dragging {
+  opacity: 0.35;
+}
+
+.po-card.drop-before::before,
+.po-card.drop-after::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.po-card.drop-before::before {
+  left: -10px;
+}
+
+.po-card.drop-after::after {
+  right: -10px;
+}
+
+.po-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--muted);
+}
+
+.po-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease;
+  pointer-events: none;
+}
+
+.po-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.po-number {
+  flex: none;
+  min-width: 24px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.po-source {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.po-card-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.po-card:hover .po-card-actions {
+  opacity: 1;
+}
+
+.po-card-actions button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 32, 51, 0.78);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.po-card-actions button:hover {
+  background: var(--accent);
+}
+
+.po-card-actions .po-delete:hover {
+  background: var(--error);
+}
+
+.po-check {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+/* 크게 보기 */
+.po-viewer {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 72px 1fr 72px;
+  grid-template-rows: auto 1fr;
+  background: rgba(10, 18, 30, 0.88);
+}
+
+.po-viewer-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.po-viewer-bar small {
+  margin-left: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+}
+
+.po-viewer-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.po-viewer-actions button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.po-viewer-actions button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.po-viewer-actions .po-delete:hover {
+  background: var(--error);
+}
+
+.po-viewer-nav {
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.po-viewer-nav:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.po-viewer-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.po-viewer-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 0 24px;
+  overflow: hidden;
+}
+
+.po-viewer-stage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 40px rgba(0, 0, 0, 0.45));
+  transition: transform 0.18s ease;
+}
+
+/* 옆으로 돌린 페이지는 돌리기 전 상자의 가로·세로를 서로 바꿔 두어야 돌린 뒤 화면에 꼭 맞는다. */
+.po-viewer-stage img.is-sideways {
+  position: absolute;
+  top: calc(50% - 12px);
+  left: 50%;
+  width: calc(100vh - 84px);
+  height: calc(100vw - 144px);
+  max-width: none;
+}
+
+.po-viewer-loading {
+  position: absolute;
+  bottom: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 12px;
+}
