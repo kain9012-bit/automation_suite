@@ -63,7 +63,7 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
   {
     id: "workbook_sheets_to_one",
     label: "모든 시트를 한 시트로 합치기",
-    hint: "넣은 모든 파일·모든 시트의 표를 아래로 이어 붙여 한 시트로 만듭니다. 헤더(제목 줄)는 한 번만 남깁니다.",
+    hint: "넣은 모든 파일·모든 시트의 표를 아래로 이어 붙여 한 시트로 만듭니다. 항목명 줄(학교명·학생수처럼 칸 이름이 적힌 줄)은 한 번만 남깁니다.",
   },
   {
     id: "same_sheets_together",
@@ -91,7 +91,7 @@ export function ExcelMergePanel({
   const [addSourceFile, setAddSourceFile] = useState(false);
   const [addSourceSheet, setAddSourceSheet] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
-  // 직접 고친 헤더 행. 키: 파일+시트.
+  // 직접 고친 항목명 줄. 키: 파일+시트.
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -115,7 +115,7 @@ export function ExcelMergePanel({
     [overrides],
   );
 
-  // 파일·방식·헤더를 바꿀 때마다 잠시 뒤 다시 읽어 미리보기를 새로 만든다. 파일은 만들지 않는다.
+  // 파일·방식·항목명 줄을 바꿀 때마다 잠시 뒤 다시 읽어 미리보기를 새로 만든다. 파일은 만들지 않는다.
   useEffect(() => {
     if (!inputs.length) {
       setAnalysis(null);
@@ -354,7 +354,7 @@ export function ExcelMergePanel({
           <div className="task-heading">
             <div>
               <span className="step-badge">3</span>
-              <strong>{merging ? "시트별 헤더 확인" : "결과 파일에 들어갈 시트"}</strong>
+              <strong>{merging ? "시트별 항목명 줄 확인" : "결과 파일에 들어갈 시트"}</strong>
             </div>
             {analyzing && (
               <span className="em-busy">
@@ -379,7 +379,7 @@ export function ExcelMergePanel({
           {merging ? (
             <>
               <p className="em-help">
-                각 시트는 <b>헤더(제목 줄) 아래부터</b> 이어 붙입니다. 자동으로 찾은 줄이 틀리면 숫자를 고치거나,
+                각 시트는 <b>항목명 줄(학교명·학생수처럼 칸 이름이 적힌 줄) 아래부터</b> 이어 붙입니다. 자동으로 찾은 줄이 틀리면 숫자를 고치거나,
                 미리보기에서 행 번호를 누르세요.
                 {changedCount > 0 && <b className="em-changed"> 직접 고친 시트 {changedCount}개</b>}
               </p>
@@ -401,7 +401,7 @@ export function ExcelMergePanel({
                         </button>
                         <span className="em-rows">데이터 {(sheet.data_rows ?? 0).toLocaleString()}행</span>
                         <label className="em-header-input">
-                          헤더
+                          항목명
                           <input
                             type="number"
                             min={1}
@@ -409,7 +409,7 @@ export function ExcelMergePanel({
                             value={header}
                             onChange={(event) => setHeader(sheet, Number(event.target.value))}
                           />
-                          행까지
+                          번째 줄
                         </label>
                         {manual ? (
                           <button className="em-badge is-manual" onClick={() => setHeader(sheet, sheet.auto_header_row ?? 1)}>
@@ -437,7 +437,7 @@ export function ExcelMergePanel({
                                   <tr key={rowNo} className={kind}>
                                     <th>
                                       <button
-                                        title={`${rowNo}행까지를 헤더로`}
+                                        title={`${rowNo}번째 줄을 항목명 줄로`}
                                         onClick={() => setHeader(sheet, rowNo)}
                                       >
                                         {rowNo}
@@ -452,8 +452,8 @@ export function ExcelMergePanel({
                             </tbody>
                           </table>
                           <p className="em-legend">
-                            <span className="is-header" /> 헤더(결과에 한 번만 남음)
-                            <span className="is-above" /> 헤더 위쪽(표 제목 등)
+                            <span className="is-header" /> 항목명 줄(결과에 한 번만 남음)
+                            <span className="is-above" /> 표 제목 등(결과에서 빠짐)
                             <span className="is-data" /> 이어 붙일 데이터
                           </p>
                         </div>

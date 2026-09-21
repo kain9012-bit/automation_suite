@@ -383,7 +383,7 @@ def build_merged(
         if missing:
             notes.append(f"{label}: 없는 열 {len(missing)}개는 빈 칸으로 둡니다 ({', '.join(missing[:5])}{' 외' if len(missing) > 5 else ''})")
         if reordered and not added and not missing:
-            notes.append(f"{label}: 열 순서가 달라 헤더 이름으로 맞췄습니다")
+            notes.append(f"{label}: 열 순서가 달라 항목명으로 맞췄습니다")
 
     width = len(columns)
     extra_headers: list[str] = []
