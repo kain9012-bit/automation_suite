@@ -1,89 +1,40 @@
+"""PDF 용량 압축.
+
+문서 안의 사진(이미지)만 해상도를 낮추고 JPEG 로 다시 저장한다.
+글자·표·도형(벡터)과 글꼴은 손대지 않으므로 내용이 바뀌거나 사라지지 않는다.
+
+예전에는 Ghostscript 로 PDF 전체를 새로 그려 만들었다. 그 방식은 파일에 따라
+벡터 내용이 통째로 빠진 PDF 를 오류 없이 만들어 내는 일이 있었고(10.07.1),
+큰 파일은 시도마다 전체를 다시 그려 오래 걸렸다.
+"""
 from __future__ import annotations
 
-import os
+import io
 import shutil
-import subprocess
-import sys
+import tempfile
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
+
+import pymupdf
+from PIL import Image
+
+# (이미지 최대 해상도 dpi, JPEG 품질). 약한 것부터 차례로 시도한다.
+LEVELS: List[Tuple[int, int]] = [
+    (200, 85), (170, 80), (150, 75), (130, 70), (110, 65),
+    (100, 60), (90, 50), (80, 45), (72, 40),
+]
+
+# 이보다 작은 이미지는 다시 저장해도 이득이 없다.
+_MIN_IMAGE_BYTES = 4096
+
+# 단계를 낮춰도 이 비율 넘게 줄지 않는 일이 연달아 생기면 그만한다.
+# 사진이 거의 없고 글자·도형 위주인 파일은 더 줄일 수 없다.
+_STALL_RATIO = 0.02
+_STALL_LIMIT = 2
 
 
-def _is_frozen() -> bool:
-    return bool(getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"))
-
-
-def _candidate_gs_paths() -> List[Path]:
-    candidates: List[Path] = []
-
-    if _is_frozen():
-        meipass = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        candidates.append(meipass / "gs" / "bin" / "gswin64c.exe")
-        candidates.append(meipass / "gswin64c.exe")
-
-    for cmd in ("gswin64c", "gs", "gswin32c"):
-        p = shutil.which(cmd)
-        if p:
-            candidates.append(Path(p))
-
-    for root in (
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")),
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")),
-    ):
-        gs_root = root / "gs"
-        if gs_root.exists():
-            for sub in sorted(gs_root.glob("gs*"), reverse=True):
-                candidates.append(sub / "bin" / "gswin64c.exe")
-
-    out: List[Path] = []
-    seen = set()
-    for c in candidates:
-        s = str(c).lower()
-        if s not in seen:
-            seen.add(s)
-            out.append(c)
-    return out
-
-
-def configure_gs_env_if_bundled() -> None:
-    if not _is_frozen():
-        return
-
-    meipass = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-    gs_dir = meipass / "gs"
-    if not gs_dir.exists():
-        return
-
-    lib_dir = gs_dir / "lib"
-    res_dir = gs_dir / "Resource"
-    if not res_dir.exists():
-        res_dir = gs_dir / "resource"
-
-    font_dir = res_dir / "Font"
-
-    libs = []
-    if lib_dir.exists():
-        libs.append(str(lib_dir))
-    if res_dir.exists():
-        libs.append(str(res_dir))
-    if libs:
-        os.environ["GS_LIB"] = ";".join(libs)
-    if font_dir.exists():
-        os.environ["GS_FONTPATH"] = str(font_dir)
-
-    bin_dir = gs_dir / "bin"
-    if bin_dir.exists():
-        os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
-
-
-def find_ghostscript() -> Optional[str]:
-    configure_gs_env_if_bundled()
-    for p in _candidate_gs_paths():
-        try:
-            if p.exists():
-                return str(p)
-        except Exception:
-            continue
-    return None
+class CompressCancelled(RuntimeError):
+    pass
 
 
 def bytes_to_mb(n: int) -> float:
@@ -96,97 +47,159 @@ def safe_output_path(in_fp: Path, target_mb: float) -> Path:
     return in_fp.with_name(out_name)
 
 
-_GS_CONTENT_ERROR = "error executing PDF token"
+def _open(in_fp: Path) -> pymupdf.Document:
+    doc = pymupdf.open(str(in_fp))
+    if doc.needs_pass and not doc.authenticate(""):
+        doc.close()
+        raise RuntimeError(f"암호가 걸린 PDF 라 압축할 수 없습니다: {in_fp.name}")
+    return doc
 
 
-def run_gs_compress(gs: str, in_fp: Path, out_fp: Path, preset: str, dpi: int) -> None:
-    creationflags = 0
-    if os.name == "nt":
-        creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
-
-    args = [
-        gs,
-        "-sDEVICE=pdfwrite",
-        "-dCompatibilityLevel=1.4",
-        f"-dPDFSETTINGS={preset}",
-        "-dNOPAUSE", "-dBATCH", "-dSAFER",
-        "-dDetectDuplicateImages=true",
-        "-dCompressFonts=true",
-        "-dSubsetFonts=true",
-        "-dDownsampleColorImages=true",
-        "-dDownsampleGrayImages=true",
-        "-dDownsampleMonoImages=true",
-        "-dColorImageDownsampleType=/Bicubic",
-        "-dGrayImageDownsampleType=/Bicubic",
-        "-dMonoImageDownsampleType=/Subsample",
-        f"-dColorImageResolution={dpi}",
-        f"-dGrayImageResolution={dpi}",
-        f"-dMonoImageResolution={dpi}",
-        "-dColorImageFilter=/DCTEncode",
-        "-dGrayImageFilter=/DCTEncode",
-        "-sOutputFile=" + str(out_fp),
-        str(in_fp),
-    ]
-
-    def _run(extra: List[str]) -> Tuple[int, str]:
-        cp = subprocess.run(args[:-2] + extra + args[-2:], capture_output=True, text=True,
-                            encoding="utf-8", errors="replace", creationflags=creationflags)
-        return cp.returncode, ((cp.stderr or "") + "\n" + (cp.stdout or "")).strip()
-
-    code, log = _run([])
-    if code != 0:
-        raise RuntimeError(f"Ghostscript 실패 (code={code})\n\n{log}")
-
-    # Ghostscript 는 페이지 내용 처리 중 오류가 나도 종료 코드 0 으로 끝내고
-    # 그 뒤 내용을 빼 버린 PDF 를 만든다. 로그로 확인해 색 변환 없이 다시 시도하고,
-    # 그래도 안 되면 망가진 파일을 결과로 내지 않는다.
-    if _GS_CONTENT_ERROR in log:
-        code, log = _run(["-sColorConversionStrategy=LeaveColorUnchanged"])
-        if code != 0 or _GS_CONTENT_ERROR in log:
+def _image_ppi(doc: pymupdf.Document) -> Dict[int, float]:
+    """이미지마다 페이지에 실제로 찍힌 크기로 계산한 가장 높은 해상도(ppi)."""
+    ppi: Dict[int, float] = {}
+    for page in doc:
+        for info in page.get_images(full=True):
+            xref, width = info[0], info[2]
             try:
-                out_fp.unlink()
+                rects = page.get_image_rects(xref)
             except Exception:
-                pass
-            raise RuntimeError("Ghostscript 가 이 PDF 의 일부 내용을 처리하지 못해 압축을 중단했습니다.\n\n" + log[-1500:])
+                rects = []
+            for rect in rects:
+                if rect.width > 0:
+                    ppi[xref] = max(ppi.get(xref, 0.0), width / (rect.width / 72.0))
+    return ppi
 
 
-def compress_to_target(gs: str, in_fp: Path, out_fp: Path, target_bytes: int, max_tries: int) -> Tuple[int, bool]:
-    presets = ["/ebook", "/screen"]
-    dpis = [200, 170, 150, 130, 120, 110, 100, 90, 80]
+def _recompress_images(doc: pymupdf.Document, dpi: int, quality: int,
+                       cancel: Optional[Callable[[], bool]]) -> int:
+    """문서 안 이미지를 dpi·품질에 맞춰 다시 저장한다. 바꾼 개수를 돌려준다."""
+    images: Dict[int, tuple] = {}
+    smasks = set()
+    for page in doc:
+        for info in page.get_images(full=True):
+            images[info[0]] = info
+            if info[1]:
+                smasks.add(info[1])
+    ppi = _image_ppi(doc)
 
-    # 원본이 이미 목표 이하이면 다시 압축하지 않고 그대로 복사한다.
+    changed = 0
+    for xref, info in images.items():
+        if cancel is not None and cancel():
+            raise CompressCancelled("중지 요청으로 압축을 멈췄습니다.")
+        # 투명도 마스크는 원래대로 두고 본 이미지만 바꾼다(투명 배경 유지).
+        if xref in smasks:
+            continue
+        bpc = info[4]
+        # 글자 모양을 찍는 스텐실 마스크, 1비트 흑백, 색 지정 투명은 JPEG 로 바꾸면 망가진다.
+        if (doc.xref_get_key(xref, "ImageMask")[1] == "true"
+                or bpc == 1
+                or doc.xref_get_key(xref, "Mask")[0] != "null"):
+            continue
+        try:
+            raw = doc.xref_stream_raw(xref) or b""
+        except Exception:
+            continue
+        if len(raw) < _MIN_IMAGE_BYTES:
+            continue
+        try:
+            pix = pymupdf.Pixmap(doc, xref)
+            if pix.alpha:
+                pix = pymupdf.Pixmap(pix, 0)
+            if pix.colorspace is None or pix.colorspace.n not in (1, 3):
+                pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+            mode = "L" if pix.n == 1 else "RGB"
+            img = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+        except Exception:
+            # 읽지 못하는 형식은 원래대로 둔다.
+            continue
+
+        cur_ppi = ppi.get(xref, 0.0)
+        if cur_ppi > dpi:
+            scale = dpi / cur_ppi
+            img = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))),
+                             Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=quality, optimize=True)
+        data = buf.getvalue()
+        if len(data) >= len(raw):
+            continue
+
+        doc.update_stream(xref, data, compress=False)
+        doc.xref_set_key(xref, "Filter", "/DCTDecode")
+        doc.xref_set_key(xref, "DecodeParms", "null")
+        doc.xref_set_key(xref, "Decode", "null")
+        doc.xref_set_key(xref, "Width", str(img.width))
+        doc.xref_set_key(xref, "Height", str(img.height))
+        doc.xref_set_key(xref, "BitsPerComponent", "8")
+        doc.xref_set_key(xref, "ColorSpace", "/DeviceGray" if mode == "L" else "/DeviceRGB")
+        changed += 1
+    return changed
+
+
+def compress_once(in_fp: Path, out_fp: Path, dpi: int, quality: int,
+                  cancel: Optional[Callable[[], bool]] = None) -> int:
+    """한 단계로 압축해 out_fp 에 저장하고 크기를 돌려준다."""
+    doc = _open(in_fp)
+    try:
+        _recompress_images(doc, dpi, quality, cancel)
+        doc.save(str(out_fp), garbage=4, deflate=True, deflate_fonts=True, use_objstms=1)
+    finally:
+        doc.close()
+    return out_fp.stat().st_size
+
+
+def compress_to_target(in_fp: Path, out_fp: Path, target_bytes: int, max_tries: int,
+                       progress: Optional[Callable[[str], None]] = None,
+                       cancel: Optional[Callable[[], bool]] = None) -> Tuple[int, bool]:
+    """목표 용량 이하가 될 때까지 단계를 높여 가며 압축한다.
+
+    반환: (결과 크기 bytes, 목표 달성 여부). 목표에 못 미치면 가장 작게 나온 결과를 저장한다.
+    """
+    def say(text: str) -> None:
+        if progress is not None:
+            progress(text)
+
     in_size = in_fp.stat().st_size
     if in_size <= target_bytes:
         if in_fp.resolve() != out_fp.resolve():
             shutil.copyfile(in_fp, out_fp)
+        say(f"{in_fp.name}: 이미 목표 용량 이하({bytes_to_mb(in_size):.2f}MB)라 그대로 복사했습니다.")
         return in_size, True
 
-    tries = 0
-    last_size = -1
-
-    for preset in presets:
-        for dpi in dpis:
-            tries += 1
-            if tries > max_tries:
+    work_dir = Path(tempfile.mkdtemp(prefix="jbedu_pdfc_"))
+    best: Optional[Tuple[int, Path]] = None
+    try:
+        prev = 0
+        stall = 0
+        for tries, (dpi, quality) in enumerate(LEVELS[:max(1, int(max_tries))], start=1):
+            if cancel is not None and cancel():
+                raise CompressCancelled("중지 요청으로 압축을 멈췄습니다.")
+            say(f"{in_fp.name}: {tries}단계 (사진 {dpi}dpi, 화질 {quality}) 압축 중…")
+            tmp = work_dir / f"try_{tries:02d}.pdf"
+            size = compress_once(in_fp, tmp, dpi, quality, cancel)
+            say(f"{in_fp.name}: {tries}단계 결과 {bytes_to_mb(size):.2f}MB "
+                f"(목표 {bytes_to_mb(target_bytes):.2f}MB)")
+            if best is None or size < best[0]:
+                best = (size, tmp)
+            if size <= target_bytes:
+                break
+            stall = stall + 1 if prev and (prev - size) < prev * _STALL_RATIO else 0
+            prev = size
+            if stall >= _STALL_LIMIT:
+                say(f"{in_fp.name}: 사진을 더 줄여도 용량이 줄지 않습니다. "
+                    "글자·도형 위주라 이 이상은 줄일 수 없습니다.")
                 break
 
-            try:
-                if out_fp.exists():
-                    out_fp.unlink()
-            except Exception:
-                pass
-
-            run_gs_compress(gs, in_fp, out_fp, preset, dpi)
-
-            if not out_fp.exists():
-                last_size = -1
-                continue
-
-            last_size = out_fp.stat().st_size
-            if last_size <= target_bytes:
-                return last_size, True
-
-        if tries > max_tries:
-            break
-
-    return max(last_size, 0), False
+        if best is None:
+            raise RuntimeError(f"압축 결과를 만들지 못했습니다: {in_fp.name}")
+        # 압축해도 원본보다 작아지지 않으면 원본을 그대로 쓴다.
+        if best[0] >= in_size:
+            shutil.copyfile(in_fp, out_fp)
+            return in_size, in_size <= target_bytes
+        if out_fp.exists():
+            out_fp.unlink()
+        shutil.move(str(best[1]), str(out_fp))
+        return best[0], best[0] <= target_bytes
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)

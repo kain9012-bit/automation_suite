@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-from extra_tools import EXTRA_HANDLERS
+from extra_tools import EXTRA_HANDLERS, FileCancel, emit_progress
 from macro_actions import run_action as run_macro_action
 
 # Windows 기본 코드페이지로 나가면 한글 메시지가 앱에서 깨진다.
@@ -337,9 +337,7 @@ def run_zip_extractor(payload: dict[str, Any]) -> dict[str, Any]:
 def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = [path for path in _paths(payload) if path.suffix.lower() == ".pdf"]
     service = _module("pdf_compress", "pdf_compress_service")
-    ghostscript = service.find_ghostscript()
-    if not ghostscript:
-        raise RuntimeError("PDF 압축에 필요한 Ghostscript를 찾지 못했습니다.")
+    cancel = FileCancel()
     target_mb = float(payload.get("target_mb") or 5)
     outputs = []
     for input_path in inputs:
@@ -348,14 +346,19 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
             output = Path(raw_output).expanduser().resolve()
         else:
             output = service.safe_output_path(input_path, target_mb)
-        tries, achieved = service.compress_to_target(
-            ghostscript,
+        size, achieved = service.compress_to_target(
             input_path,
             output,
             int(target_mb * 1024 * 1024),
             int(payload.get("max_tries") or 18),
+            progress=emit_progress,
+            cancel=cancel.is_set,
         )
-        outputs.append({"path": output, "tries": tries, "target_achieved": achieved})
+        outputs.append({
+            "path": output,
+            "size_mb": round(size / (1024 * 1024), 2),
+            "target_achieved": achieved,
+        })
     return _success(f"PDF {len(outputs)}개를 압축했습니다.", outputs=outputs)
 
 
@@ -436,38 +439,33 @@ def run_selftest() -> dict[str, Any]:
     if python_tools == 0:
         failed.append(f"파이썬 도구를 하나도 찾지 못함 (도구 폴더: {TOOLS_ROOT})")
 
-    # PDF 용량 압축: 사이드카 안에 넣은 Ghostscript 를 실제로 찾고 실행할 수 있는지.
-    # 이 PC 에 Ghostscript 가 따로 설치돼 있으면 그걸 찾아 통과해 버리므로,
-    # 설치본(frozen)일 때는 반드시 사이드카 안의 것이어야 통과시킨다.
+    # PDF 용량 압축: PyMuPDF 는 C 라이브러리를 품고 있어 import 만으로는 빠진 파일을
+    # 다 못 잡는다. 사진이 든 작은 PDF 를 실제로 만들어 한 번 압축해 본다.
     try:
         sys.path.insert(0, str(TOOLS_ROOT / "pdf_compress"))
         compress = importlib.import_module("pdf_compress_service")
-        gs_path = compress.find_ghostscript()
-        if not gs_path:
-            failed.append("Ghostscript: 찾지 못함")
-        else:
-            frozen_root = getattr(sys, "_MEIPASS", None)
-            if getattr(sys, "frozen", False) and frozen_root:
-                bundled = Path(frozen_root).resolve()
-                if bundled not in Path(gs_path).resolve().parents:
-                    failed.append(
-                        f"Ghostscript: 사이드카 안이 아닌 {gs_path} 를 찾음 (내장본이 빠짐)"
-                    )
-            flags = 0x08000000 if os.name == "nt" else 0
-            probe = subprocess.run(
-                [gs_path, "-v"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                creationflags=flags,
-            )
-            first_line = (probe.stdout or probe.stderr or "").strip().splitlines()[:1]
-            if probe.returncode != 0:
-                failed.append(f"Ghostscript: 실행 실패 ({probe.returncode}) {first_line}")
+        import pymupdf
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "probe.pdf"
+            out = Path(tmp) / "probe_out.pdf"
+            doc = pymupdf.open()
+            page = doc.new_page()
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 300), 0)
+            pix.clear_with(200)
+            page.insert_image(page.rect, pixmap=pix)
+            page.insert_text((72, 72), "압축 확인 probe", fontname="helv")
+            doc.save(str(src))
+            doc.close()
+            size = compress.compress_once(src, out, 100, 60)
+            check = pymupdf.open(str(out))
+            pages = check.page_count
+            check.close()
+            if pages != 1 or size <= 0:
+                failed.append(f"PDF 압축: 결과가 이상함 (쪽 {pages}, 크기 {size})")
             else:
-                checked.append(f"Ghostscript: {first_line[0] if first_line else gs_path}")
+                checked.append(f"PDF 압축: PyMuPDF {pymupdf.__version__} 동작 확인")
     except Exception as error:
-        failed.append(f"Ghostscript: 확인 중 오류 → {type(error).__name__}: {error}")
+        failed.append(f"PDF 압축: 확인 중 오류 → {type(error).__name__}: {error}")
 
     return {
         "ok": not failed,

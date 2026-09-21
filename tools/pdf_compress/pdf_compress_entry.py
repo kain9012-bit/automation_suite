@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
 from pdf_compress_service import (
     bytes_to_mb,
     compress_to_target,
-    find_ghostscript,
     safe_output_path,
 )
 
@@ -190,7 +189,7 @@ class PdfCompressPage(QWidget):
         page_title.setObjectName("pageTitle")
         page_title.setAlignment(Qt.AlignHCenter)
 
-        page_desc = QLabel("목표 용량 이하가 될 때까지 Ghostscript를 이용해 PDF를 자동 반복 압축합니다.")
+        page_desc = QLabel("글자·도형은 그대로 두고 사진만 줄여 목표 용량 이하로 압축합니다.")
         page_desc.setObjectName("pageDescription")
         page_desc.setAlignment(Qt.AlignHCenter)
 
@@ -275,8 +274,7 @@ class PdfCompressPage(QWidget):
 
         hint = QLabel(
             "※ 스캔/사진 PDF는 압축 시 이미지 해상도가 낮아질 수 있습니다.\n"
-            "※ 텍스트 위주 PDF는 줄일 여지가 적어 목표를 못 맞출 수 있습니다.\n"
-            "※ Ghostscript가 설치되어 있어야 합니다."
+            "※ 텍스트 위주 PDF는 줄일 여지가 적어 목표를 못 맞출 수 있습니다."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet(f"font-size:12px; color:{MUTED};")
@@ -383,15 +381,6 @@ class PdfCompressPage(QWidget):
             QMessageBox.warning(self, "알림", "목록에 PDF 파일을 추가하세요.")
             return
 
-        gs = find_ghostscript()
-        if not gs:
-            QMessageBox.critical(
-                self,
-                "Ghostscript 필요",
-                "Ghostscript를 찾지 못했습니다.\n번들(gs 폴더 포함) 또는 시스템 설치 상태를 확인하세요."
-            )
-            return
-
         try:
             target_mb = float(self.target_input.text().strip())
             margin_mb = float(self.margin_input.text().strip())
@@ -428,7 +417,7 @@ class PdfCompressPage(QWidget):
 
                 orig = in_fp.stat().st_size
                 try:
-                    out_size, achieved = compress_to_target(gs, in_fp, out_fp, target_bytes, max_tries)
+                    out_size, achieved = compress_to_target(in_fp, out_fp, target_bytes, max_tries)
                     if achieved:
                         ok_cnt += 1
                         self.status_label.setText(

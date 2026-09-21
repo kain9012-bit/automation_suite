@@ -31,10 +31,10 @@ if (-not (Test-Path -LiteralPath $runnerPath)) {
     throw "bridge\runner.py 가 없습니다.$hint"
 }
 
-$gsExe = Join-Path $projectRoot "vendor\gs\bin\gswin64c.exe"
-if (-not (Test-Path -LiteralPath $gsExe)) {
-    throw ("vendor\gs\bin\gswin64c.exe 가 없습니다. PDF 압축용 Ghostscript 입니다." + [Environment]::NewLine +
-           "  C:\work\pdf_doc_tools_tk\gs 폴더를 vendor\gs 로 복사하세요.")
+python -c "import pymupdf" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    throw ("PyMuPDF 가 설치돼 있지 않습니다. PDF 압축에 씁니다." + [Environment]::NewLine +
+           "  pip install -r bridge\requirements.txt")
 }
 
 if ($SkipSidecar) {
@@ -78,7 +78,7 @@ if ($newest -and $newest.LastWriteTime -gt $sidecarTime) {
 Write-Host "사이드카 확인: $sidecarTime"
 
 # 사이드카로 모든 파이썬 도구를 실제로 불러와 본다. 빌드에서 빠진 라이브러리는
-# 그 도구를 누가 처음 누를 때에야 드러나므로(reportlab.pdfbase, Ghostscript),
+# 그 도구를 누가 처음 누를 때에야 드러나므로(reportlab.pdfbase, PyMuPDF),
 # 여기서 하나라도 실패하면 배포를 멈춘다. 앱이 도구를 돌릴 때와 같은 환경값을 준다.
 Write-Host "사이드카 자가검사를 합니다."
 $toolsRoot = Join-Path $projectRoot "tools"

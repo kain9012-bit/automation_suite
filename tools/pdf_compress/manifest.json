@@ -5,10 +5,10 @@
   "type": "internal_python",
   "entry": "pdf_compress_entry.py",
   "icon": "",
-  "description": "목표 용량 이하가 될 때까지 Ghostscript로 PDF를 자동 압축합니다.",
+  "description": "글자·도형은 그대로 두고 사진만 줄여 목표 용량 이하로 압축합니다.",
   "order": 50,
   "enabled": true,
-  "version": "2.2.1",
+  "version": "2.3.0",
   "keywords": [],
   "context_menu": {
     "targets": ["pdf"],
