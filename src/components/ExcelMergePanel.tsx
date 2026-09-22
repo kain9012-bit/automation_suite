@@ -62,7 +62,7 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
   {
     id: "files_to_sheets",
     label: "파일마다 시트로 모으기",
-    hint: "각 파일의 시트를 결과 파일에 시트로 그대로 옮깁니다. 서식·수식이 유지되고, 내용을 이어 붙이지는 않습니다.",
+    hint: "각 파일의 시트를 결과 파일에 시트로 그대로 옮깁니다. 서식은 그대로, 함수는 계산된 값으로 넣습니다. 내용을 이어 붙이지는 않습니다.",
   },
   {
     id: "workbook_sheets_to_one",

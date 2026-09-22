@@ -331,7 +331,11 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
     result = service.merge_excel(options, logs.append)
     return {
         "ok": True,
-        "message": f"시트 {result.sheet_count}개, 데이터 {result.data_row_count}행을 병합했습니다.",
+        "message": (
+            f"시트 {result.sheet_count}개를 한 파일에 모았습니다."
+            if mode == service.MODE_FILES_TO_SHEETS
+            else f"시트 {result.sheet_count}개, 데이터 {result.data_row_count}행을 병합했습니다."
+        ),
         "output": str(result.output_path),
         "skipped_count": result.skipped_count,
         "warnings": result.warnings[-30:],
@@ -371,6 +375,8 @@ def _excel_merge_popup(service, mode: str, result, excluded_count: int = 0) -> d
     lines = [what, f"저장 파일: {result.output_path.name}"]
     if excluded_count:
         lines.append(f"체크를 푼 시트 {excluded_count}개는 넣지 않았습니다.")
+    if getattr(result, "formula_count", 0):
+        lines.append(f"함수 {result.formula_count:,}개는 계산된 값으로 넣었습니다. (원본 파일은 그대로)")
     lines.append(("✔ " if result.verified else "⚠ ") + (result.verify_message or ""))
     if result.warnings:
         lines.append("")

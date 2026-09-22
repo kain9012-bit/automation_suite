@@ -1,14 +1,17 @@
 """엑셀 병합.
 
 세 가지 방식
-- files_to_sheets        : 파일(의 시트)마다 결과 파일의 시트 하나로 그대로 옮긴다. 서식·수식 유지.
+- files_to_sheets        : 파일(의 시트)마다 결과 파일의 시트 하나로 그대로 옮긴다. 서식 유지.
 - workbook_sheets_to_one : 넣은 모든 파일의 모든 시트를 한 시트로 이어 붙인다.
 - same_sheets_together   : 여러 파일에서 이름이 같은 시트끼리 이어 붙인다.
 
 이어 붙이는 두 방식은 실수가 나기 쉬운 곳을 막는다.
 - 시트마다 헤더(제목) 행을 자동으로 찾되, 화면에서 확인하고 직접 고칠 수 있다(header_overrides).
 - 파일마다 열 순서가 달라도 헤더 이름으로 맞춰 붙인다. 없는 열·새 열은 알려 준다.
-- 숫자 서식(천 단위 쉼표, %, 날짜 등)을 원본 그대로 옮긴다.
+- 칸 서식(숫자 서식·글꼴·채우기 색·테두리·정렬)을 원본 그대로 옮긴다.
+
+세 방식 모두 함수는 옮기지 않고 원본에 저장된 계산 결과값을 넣는다(취합은 값을 모으는 일).
+시트 이름이 바뀌거나 행 위치가 달라져도 결과가 틀어지지 않는다. 원본 파일은 건드리지 않는다.
 - 저장한 뒤 결과 파일을 다시 열어 행 수가 맞는지 확인한다.
 """
 from __future__ import annotations
@@ -60,6 +63,8 @@ class MergeResult:
     # 저장 후 결과 파일을 다시 열어 센 데이터 행 수. 기대값과 같으면 verified=True.
     verified: bool = False
     verify_message: str = ""
+    # 원본에서 함수였다가 계산된 값으로 저장된 셀 수.
+    formula_count: int = 0
 
 
 @dataclass
@@ -73,6 +78,10 @@ class SheetData:
     hidden: bool = False
     # 수식은 있는데 저장된 결과값이 없어 빈 칸으로 읽힌 셀 수.
     missing_formula_values: int = 0
+    # 원본에서 함수였던 셀 수(결과에는 계산된 값으로 들어간다).
+    formula_count: int = 0
+    # 칸 서식: (글꼴, 채우기, 테두리, 정렬) 또는 None(기본 서식).
+    styles: list[list] = field(default_factory=list)
 
     @property
     def key(self) -> tuple[str, str]:
@@ -180,18 +189,35 @@ def load_source_workbook(path: Path, data_only: bool = False):
 
 # ---------------------------------------------------------------- 시트 읽기
 
-def worksheet_rows_and_formats(ws) -> tuple[list[list], list[list]]:
-    """셀 값과 숫자 서식을 함께 읽는다. 서식은 결과 파일에 그대로 옮긴다."""
+def _cell_style(cell):
+    """칸 서식을 (글꼴, 채우기, 테두리, 정렬)로 돌려준다. 기본 서식이면 None."""
+    if not cell.has_style:
+        return None
+    wb = cell.parent.parent
+    st = cell._style
+    return (wb._fonts[st.fontId], wb._fills[st.fillId], wb._borders[st.borderId], wb._alignments[st.alignmentId])
+
+
+def worksheet_rows_and_formats(ws, with_styles: bool = False):
+    """셀 값과 숫자 서식을 함께 읽는다. 서식은 결과 파일에 그대로 옮긴다.
+    with_styles=True 면 칸 서식(글꼴·색·테두리·정렬)도 함께 돌려준다."""
     rows: list[list] = []
     formats: list[list] = []
+    styles: list[list] = []
     max_col = ws.max_column or 1
     for row in ws.iter_rows(min_row=1, max_row=ws.max_row or 1, min_col=1, max_col=max_col):
         rows.append([normalize_value(cell.value) for cell in row])
         formats.append([cell.number_format or "General" for cell in row])
+        if with_styles:
+            styles.append([_cell_style(cell) for cell in row])
     # 끝쪽 빈 행은 버린다(서식만 남은 행 등).
     while rows and is_empty_row(rows[-1]):
         rows.pop()
         formats.pop()
+        if with_styles:
+            styles.pop()
+    if with_styles:
+        return rows, formats, styles
     return rows, formats
 
 
@@ -225,27 +251,35 @@ def detect_header_row_from_rows(rows: list[list], max_scan_rows: int = HEADER_SC
     return best_index
 
 
-def _count_missing_formula_values(path: Path, sheet_name: str, rows: list[list]) -> int:
-    """수식은 있는데 저장된 결과값이 없는 셀 수. (엑셀이 아닌 프로그램이 저장한 파일 등)
-    이런 셀은 병합 결과에서 빈 칸이 되므로 미리 알려 준다."""
-    if path.suffix.lower() == ".csv":
-        return 0
+def _formula_stats(ws_formulas, rows: list[list]) -> tuple[int, int]:
+    """(함수 셀 수, 그중 저장된 결과값이 없는 셀 수).
+    결과값이 없는 셀(엑셀이 아닌 프로그램이 저장한 파일 등)은 병합 결과에서 빈 칸이 되므로 미리 알려 준다."""
+    if ws_formulas is None:
+        return 0, 0
+    formulas = missing = 0
     try:
-        wb = load_workbook(path, data_only=False, read_only=True)
-        ws = wb[sheet_name]
-        count = 0
-        for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
-            if r_idx >= len(rows):
-                break
+        for r_idx, row in enumerate(ws_formulas.iter_rows(values_only=True)):
+            # 결과값이 하나도 없는 줄은 rows 에서 잘려 나갔을 수 있으므로 끝까지 본다.
+            got = rows[r_idx] if r_idx < len(rows) else []
             for c_idx, value in enumerate(row):
                 if isinstance(value, str) and value.startswith("="):
-                    cached = rows[r_idx][c_idx] if c_idx < len(rows[r_idx]) else ""
+                    formulas += 1
+                    cached = got[c_idx] if c_idx < len(got) else ""
                     if cached == "":
-                        count += 1
-        wb.close()
-        return count
+                        missing += 1
     except Exception:
-        return 0
+        return 0, 0
+    return formulas, missing
+
+
+def _formula_workbook(path: Path):
+    """함수 글자를 보기 위한 읽기 전용 통합문서. CSV 면 None."""
+    if path.suffix.lower() == ".csv":
+        return None
+    try:
+        return load_workbook(path, data_only=False, read_only=True)
+    except Exception:
+        return None
 
 
 def collect_sheet_data(
@@ -256,6 +290,7 @@ def collect_sheet_data(
     excluded_sheets: set | None = None,
 ) -> list[SheetData]:
     wb_values, _ = load_source_workbook(path, data_only=True)
+    wb_formulas = _formula_workbook(path) if check_formulas else None
     collected: list[SheetData] = []
     for ws in wb_values.worksheets:
         hidden = ws.sheet_state != "visible"
@@ -263,7 +298,7 @@ def collect_sheet_data(
             continue
         if excluded_sheets and (str(path), ws.title) in excluded_sheets:
             continue
-        rows, formats = worksheet_rows_and_formats(ws)
+        rows, formats, styles = worksheet_rows_and_formats(ws, with_styles=True)
         if not rows:
             continue
         auto = detect_header_row_from_rows(rows)
@@ -272,10 +307,12 @@ def collect_sheet_data(
             manual = header_overrides.get((str(path), ws.title))
             if manual:
                 header = max(0, min(int(manual), len(rows)))
-        sheet = SheetData(path, ws.title, rows, header, formats, auto, hidden)
-        if check_formulas:
-            sheet.missing_formula_values = _count_missing_formula_values(path, ws.title, rows)
+        sheet = SheetData(path, ws.title, rows, header, formats, auto, hidden, styles=styles)
+        if wb_formulas is not None and ws.title in wb_formulas.sheetnames:
+            sheet.formula_count, sheet.missing_formula_values = _formula_stats(wb_formulas[ws.title], rows)
         collected.append(sheet)
+    if wb_formulas is not None:
+        wb_formulas.close()
     return collected
 
 
@@ -342,7 +379,7 @@ def build_merged(
     돌려주는 값: rows, formats, header_rows(결과의 헤더 줄 수), data_count, notes(알림)
     """
     if not sheets:
-        return {"rows": [], "formats": [], "header_rows": 0, "data_count": 0, "notes": []}
+        return {"rows": [], "formats": [], "styles": [], "header_rows": 0, "data_count": 0, "notes": []}
 
     multi_file = len({str(sheet.file_path) for sheet in sheets}) > 1
     base = sheets[0]
@@ -390,16 +427,49 @@ def build_merged(
         if reordered and not added and not missing:
             notes.append(f"{label}: 열 순서가 달라 항목명으로 맞췄습니다")
 
-    width = len(columns)
     extra_headers: list[str] = []
     if add_source_file:
         extra_headers.append("원본파일")
     if add_source_sheet:
         extra_headers.append("원본시트")
 
+    # 데이터 줄을 먼저 모은다. 헤더보다 오른쪽에 값이 있으면 열이 늘어날 수 있어서,
+    # 원본파일·원본시트 열과 헤더 줄은 열 수가 다 정해진 뒤에 붙인다.
+    data_rows: list[tuple[list, list, list, SheetData]] = []
+    for sheet, mapping in zip(sheets, mappings):
+        for r_idx in range(sheet.header_row, len(sheet.rows)):
+            src = sheet.rows[r_idx]
+            if is_empty_row(src):
+                continue
+            src_fmt = sheet.formats[r_idx] if r_idx < len(sheet.formats) else []
+            src_sty = sheet.styles[r_idx] if r_idx < len(sheet.styles) else []
+            line: list = []
+            fmt: list = []
+            sty: list = []
+            for col, value in enumerate(src):
+                if col >= len(mapping):
+                    # 헤더보다 오른쪽에 값이 있는 드문 경우: 새 열로 붙인다.
+                    columns.append(("#추가", col))
+                    column_names.append("")
+                    mapping.append(len(columns) - 1)
+                target = mapping[col]
+                if target >= len(line):
+                    grow = target + 1 - len(line)
+                    line.extend([""] * grow)
+                    fmt.extend(["General"] * grow)
+                    sty.extend([None] * grow)
+                line[target] = value
+                if col < len(src_fmt):
+                    fmt[target] = src_fmt[col]
+                if col < len(src_sty):
+                    sty[target] = src_sty[col]
+            data_rows.append((line, fmt, sty, sheet))
+
+    width = len(columns)
     header_count = base.header_row
     out_rows: list[list] = []
     out_formats: list[list] = []
+    out_styles: list[list] = []
     base_header_rows = base.rows[:header_count]
     for idx in range(header_count):
         row = pad_row(base_header_rows[idx], width)
@@ -413,45 +483,29 @@ def build_merged(
             fmt.extend(["General"] * len(extra_headers))
         out_rows.append(row)
         out_formats.append(fmt)
+        out_styles.append([])  # 헤더 모양은 apply_header_style 이 첫 시트에서 옮긴다.
 
-    data_count = 0
-    for sheet, mapping in zip(sheets, mappings):
-        for r_idx in range(sheet.header_row, len(sheet.rows)):
-            src = sheet.rows[r_idx]
-            if is_empty_row(src):
-                continue
-            src_fmt = sheet.formats[r_idx] if r_idx < len(sheet.formats) else []
-            line = [""] * width
-            fmt = ["General"] * width
-            for col, value in enumerate(src):
-                if col >= len(mapping):
-                    # 헤더보다 오른쪽에 값이 있는 드문 경우: 새 열로 붙인다.
-                    columns.append(("#추가", col))
-                    column_names.append("")
-                    mapping.append(len(columns) - 1)
-                    line.append("")
-                    fmt.append("General")
-                    width = len(columns)
-                target = mapping[col]
-                if target >= len(line):
-                    line.extend([""] * (target + 1 - len(line)))
-                    fmt.extend(["General"] * (target + 1 - len(fmt)))
-                line[target] = value
-                if col < len(src_fmt):
-                    fmt[target] = src_fmt[col]
-            if add_source_file:
-                line.append(sheet.file_path.name)
-                fmt.append("General")
-            if add_source_sheet:
-                line.append(sheet.sheet_name)
-                fmt.append("General")
-            out_rows.append(line)
-            out_formats.append(fmt)
-            data_count += 1
+    for line, fmt, sty, sheet in data_rows:
+        line = pad_row(line, width)
+        fmt = pad_row(fmt, width, "General")
+        sty = pad_row(sty, width, None)
+        if add_source_file:
+            line.append(sheet.file_path.name)
+            fmt.append("General")
+            sty.append(None)
+        if add_source_sheet:
+            line.append(sheet.sheet_name)
+            fmt.append("General")
+            sty.append(None)
+        out_rows.append(line)
+        out_formats.append(fmt)
+        out_styles.append(sty)
+    data_count = len(data_rows)
 
     return {
         "rows": out_rows,
         "formats": out_formats,
+        "styles": out_styles,
         "header_rows": header_count,
         "data_count": data_count,
         "notes": notes,
@@ -477,6 +531,7 @@ def _copy_cell(src, dst) -> None:
 
 
 def copy_worksheet_full(ws_in, wb_out: Workbook, title: str):
+    """시트를 서식째 옮긴다. ws_in 을 data_only 로 연 통합문서에서 주면 함수 대신 계산된 값이 들어간다."""
     ws_out = wb_out.create_sheet(title)
     for col_idx in range(1, (ws_in.max_column or 1) + 1):
         letter = get_column_letter(col_idx)
@@ -504,6 +559,20 @@ def copy_worksheet_full(ws_in, wb_out: Workbook, title: str):
             pass
     if ws_in.freeze_panes:
         ws_out.freeze_panes = ws_in.freeze_panes
+    # 조건부 서식(값에 따라 색 바꾸기)과 데이터 유효성 검사(목록 상자 등)도 옮긴다.
+    try:
+        for cf_range, rules in ws_in.conditional_formatting._cf_rules.items():
+            for rule in rules:
+                ws_out.conditional_formatting.add(str(cf_range.sqref), copy(rule))
+    except Exception:
+        pass
+    try:
+        for dv in ws_in.data_validations.dataValidation:
+            ws_out.add_data_validation(copy(dv))
+    except Exception:
+        pass
+    if ws_in.sheet_properties.tabColor is not None:
+        ws_out.sheet_properties.tabColor = copy(ws_in.sheet_properties.tabColor)
     return ws_out
 
 
@@ -540,12 +609,14 @@ def write_merged_sheet(wb_out: Workbook, title: str, merged: dict, sample: Sheet
     ws_out = wb_out.create_sheet(title)
     rows = merged["rows"]
     formats = merged["formats"]
+    styles = merged.get("styles") or []
     width = max((len(row) for row in rows), default=1)
     header_rows = merged["header_rows"]
     if header_rows:
         apply_header_style(sample.file_path, sample.sheet_name, ws_out, header_rows, width)
     for r_idx, row in enumerate(rows, start=1):
         fmt_row = formats[r_idx - 1] if r_idx - 1 < len(formats) else []
+        sty_row = styles[r_idx - 1] if r_idx - 1 < len(styles) else []
         for c_idx in range(1, width + 1):
             cell = ws_out.cell(row=r_idx, column=c_idx)
             if isinstance(cell, MergedCell):
@@ -556,6 +627,12 @@ def write_merged_sheet(wb_out: Workbook, title: str, merged: dict, sample: Sheet
                 number_format = fmt_row[c_idx - 1]
                 if number_format and number_format != "General":
                     cell.number_format = number_format
+            if r_idx > header_rows and c_idx <= len(sty_row) and sty_row[c_idx - 1] is not None:
+                font, fill, border, alignment = sty_row[c_idx - 1]
+                cell.font = font
+                cell.fill = fill
+                cell.border = border
+                cell.alignment = alignment
     if header_rows:
         ws_out.freeze_panes = ws_out.cell(row=header_rows + 1, column=1)
 
@@ -610,6 +687,7 @@ def _collect_all(options: MergeOptions, result: MergeResult, log) -> list[SheetD
             result.skipped_count += 1
             result.warnings.append(f"{path.name}: {exc}")
     for sheet in sheets:
+        result.formula_count += sheet.formula_count
         if sheet.missing_formula_values:
             result.warnings.append(
                 f"{sheet.file_path.name} › {sheet.sheet_name}: 수식 결과가 저장돼 있지 않은 셀 "
@@ -698,7 +776,7 @@ def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, 
 
 
 def merge_files_to_sheets(options: MergeOptions, log: Callable[[str], None] | None = None) -> MergeResult:
-    """파일의 모든 보이는 시트를 서식·수식 그대로 결과 파일의 시트로 옮긴다."""
+    """고른 시트를 서식 그대로 결과 파일의 시트로 옮긴다. 함수는 계산된 값으로 넣는다."""
     result = MergeResult(options.output_path)
     plan, warnings = _files_to_sheets_plan(options)
     result.warnings.extend(warnings)
@@ -710,10 +788,20 @@ def merge_files_to_sheets(options: MergeOptions, log: Callable[[str], None] | No
         try:
             key = str(path)
             if key not in opened:
-                opened[key] = load_source_workbook(path, data_only=False)[0]
-            wb_in = opened[key]
+                opened[key] = (load_source_workbook(path, data_only=True)[0], _formula_workbook(path))
+            wb_in, wb_formulas = opened[key]
             ws_in = wb_in[sheet_name] if sheet_name in wb_in.sheetnames else wb_in.worksheets[0]
             copy_worksheet_full(ws_in, wb_out, title)
+            if wb_formulas is not None and ws_in.title in wb_formulas.sheetnames:
+                formulas, missing = _formula_stats(wb_formulas[ws_in.title], worksheet_to_rows(ws_in))
+                result.formula_count += formulas
+                if missing:
+                    result.warnings.append(
+                        f"{path.name} › {sheet_name}: 수식 결과가 저장돼 있지 않은 셀 {missing}개가 빈 칸이 됩니다. "
+                        "원본을 엑셀에서 열어 저장한 뒤 다시 병합하세요."
+                    )
+            if getattr(ws_in, "_images", None) or getattr(ws_in, "_charts", None):
+                result.warnings.append(f"{path.name} › {sheet_name}: 그림·차트는 옮기지 못했습니다.")
             result.sheet_count += 1
             if log:
                 log(f"시트 추가: {path.name} › {sheet_name} → {title}")
@@ -721,6 +809,9 @@ def merge_files_to_sheets(options: MergeOptions, log: Callable[[str], None] | No
             result.skipped_count += 1
             result.warnings.append(f"{path.name} › {sheet_name}: {exc}")
 
+    for _, wb_formulas in opened.values():
+        if wb_formulas is not None:
+            wb_formulas.close()
     if result.sheet_count == 0:
         raise ValueError("결과 파일에 추가할 시트가 없습니다.")
     wb_out.save(options.output_path)
