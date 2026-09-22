@@ -12,13 +12,14 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 import datetime
@@ -358,9 +359,14 @@ def extract_body_from_view(html: str, title_hint: str) -> str:
 
     idx = None
     hint = (title_hint or "").strip()
-    for i, line in enumerate(lines):
-        if hint and hint in line:
-            idx = i
+    # 목록 제목 뒤에 붙는 '(댓글 : 3)' 같은 꼬리는 상세 페이지 제목에는 없다.
+    short = re.sub(r"\s*\(\s*댓글\s*:\s*\d+\s*\)\s*$", "", hint)
+    for candidate in dict.fromkeys(h for h in (hint, short) if h):
+        for i, line in enumerate(lines):
+            if candidate in line:
+                idx = i
+                break
+        if idx is not None:
             break
     if idx is None:
         return ""
@@ -377,6 +383,315 @@ def extract_body_from_view(html: str, title_hint: str) -> str:
             break
         body_lines.append(line)
     return "\n".join(body_lines).strip()
+
+
+# ==========================================================
+# 상세 페이지 구조 읽기 (1.3.5)
+# ==========================================================
+#
+# 교육청 계열 홈페이지는 상세 페이지 틀이 정해져 있다. 틀을 알아보면
+# 제목·작성자·등록일·조회수·본문·게시판 입력 항목·입력 표를 칸 단위로 읽는다.
+# 틀을 모르는 사이트는 예전 방식(extract_body_from_view)을 그대로 쓴다.
+#
+#   jbe    : www.jbe.go.kr 계열        .bbs_vtop(제목·작성자·항목) + .bbs_con(본문)
+#   usm    : office/school.jbedu.kr     table.usm-brd-vew (th/td) + td.tch-ctnt(본문)
+#   jbedu  : www.jbedu.kr              .basicView .titleField + .conText(본문)
+#   lib    : lib.jbe.go.kr             .bbs-view-header + .bbs-view-body(본문), 신착도서 .sview
+#
+# 반환 값(dict)
+#   skin   : 알아본 틀 이름('' 이면 예전 방식)
+#   title  : 상세 페이지 제목
+#   meta   : {작성자, 등록일, 조회수 …}  게시글 정보
+#   fields : {항목: 값}  게시판이 정해 놓은 입력 항목(채용구분, 신청기간, 만족도 …)
+#   tables : [{'name', 'header': [...], 'rows': [[...], ...]}]  게시판이 정해 놓은 입력 표
+#   body   : 본문 글(본문 안에 그려 넣은 표는 줄·칸을 ' | ' 로 구분해 넣는다)
+
+_META_SKIP = {"첨부파일", "첨부", "IP", "ip", "댓글"}
+_BLANK_RE = re.compile(r"\n{3,}")
+
+
+def _clean(text) -> str:
+    text = (text or "").replace("\xa0", " ")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    return text.strip()
+
+
+def _label(text) -> str:
+    return _clean(text).rstrip(":：").strip()
+
+
+def _value(text) -> str:
+    return re.sub(r"^[:：]\s*", "", _clean(text))
+
+
+def _table_to_lines(table) -> list:
+    lines = []
+    for tr in table.find_all("tr"):
+        cells = [_clean(c.get_text(" ", strip=True)) for c in tr.find_all(["th", "td"])]
+        if any(cells):
+            lines.append(" | ".join(cells))
+    return lines
+
+
+_BLOCK_TAGS = ("p", "div", "li", "ul", "ol", "dl", "dt", "dd", "h1", "h2", "h3", "h4", "h5",
+               "h6", "blockquote", "pre", "section", "article", "tr", "hr", "figure", "figcaption")
+
+
+def element_text(el) -> str:
+    """본문 영역을 글로 바꾼다.
+
+    문단·목록 같은 덩어리 사이에서만 줄을 바꾸고(글자 모양 태그로 잘게 나뉜 문장은 한 줄로 이어 붙인다),
+    본문 안의 표는 한 줄에 한 행씩 칸을 ' | ' 로 나눈다.
+    """
+    if el is None:
+        return ""
+    el = copy.copy(el)
+    for bad in el.find_all(["script", "style", "noscript"]):
+        bad.decompose()
+    maker = BeautifulSoup("", "html.parser")
+    for table in el.find_all("table"):
+        if table.find_parent("table") is not None:
+            continue
+        block = maker.new_tag("div")
+        block.string = "\n".join(_table_to_lines(table))
+        table.replace_with(block)
+    for br in el.find_all("br"):
+        br.replace_with("\n")
+    for tag in el.find_all(_BLOCK_TAGS):
+        tag.insert_before("\n")
+        tag.insert_after("\n")
+    lines = [_clean(line) for line in el.get_text().split("\n")]
+    return "\n".join(line for line in lines if line)
+
+
+def _put(target: dict, key: str, value: str) -> None:
+    """같은 이름이 또 나오면 '이름(2)' 로 이어 붙인다(값을 덮어쓰지 않는다)."""
+    if not key:
+        return
+    if key not in target:
+        target[key] = value
+        return
+    n = 2
+    while f"{key}({n})" in target:
+        n += 1
+    target[f"{key}({n})"] = value
+
+
+def _table_name(table, fallback: str) -> str:
+    cap = table.find("caption")
+    name = ""
+    if cap is not None:
+        strong = cap.find("strong")
+        name = _clean((strong or cap).get_text(" ", strip=True))
+    name = re.sub(r"\s*(상세\s*)?등록$", lambda m: " 상세" if m.group(1) else "", name).strip()
+    return name or fallback
+
+
+def _read_form_table(table, name: str):
+    """게시판이 정해 놓은 입력 표를 {'name','header','rows'} 로 읽는다. 빈 표면 None."""
+    header, rows = [], []
+    for tr in table.find_all("tr"):
+        ths = tr.find_all("th")
+        tds = tr.find_all("td")
+        if ths and not tds:
+            cells = [_clean(th.get_text(" ", strip=True)) for th in ths]
+            # 표 전체 제목 줄(칸 하나가 여러 칸을 덮음)은 이름으로만 쓴다.
+            if len(ths) == 1 and ths[0].get("colspan"):
+                continue
+            header = cells
+        elif tds:
+            cells = [_clean(td.get_text(" ", strip=True)) for td in tds]
+            if any(cells):
+                rows.append(cells)
+    if not rows:
+        return None
+    width = max(len(header), max(len(r) for r in rows))
+    header = header + [f"칸{i + 1}" for i in range(len(header), width)]
+    return {"name": name, "header": header, "rows": rows}
+
+
+def _parse_jbe(soup):
+    top = soup.select_one(".bbs_vtop")
+    if top is None or (top.find(["h4", "h3"]) is None and top.select_one("ul.col") is None):
+        return None
+    con = soup.select_one(".bbs_con")
+    if con is None:
+        # 동영상 게시판처럼 본문 칸 이름이 다른 경우: 제목 영역·첨부·이전/다음 글을 뺀 나머지
+        view = top.parent
+        con = copy.copy(view)
+        for junk in con.select(".bbs_vtop, .bbs_filedown, .pagelist, .bbs_btn, .screen_area, .bbs_img"):
+            junk.decompose()
+    out = {"skin": "jbe", "meta": {}, "fields": {}, "tables": []}
+    h = top.find(["h4", "h3"])
+    out["title"] = _clean(h.get_text(" ", strip=True)) if h else ""
+    for li in top.select("ul.col li"):
+        strong = li.find("strong")
+        if strong is None:
+            continue
+        full = li.get_text(" ", strip=True)
+        lab = strong.get_text(" ", strip=True)
+        label = _label(lab)
+        value = _value(full[len(lab):] if full.startswith(lab) else full)
+        if label and label not in _META_SKIP:
+            _put(out["meta"], label, value)
+
+    # 입력 항목: 소제목(h5)마다 묶는다. 소제목이 둘 이상이면 '소제목_항목' 으로 이름을 붙인다.
+    sections, current = [], ""
+    table_no = 0
+    for node in top.find_all(["h5", "ul", "table"]):
+        if node.name == "h5":
+            current = _clean(node.get_text(" ", strip=True))
+        elif node.name == "ul" and "tt_list" in (node.get("class") or []):
+            sections.append((current, node))
+        elif node.name == "table" and node.find_parent("table") is None:
+            table_no += 1
+            got = _read_form_table(node, _table_name(node, current or f"표{table_no}"))
+            if got:
+                out["tables"].append(got)
+    multi = len({s for s, _ in sections}) > 1
+    for section, ul in sections:
+        for li in ul.find_all("li"):
+            strong = li.find("strong")
+            if strong is None:
+                continue
+            label = _label(strong.get_text(" ", strip=True))
+            span = li.find("span")
+            value = _clean(span.get_text(" ", strip=True)) if span else \
+                _value(li.get_text(" ", strip=True).replace(strong.get_text(" ", strip=True), "", 1))
+            key = f"{section}_{label}" if (multi and section) else label
+            _put(out["fields"], key, value)
+    out["body"] = element_text(con)
+    return out
+
+
+def _parse_usm(soup):
+    table = soup.select_one("table.usm-brd-vew")
+    if table is None:
+        return None
+    out = {"skin": "usm", "meta": {}, "fields": {}, "tables": []}
+    tit = table.select_one("th.tch-tit")
+    out["title"] = _clean(tit.get_text(" ", strip=True)) if tit else ""
+    body_td = table.select_one("td.tch-ctnt")
+    target = out["meta"] if body_td is not None else out["fields"]
+    pending = None   # 제목 칸만 있는 줄(다음 줄 td 가 값)
+    for tr in table.find_all("tr"):
+        if tr.find_parent("table") is not table:
+            continue
+        cells = tr.find_all(["th", "td"], recursive=False)
+        if not cells:
+            continue
+        if body_td is not None and body_td in cells:
+            continue
+        if tit is not None and tit in cells:
+            continue
+        if pending is not None and len(cells) == 1 and cells[0].name == "td":
+            _put(target, pending, element_text(cells[0]))
+            pending = None
+            continue
+        if len(cells) == 1 and cells[0].name == "th":
+            pending = _label(cells[0].get_text(" ", strip=True))
+            continue
+        i = 0
+        while i < len(cells):
+            c = cells[i]
+            if c.name == "th" and i + 1 < len(cells) and cells[i + 1].name == "td":
+                label = _label(c.get_text(" ", strip=True))
+                td = cells[i + 1]
+                if label not in _META_SKIP and "tch-fil" not in (td.get("class") or []):
+                    _put(target, label, _clean(td.get_text(" ", strip=True)))
+                i += 2
+            else:
+                i += 1
+    if body_td is not None:
+        body = copy.copy(body_td)
+        for ul in body.select("ul.usm-editor-img"):
+            if not ul.get_text(strip=True):
+                ul.decompose()
+        out["body"] = element_text(body)
+    else:
+        out["body"] = ""
+    return out
+
+
+def _parse_jbedu(soup):
+    box = soup.select_one(".basicView")
+    if box is None:
+        return None
+    out = {"skin": "jbedu", "meta": {}, "fields": {}, "tables": []}
+    h = box.select_one(".titleField h4")
+    out["title"] = _clean(h.get_text(" ", strip=True)) if h else ""
+    for li in box.select(".titleField li"):
+        strong, span = li.find("strong"), li.find("span")
+        if strong is not None:
+            label = _label(strong.get_text(" ", strip=True))
+            if label and label not in _META_SKIP:
+                _put(out["meta"], label, _clean(span.get_text(" ", strip=True)) if span else "")
+    for li in box.select(".conField li"):
+        span = li.find("span", recursive=False)
+        p = li.find("p", recursive=False)
+        if span is None:
+            continue
+        label = _label(span.get_text(" ", strip=True))
+        if label and label not in _META_SKIP:
+            _put(out["fields"], label, _clean(p.get_text(" ", strip=True)) if p else "")
+    out["body"] = element_text(box.select_one(".conText"))
+    return out
+
+
+def _parse_lib(soup):
+    view = soup.select_one(".bbs-view")
+    sview = soup.select_one(".sview")
+    if view is None and sview is None:
+        return None
+    out = {"skin": "lib", "meta": {}, "fields": {}, "tables": [], "title": ""}
+    if view is not None:
+        head = view.select_one(".bbs-view-header")
+        if head is not None:
+            dt = head.find("dt")
+            out["title"] = _clean(dt.get_text(" ", strip=True)) if dt else ""
+            for i in head.find_all("i"):
+                label = _label(i.get_text(" ", strip=True))
+                span = i.find_next_sibling("span")
+                if label and label not in _META_SKIP and span is not None:
+                    _put(out["meta"], label, _clean(span.get_text(" ", strip=True)))
+        out["body"] = element_text(view.select_one(".bbs-view-body"))
+        return out
+    # 신착도서처럼 책 정보(저자·출판사 …)와 소개 글로 된 게시판
+    info = sview.select_one(".info")
+    if info is not None:
+        for li in info.find_all("li"):
+            text = _clean(li.get_text(" ", strip=True))
+            if li.find("b") is not None and not out["title"]:
+                out["title"] = text
+                continue
+            if ":" in text:
+                label, value = text.split(":", 1)
+                _put(out["fields"], _label(label), _clean(value))
+    body = copy.copy(sview)
+    for junk in body.select(".sinfo, .button, form"):
+        junk.decompose()
+    out["body"] = element_text(body)
+    return out
+
+
+_SKIN_PARSERS = (_parse_jbe, _parse_usm, _parse_jbedu, _parse_lib)
+
+
+def parse_detail(html: str, title_hint: str = "") -> dict:
+    """상세 페이지를 틀에 맞춰 칸 단위로 읽는다. 틀을 모르면 예전 방식으로 본문만 읽는다."""
+    soup = BeautifulSoup(html, "html.parser")
+    for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+        comment.extract()
+    for parser in _SKIN_PARSERS:
+        try:
+            got = parser(soup)
+        except Exception:
+            got = None
+        if got is not None:
+            got.setdefault("body", "")
+            return got
+    return {"skin": "", "title": "", "meta": {}, "fields": {}, "tables": [],
+            "body": extract_body_from_view(html, title_hint)}
 
 
 def safe_filename(name: str) -> str:
@@ -472,11 +787,11 @@ def _collect_detail(session, post_url, title_hint, author_hint, page, post_no,
                     cancel_event, note_error):
     """상세 페이지에서 본문·첨부 목록을 모으고(옵션) 첨부를 내려받는다.
 
-    반환: (body, attach_names)
+    반환: (body, attach_names, detail)  detail 은 parse_detail() 결과(본문 제외)
     """
-    body, attach_names = "", []
+    body, attach_names, detail = "", [], {}
     if not post_url or not (collect_body or download_files):
-        return body, attach_names
+        return body, attach_names, detail
     try:
         dresp = http_get(session, post_url, timeout=15)
         dresp.raise_for_status()
@@ -486,7 +801,8 @@ def _collect_detail(session, post_url, title_hint, author_hint, page, post_no,
 
         if collect_body:
             try:
-                body = extract_body_from_view(detail_html, title_hint)
+                detail = parse_detail(detail_html, title_hint)
+                body = detail.pop("body", "")
             except Exception as e:
                 note_error(page, post_no, title_hint, f"본문 수집 실패: {e}")
                 log_func(f"    - [{title_hint}] 본문 수집 실패")
@@ -518,7 +834,7 @@ def _collect_detail(session, post_url, title_hint, author_hint, page, post_no,
     except Exception as e:
         note_error(page, post_no, title_hint, f"상세 페이지 요청 실패: {e}")
         log_func(f"    - [{title_hint}] 상세 페이지 불러오기 실패")
-    return body, attach_names
+    return body, attach_names, detail
 
 
 def crawl_board(board_url, start_page, end_page, max_posts, log_func,
@@ -577,7 +893,7 @@ def crawl_board(board_url, start_page, end_page, max_posts, log_func,
                         break
                     title_hint, post_url = item["title"], item["url"]
                     try:
-                        body, attach_names = _collect_detail(
+                        body, attach_names, detail = _collect_detail(
                             session, post_url, title_hint, "", page, "",
                             result, log_func, collect_body, download_files,
                             attach_dir, cancel_event, note_error)
@@ -585,7 +901,8 @@ def crawl_board(board_url, start_page, end_page, max_posts, log_func,
                                "_상세URL": post_url,
                                "_본문내용": body if collect_body else "",
                                "_첨부파일개수": len(attach_names),
-                               "_첨부파일목록": "; ".join(attach_names) if attach_names else ""}
+                               "_첨부파일목록": "; ".join(attach_names) if attach_names else "",
+                               "_상세": detail, "_번호": "", "_제목": title_hint}
                         collected += 1
                         result.rows.append(row)
                         log_func(f"    - 수집됨: {title_hint}")
@@ -663,7 +980,7 @@ def crawl_board(board_url, start_page, end_page, max_posts, log_func,
                             post_url = urljoin(board_url, href)
                             break
 
-                    body, attach_names = _collect_detail(
+                    body, attach_names, detail = _collect_detail(
                         session, post_url, title_hint, author_hint, page, post_no,
                         result, log_func, collect_body, download_files,
                         attach_dir, cancel_event, note_error)
@@ -672,6 +989,9 @@ def crawl_board(board_url, start_page, end_page, max_posts, log_func,
                     row["_본문내용"] = body if collect_body else ""
                     row["_첨부파일개수"] = len(attach_names)
                     row["_첨부파일목록"] = "; ".join(attach_names) if attach_names else ""
+                    row["_상세"] = detail
+                    row["_번호"] = post_no
+                    row["_제목"] = title_hint
 
                     collected += 1
                     result.rows.append(row)
@@ -710,15 +1030,101 @@ def adjust_column_width(ws) -> None:
         ws.column_dimensions[col].width = min(max_len + 2, 60)
 
 
+def _detail_columns(headers, rows):
+    """상세 페이지에서 읽은 칸들을 어떤 열로 둘지 정한다.
+
+    · 게시글 정보(작성자·등록일·조회수 …)와 입력 항목은 처음 나온 순서대로 열이 된다.
+      목록 표에 이미 같은 이름의 열이 있으면 새로 만들지 않는다.
+    · 입력 표 중 모든 글에서 한 줄뿐인 표는 '표이름_칸이름' 열로 붙인다.
+    · 줄이 여럿인 표는 별도 시트로 보낸다(sheet_tables).
+    """
+    have = set(headers) | set(EXTRA_HEADERS)
+    info_cols, seen = [], set()
+    multi_tables = {}
+    for row in rows:
+        detail = row.get("_상세") or {}
+        for part in ("meta", "fields"):
+            for key in (detail.get(part) or {}):
+                if key not in have and key not in seen:
+                    seen.add(key)
+                    info_cols.append(key)
+        for table in detail.get("tables") or []:
+            if len(table["rows"]) > 1:
+                multi_tables[table["name"]] = True
+    flat_cols = []
+    for row in rows:
+        for table in (row.get("_상세") or {}).get("tables") or []:
+            if table["name"] in multi_tables:
+                continue
+            for h in table["header"]:
+                key = f"{table['name']}_{h}"
+                if key not in have and key not in seen:
+                    seen.add(key)
+                    flat_cols.append(key)
+    info_cols = [c for c in info_cols if not _repeats_list_column(c, headers, rows)]
+    return info_cols, flat_cols, list(multi_tables)
+
+
+def _norm_cell(value) -> str:
+    return re.sub(r"\s+", "", str(value or ""))
+
+
+def _repeats_list_column(col, headers, rows) -> bool:
+    """상세 칸의 값이 모든 글에서 목록 표의 어떤 열과 똑같으면 True(같은 내용을 두 번 싣지 않는다).
+    예) 목록의 '이 름' 열과 상세의 '작성자' 가 늘 같은 학교 게시판."""
+    values = [_flat_values(row).get(col, "") for row in rows]
+    if not any(_norm_cell(v) for v in values):
+        return False
+    for h in headers:
+        if all(_norm_cell(v) == _norm_cell(row.get(h, "")) for v, row in zip(values, rows)):
+            return True
+    return False
+
+
+def _flat_values(row) -> dict:
+    detail = row.get("_상세") or {}
+    out = {}
+    out.update(detail.get("meta") or {})
+    out.update(detail.get("fields") or {})
+    for table in detail.get("tables") or []:
+        if len(table["rows"]) == 1:
+            for h, v in zip(table["header"], table["rows"][0]):
+                out[f"{table['name']}_{h}"] = v
+    return out
+
+
+def _sheet_title(name: str, used: set) -> str:
+    base = re.sub(r"[\\/*?:\[\]]", "_", name).strip() or "표"
+    base = base[:31]
+    title, n = base, 2
+    while title in used:
+        suffix = f"({n})"
+        title = base[:31 - len(suffix)] + suffix
+        n += 1
+    used.add(title)
+    return title
+
+
 def save_to_excel(headers, rows, errors, excel_path, board_url) -> str:
-    """게시판 헤더를 그대로 열로 쓰고, 뒤에 공통 열을 붙여 저장."""
+    """게시판 헤더를 그대로 열로 쓰고, 상세 페이지에서 읽은 칸과 공통 열을 뒤에 붙여 저장.
+
+    줄이 여럿인 입력 표(학년별 인원 등)는 표마다 시트를 따로 만들고,
+    어느 글의 표인지 알 수 있게 번호·제목·상세URL 을 앞에 붙인다.
+    """
+    info_cols, flat_cols, multi_names = _detail_columns(headers, rows)
+    count_cols = [f"{name}(행수)" for name in multi_names]
+
     wb = Workbook()
     ws = wb.active
     ws.title = "게시글"
-    ws.append(list(headers) + EXTRA_HEADERS)
+    ws.append(list(headers) + info_cols + flat_cols + count_cols + EXTRA_HEADERS)
 
     for row in rows:
         values = [row.get(h, "") for h in headers]
+        flat = _flat_values(row)
+        values += [flat.get(c, "") for c in info_cols + flat_cols]
+        tables = {t["name"]: t for t in (row.get("_상세") or {}).get("tables") or []}
+        values += [len(tables[name]["rows"]) if name in tables else "" for name in multi_names]
         values += [
             board_url,
             row.get("_상세URL", ""),
@@ -728,6 +1134,23 @@ def save_to_excel(headers, rows, errors, excel_path, board_url) -> str:
         ]
         ws.append(values)
     adjust_column_width(ws)
+
+    used = {"게시글", "오류_건너뜀"}
+    for name in multi_names:
+        header = []
+        for row in rows:
+            for t in (row.get("_상세") or {}).get("tables") or []:
+                if t["name"] == name and len(t["header"]) > len(header):
+                    header = t["header"]
+        sheet = wb.create_sheet(_sheet_title(name, used))
+        sheet.append(["번호", "제목", "상세URL"] + header)
+        for row in rows:
+            for t in (row.get("_상세") or {}).get("tables") or []:
+                if t["name"] != name:
+                    continue
+                for cells in t["rows"]:
+                    sheet.append([row.get("_번호", ""), row.get("_제목", ""), row.get("_상세URL", "")] + cells)
+        adjust_column_width(sheet)
 
     ws_err = wb.create_sheet("오류_건너뜀")
     ws_err.append(["페이지", "게시글번호", "제목", "오류내용"])
