@@ -1,0 +1,21 @@
+{
+  "id": "document_privacy_masker",
+  "name": "문서 개인정보 마스킹",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "",
+  "icon": "",
+  "description": "한글(hwpx)·PDF 문서에서 개인정보를 찾아 확인한 뒤 가린 사본을 만듭니다.",
+  "order": 90,
+  "enabled": false,
+  "version": "0.1.0",
+  "keywords": [
+    "마스킹",
+    "개인정보",
+    "비식별",
+    "인사",
+    "가리기",
+    "hwpx",
+    "pdf"
+  ]
+}
