@@ -482,9 +482,28 @@ def run_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# 문서 개인정보 마스킹: 화면과 주고받는 모양은 도구 폴더(document_privacy_masker_service 의 app_*)가 정한다.
+def run_document_privacy_masker(payload: dict[str, Any]) -> dict[str, Any]:
+    service = _module("document_privacy_masker", "document_privacy_masker_service")
+    return service.app_apply(payload, progress=emit_progress, cancel=FileCancel().is_set)
+
+
+def analyze_document_privacy_masker(payload: dict[str, Any]) -> dict[str, Any]:
+    service = _module("document_privacy_masker", "document_privacy_masker_service")
+    return service.app_analyze(payload, progress=emit_progress)
+
+
+def page_document_privacy_masker(payload: dict[str, Any]) -> dict[str, Any]:
+    service = _module("document_privacy_masker", "document_privacy_masker_service")
+    return service.app_page(payload)
+
+
 EXTRA_HANDLERS = {
     "certificate_pdf_renamer": run_certificate_renamer,
     "certificate_pdf_splitter": run_certificate_splitter,
+    "document_privacy_masker": run_document_privacy_masker,
+    "document_privacy_masker__analyze": analyze_document_privacy_masker,
+    "document_privacy_masker__page": page_document_privacy_masker,
     "empty_folder_cleaner": run_empty_folder_cleaner,
     "excel_merge": run_excel_merge,
     "excel_merge__analyze": analyze_excel_merge,

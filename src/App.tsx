@@ -18,6 +18,7 @@ import { NativeToolPanel } from "./components/NativeToolPanel";
 import { ExcelSplitPanel } from "./components/ExcelSplitPanel";
 import { PdfOrganizerPanel } from "./components/PdfOrganizerPanel";
 import { ExcelMergePanel } from "./components/ExcelMergePanel";
+import { DocumentPrivacyMaskerPanel } from "./components/DocumentPrivacyMaskerPanel";
 import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -260,6 +261,10 @@ export default function App() {
       // 엑셀 병합: 시트별 헤더 확인과 결과 미리보기를 보여 주는 전용 화면.
       if (view.tool.id === "excel_merge") {
         return <ExcelMergePanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
+      }
+      // 문서 개인정보 마스킹: 찾은 곳을 사람이 확인한 뒤 가린 사본을 만드는 전용 화면.
+      if (view.tool.id === "document_privacy_masker") {
+        return <DocumentPrivacyMaskerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
       }
       if (view.tool.id === "pdf_page_organizer") {
         return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;

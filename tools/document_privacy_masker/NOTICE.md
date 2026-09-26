@@ -22,7 +22,9 @@
 
 ## 이 도구 파일
 
-- `document_privacy_masker_service.py` 앱이 부르는 입구(analyze_file → apply_file)
+- `document_privacy_masker_service.py` 앱이 부르는 입구(analyze_file → apply_file).
+  확인 화면은 `app_analyze`·`app_page`·`app_apply` 를 부른다(bridge/extra_tools.py 에는 이 세 함수를 부르는 등록만 있다).
+  화면 파일: `src/components/DocumentPrivacyMaskerPanel.tsx`, `src/components/document-privacy-masker.css`
 - `dpm_kinds.py`  개인정보 종류·기본 처리 방식·법정 7종
 - `dpm_detect.py` 찾기(ko-pii + 인사 서류 보강 규칙 + 표 머리글)
 - `dpm_mask.py`   가린 글자 만들기
@@ -36,5 +38,6 @@
     python tests/run_golden.py
     python tests/run_mask.py
     python tests/run_documents.py      # PyMuPDF 필요
+    python tests/run_app.py            # 확인 화면이 보내는 모양 그대로 (PyMuPDF 필요)
 
 다른 도구와 모듈 이름이 겹치지 않도록 내부 모듈 이름은 모두 `dpm_` 으로 시작한다.

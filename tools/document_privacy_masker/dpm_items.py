@@ -78,7 +78,7 @@ class Item:
         }
 
 
-def _context(text: str, start: int, end: int, width: int = 18) -> str:
+def _context(text: str, start: int, end: int, width: int = 24) -> str:
     left = text[max(0, start - width):start].replace("\n", " ")
     right = text[end:end + width].replace("\n", " ")
     return f"{left}【{text[start:end]}】{right}".strip()
@@ -168,6 +168,20 @@ def items_for_terms(units: list[Unit], tables: list[TableGrid], terms: list[dict
     return out
 
 
+def combine_terms(items: list[Item], term_items: list[Item]) -> list[Item]:
+    """'직접 추가'한 글자를 찾은 항목에 붙인다.
+
+    이미 찾은 항목 하나 안에 통째로 들어가는 것은 빼고(목록에 이미 있으니 그 항목의 처리 방식을
+    바꾸면 된다), 걸치거나 새로운 자리만 따로 항목으로 둔다."""
+    out = list(items)
+    for term in term_items:
+        keys = set(term.keys)
+        if any(keys <= set(it.keys) for it in items):
+            continue
+        out.append(term)
+    return out
+
+
 @dataclass
 class Edit:
     """글자 위치 하나를 어떻게 바꿀지. new_char 가 '' 이면 그 글자를 지운다."""
@@ -189,15 +203,22 @@ def plan_edits(items: list[Item], decisions: dict[str, str]) -> tuple[list[Edit]
         done.append(it)
         if len(new) == len(it.text):
             for pos, old_ch, new_ch in zip(it.positions, it.text, new):
-                if pos is not None and old_ch != new_ch:
+                if pos is not None and old_ch != new_ch and not _locked(edits.get(pos)):
                     edits[pos] = new_ch
         else:
             # 글자 수가 달라지는 '종류로 바꿈': 첫 글자 자리에 통째로 넣고 나머지는 지운다.
             keys = it.keys
-            edits[keys[0]] = new
+            if not _locked(edits.get(keys[0])):
+                edits[keys[0]] = new
             for pos in keys[1:]:
-                edits[pos] = ""
+                if not _locked(edits.get(pos)):
+                    edits[pos] = ""
     return [Edit(p, c) for p, c in edits.items()], done
+
+
+def _locked(value: Optional[str]) -> bool:
+    """이미 '종류로 바꿈'이 차지한 자리(지운 글자·통째로 넣은 글자)는 겹치는 다른 항목이 덮지 않는다."""
+    return value is not None and len(value) != 1
 
 
 def leftover_check(masked: list[Item], kept: list[Item], after_units: list[Unit],
