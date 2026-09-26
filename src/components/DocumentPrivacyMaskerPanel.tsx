@@ -96,6 +96,8 @@ const ACTION_LABELS: Record<Action, string> = {
   keep: "그대로 둠",
 };
 const ACTION_ORDER: Action[] = ["mask_part", "mask_all", "replace", "keep"];
+// 체크한 항목에 한꺼번에 적용하는 방식
+const BULK_ACTIONS: Action[] = ["mask_part", "mask_all", "keep"];
 
 // '직접 추가'로 고를 수 있는 종류. 고른 종류의 가림 모양(일부 가림 등)을 쓴다.
 const TERM_KINDS: { code: string; label: string }[] = [
@@ -259,6 +261,8 @@ export function DocumentPrivacyMaskerPanel({
   const [active, setActive] = useState("");
   const [filter, setFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState("");
+  // 한꺼번에 처리 방식을 바꿀 항목(체크한 것). 파일을 바꾸면 비운다.
+  const [checked, setChecked] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
 
   const [pageNo, setPageNo] = useState<Record<string, number>>({});
@@ -462,6 +466,28 @@ export function DocumentPrivacyMaskerPanel({
   useEffect(() => {
     if (filter !== "all" && filter !== "check" && !kindsHere.some(([kind]) => kind === filter)) setFilter("all");
   }, [filter, kindsHere]);
+
+  // 파일을 바꾸거나 다시 읽어 사라진 항목은 체크에서 뺀다.
+  useEffect(() => {
+    const alive = new Set(items.map((item) => item.id));
+    setChecked((current) => {
+      const next = new Set([...current].filter((id) => alive.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [items]);
+  useEffect(() => setChecked(new Set()), [active]);
+
+  const checkedShown = shown.filter((item) => checked.has(item.id));
+  const allShownChecked = !!shown.length && checkedShown.length === shown.length;
+  const toggleChecked = (ids: string[], on: boolean) =>
+    setChecked((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
 
   // ── PDF 미리보기 ──────────────────────────────────────────────
   const isPdf = analysis?.format === "pdf";
@@ -751,19 +777,6 @@ export function DocumentPrivacyMaskerPanel({
                 ))}
               </div>
 
-              {filter !== "all" && filter !== "check" && !!shown.length && (
-                <div className="dpm-bulk">
-                  <span>
-                    이 파일의 <b>{shown[0].label}</b> {shown.length}곳을 모두
-                  </span>
-                  {actionsFor(shown[0]).map((action) => (
-                    <button key={action} className="secondary-button" onClick={() => setAction(shown, action)}>
-                      {actionName(shown[0], action)}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               <p className="dpm-help">
                 {isPdf
                   ? "미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
@@ -772,11 +785,40 @@ export function DocumentPrivacyMaskerPanel({
 
               <div className="dpm-review has-preview">
                 <div className="dpm-list-col">
+                <div className="dpm-list-inner">
+                <div className="dpm-list-bar">
+                  <label className="dpm-check-all">
+                    <input
+                      type="checkbox"
+                      checked={allShownChecked}
+                      disabled={!shown.length}
+                      ref={(node) => {
+                        if (node) node.indeterminate = !allShownChecked && checkedShown.length > 0;
+                      }}
+                      onChange={(event) => toggleChecked(shown.map((item) => item.id), event.target.checked)}
+                    />
+                    전체 선택
+                  </label>
+                  <span className="dpm-check-count">
+                    선택 <b>{checkedShown.length}</b>곳
+                  </span>
+                  {BULK_ACTIONS.map((action) => (
+                    <button
+                      key={action}
+                      className="secondary-button"
+                      disabled={!checkedShown.length}
+                      onClick={() => setAction(checkedShown, action)}
+                    >
+                      {ACTION_LABELS[action]}
+                    </button>
+                  ))}
+                </div>
                 <div className="dpm-table-wrap">
                   {items.length ? (
                     <table className="dpm-table">
                       <thead>
                         <tr>
+                          <th className="dpm-col-check" />
                           {isPdf && <th className="dpm-col-page">쪽</th>}
                           <th className="dpm-col-kind">종류</th>
                           <th>찾은 내용 → 바뀐 모양</th>
@@ -796,6 +838,14 @@ export function DocumentPrivacyMaskerPanel({
                               className={`${selectedItem === item.id ? "is-selected" : ""} ${action === "keep" ? "is-keep" : ""}`}
                               onClick={() => selectItem(item)}
                             >
+                              <td className="dpm-check" onClick={(event) => event.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked.has(item.id)}
+                                  onChange={(event) => toggleChecked([item.id], event.target.checked)}
+                                  aria-label={`${item.text} 선택`}
+                                />
+                              </td>
                               {isPdf && <td className="dpm-page-no">{item.page ?? ""}</td>}
                               <td className="dpm-kind">
                                 <span className="dpm-kind-badge">
@@ -837,6 +887,7 @@ export function DocumentPrivacyMaskerPanel({
                       찾은 개인정보가 없습니다. 빠진 것이 있으면 아래 '직접 추가'로 넣거나{isPdf ? ", 미리보기에 영역을 그리세요" : ""}.
                     </p>
                   )}
+                </div>
                 </div>
                 </div>
 
