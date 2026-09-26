@@ -94,8 +94,40 @@ _MASK_CHARS = "*＊xX●○◯■□◆◇"
 
 
 def _near_before(text: str, start: int, words: tuple[str, ...], span: int = 20) -> bool:
-    before = text[max(0, start - span):start].replace(" ", "")
-    return any(w.replace(" ", "") in before for w in words)
+    before = re.sub(r"\s+", "", text[max(0, start - span):start])
+    return any(re.sub(r"\s+", "", w) in before for w in words)
+
+
+# 성씨 한자 → 한글 음. '국지(局地)'·'원격지(遠隔地)' 같은 한자어를 이름으로 오해하지 않도록
+# 괄호 속 첫 한자가 성씨 한자이고 그 음이 한글 이름 첫 글자와 같을 때만 한자 병기 이름으로 본다(KID 방식).
+_SURNAME_HANJA = {
+    "金": "김", "李": "이", "朴": "박", "崔": "최", "鄭": "정", "丁": "정", "程": "정", "姜": "강", "康": "강", "趙": "조",
+    "曺": "조", "曹": "조", "尹": "윤", "張": "장", "蔣": "장", "莊": "장", "林": "임", "任": "임", "韓": "한",
+    "吳": "오", "申": "신", "辛": "신", "愼": "신", "徐": "서", "權": "권", "黃": "황", "安": "안", "宋": "송",
+    "柳": "류", "劉": "유", "兪": "유", "庾": "유", "全": "전", "田": "전", "錢": "전", "洪": "홍", "高": "고",
+    "文": "문", "孫": "손", "梁": "양", "楊": "양", "裵": "배", "裴": "배", "白": "백", "許": "허", "南": "남",
+    "沈": "심", "盧": "노", "魯": "노", "河": "하", "郭": "곽", "成": "성", "車": "차", "朱": "주", "周": "주",
+    "禹": "우", "具": "구", "丘": "구", "羅": "나", "閔": "민", "陳": "진", "秦": "진", "晉": "진", "池": "지",
+    "嚴": "엄", "蔡": "채", "元": "원", "袁": "원", "千": "천", "方": "방", "房": "방", "孔": "공", "玄": "현",
+    "咸": "함", "卞": "변", "邊": "변", "廉": "염", "呂": "여", "余": "여", "秋": "추", "都": "도", "蘇": "소",
+    "石": "석", "宣": "선", "薛": "설", "馬": "마", "吉": "길", "延": "연", "表": "표", "明": "명", "王": "왕",
+    "潘": "반", "玉": "옥", "琴": "금", "孟": "맹", "諸": "제", "卓": "탁", "陸": "육", "魏": "위", "鞠": "국",
+    "奇": "기", "殷": "은", "片": "편", "龍": "용", "睦": "목", "印": "인", "慶": "경", "賓": "빈", "夫": "부",
+    "皇": "황", "甫": "보", "諸葛": "제갈", "南宮": "남궁", "鮮": "선", "司": "사", "獨": "독", "東": "동",
+    "太": "태", "桂": "계", "牟": "모", "宋": "송", "奉": "봉", "晋": "진", "昔": "석", "董": "동", "葉": "엽",
+    "承": "승", "邢": "형", "景": "경", "包": "포", "丙": "병", "占": "점", "伊": "이", "耿": "경", "杜": "두",
+    "韋": "위", "雍": "옹", "于": "우", "艾": "애", "芮": "예", "國": "국", "凡": "범", "賈": "가", "簡": "간",
+}
+
+
+def _hanja_surname_ok(name: str, hanja: str) -> bool:
+    if not re.search(_HANJA, hanja):
+        return False
+    for size in (2, 1):
+        reading = _SURNAME_HANJA.get(hanja[:size])
+        if reading and name.startswith(reading):
+            return True
+    return False
 
 
 def _odd_four(token: str) -> bool:
@@ -397,7 +429,18 @@ _NAME_CUES = (
     "신청인", "신청자", "대상자", "응시자", "지원자", "추천인", "피추천인", "담당자", "작성자", "확인자",
     "故",
 )
-_CUE_ALT = "|".join(sorted((re.escape(c) for c in _NAME_CUES), key=len, reverse=True))
+# '성\n명:' 처럼 항목 이름 글자 사이가 벌어지거나 줄이 바뀐 서식(이수증 등)도 받는다.
+_SPREAD_CUES = {"성명", "이름", "성함"}
+_STRONG_LABELS = {"성명", "성 명", "이름", "이 름", "성함"}
+
+
+def _cue_pattern(cue: str) -> str:
+    if cue in _SPREAD_CUES:
+        return r"\s*".join(re.escape(ch) for ch in cue)
+    return re.escape(cue)
+
+
+_CUE_ALT = "|".join(_cue_pattern(c) for c in sorted(_NAME_CUES, key=len, reverse=True))
 # 문장 속에서도 흔히 쓰이는 낱말(자녀 양육, 본인 확인 …). 이 뒤의 이름은 이름 뒤가 끊겨 있어야 인정한다.
 _WEAK_CUES = {
     "본인", "자녀", "아들", "딸", "부", "모", "형제", "자매", "가족", "담당자", "작성자", "확인자",
@@ -423,9 +466,11 @@ def _trim_particle(token: str) -> str:
 def _rule_person(text: str) -> list[Finding]:
     out = []
     for m in _CUE_RE.finditer(text):
-        cue = m.group(1)
+        cue = re.sub(r"\s+", "", m.group(1))
         token = _trim_particle(m.group(2))
         if not _looks_like_name(token):
+            continue
+        if cue not in {re.sub(r"\s+", "", c) for c in _STRONG_LABELS} and _odd_four(token):
             continue
         start = m.start(2)
         if cue in _WEAK_CUES:
@@ -436,7 +481,7 @@ def _rule_person(text: str) -> list[Finding]:
         out.append(Finding("PERSON", start, start + len(token), token, 0.85, [f"'{cue}' 뒤 이름"]))
     for m in _HANJA_NAME_RE.finditer(text):
         name, hanja = m.group(1), m.group(2)
-        if len(name) == len(hanja) and re.search(_HANJA, hanja) and _looks_like_name(name):
+        if len(name) == len(hanja) and _hanja_surname_ok(name, hanja) and _looks_like_name(name):
             out.append(Finding("PERSON", m.start(), m.end(), m.group(0), 0.9, ["한자를 함께 쓴 이름"]))
     out += _rule_vertical_names(text)
     return out
@@ -480,7 +525,7 @@ def _rule_hanja_extend(text: str, findings: list[Finding]) -> None:
         if f.kind != "PERSON":
             continue
         m = re.match(r"\s?\(([\u3400-\u9fff\uf900-\ufaff가-힣]{2,4})\)", text[f.end:])
-        if m and len(m.group(1)) == len(f.text) and re.search(_HANJA, m.group(1)):
+        if m and len(m.group(1)) == len(f.text) and _hanja_surname_ok(f.text, m.group(1)):
             f.end += m.end()
             f.text = text[f.start:f.end]
             if "한자를 함께 쓴 이름" not in f.reasons:
@@ -607,9 +652,43 @@ _HEADER_LOOKUP = {h.lower(): kind for kind, heads in _HEADER_KINDS.items() for h
 _EMPTY_CELLS = {"", "-", "–", "—", "없음", "해당없음", "해당 없음", "무", "x", "X"}
 
 
+def _trim_span(value: str) -> tuple[int, int]:
+    """칸 글자 앞뒤 빈칸을 뺀 범위."""
+    a = len(value) - len(value.lstrip())
+    b = len(value.rstrip())
+    return a, max(a, b)
+
+
 def header_kind(cell: str) -> str | None:
     key = re.sub(r"\s+", "", str(cell or "")).lower().rstrip(":：")
     return _HEADER_LOOKUP.get(key)
+
+
+def _value_fits(kind: str, value: str) -> bool:
+    """표 머리글·항목명으로 정한 종류에 값 모양이 맞는지. '자녀 | 1일' 같은 규정 표를 거른다."""
+    v = value.strip()
+    digits = len(re.sub(r"\D", "", v))
+    if kind == "PERSON":
+        return bool(re.fullmatch(r"[가-힣]{2,5}(?:\s?\([^()]{1,8}\))?", v)) and v not in _NOT_NAMES \
+            and not header_kind(v)
+    if kind in ("RRN", "FRN"):
+        return bool(re.search(r"\d{6}\s?-?\s?[\d*＊xX●○]", v))
+    if kind == "BIRTH":
+        return digits >= 4
+    if kind == "ADDRESS":
+        return bool(re.search(r"[가-힣]", v)) and len(v) >= 4 and bool(
+            re.search(r"(시|군|구|읍|면|동|리|로|길|번지|아파트|\d)", v))
+    if kind in ("PHONE", "MOBILE"):
+        return 7 <= digits <= 12
+    if kind == "ACCOUNT":
+        return 8 <= digits <= 20
+    if kind == "EMAIL":
+        return "@" in v
+    if kind == "VEHICLE":
+        return bool(re.search(r"\d{2,3}\s?[가-힣]\s?\d{4}", v))
+    if kind == "EMPLOYEE_ID":
+        return bool(re.search(r"[0-9A-Za-z]{3,}", v))
+    return True
 
 
 def _cell_kind(kind: str, value: str) -> str:
@@ -667,10 +746,11 @@ def detect_table(rows: list[list[str]]) -> list[CellFinding]:
         for c, k in enumerate(kinds):
             if k and c + 1 < len(cells) and not header_kind(cells[c + 1]):
                 value = cells[c + 1].strip()
-                if value in _EMPTY_CELLS:
+                if value in _EMPTY_CELLS or not _value_fits(k, value):
                     continue
                 kind = _cell_kind(k, value)
-                f = Finding(kind, 0, len(cells[c + 1]), cells[c + 1], 0.9, [f"'{cells[c].strip()}' 칸 옆 값"])
+                a, b = _trim_span(cells[c + 1])
+                f = Finding(kind, a, b, cells[c + 1][a:b], 0.9, [f"'{cells[c].strip()}' 칸 옆 값"])
                 add(r, c + 1, f)
                 pair_cols.add(c + 1)
         # 머리글 아래 열 값
@@ -678,10 +758,11 @@ def detect_table(rows: list[list[str]]) -> list[CellFinding]:
             if c in pair_cols or c >= len(cells) or kinds[c]:
                 continue
             value = cells[c].strip()
-            if value in _EMPTY_CELLS:
+            if value in _EMPTY_CELLS or not _value_fits(k, value):
                 continue
             kind = _cell_kind(k, value)
-            add(r, c, Finding(kind, 0, len(cells[c]), cells[c], 0.9, [f"'{head}' 열"]))
+            a, b = _trim_span(cells[c])
+            add(r, c, Finding(kind, a, b, cells[c][a:b], 0.9, [f"'{head}' 열"]))
         # 모든 칸 글 검사(다른 종류가 섞여 있을 수 있음)
         for c, value in enumerate(cells):
             if kinds[c]:

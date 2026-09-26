@@ -22,9 +22,19 @@
 
 ## 이 도구 파일
 
+- `document_privacy_masker_service.py` 앱이 부르는 입구(analyze_file → apply_file)
 - `dpm_kinds.py`  개인정보 종류·기본 처리 방식·법정 7종
 - `dpm_detect.py` 찾기(ko-pii + 인사 서류 보강 규칙 + 표 머리글)
 - `dpm_mask.py`   가린 글자 만들기
-- `tests/`        정답 샘플(`golden_cases.json`, 모두 가짜 값)과 점검 스크립트
+- `dpm_items.py`  문서 형식과 상관없는 항목 합치기·글자 단위 수정 계획·다시 검사
+- `dpm_hwpx.py`   한글(hwpx) 읽기·쓰기(XML 글자만 바꿔 끼움, 미리보기·문서정보 정리)
+- `dpm_pdf.py`    PDF 읽기·쓰기(PyMuPDF 실제 삭제, 표 선·그림 보존, 문서정보 정리)
+- `tests/`        정답 샘플(`golden_cases.json`)·가림 모양·문서 끝까지 점검. `fixtures/` 는 모두 가짜 값
+
+점검 방법(도구 폴더에서):
+
+    python tests/run_golden.py
+    python tests/run_mask.py
+    python tests/run_documents.py      # PyMuPDF 필요
 
 다른 도구와 모듈 이름이 겹치지 않도록 내부 모듈 이름은 모두 `dpm_` 으로 시작한다.
