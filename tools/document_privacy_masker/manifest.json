@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "",
   "icon": "",
-  "description": "한글(hwpx)·PDF 문서에서 개인정보를 찾아 확인한 뒤 가린 사본을 만듭니다.",
+  "description": "한글(hwp·hwpx)·PDF 문서에서 개인정보를 찾아 확인한 뒤 가린 사본을 만듭니다.",
   "order": 90,
   "enabled": true,
   "version": "1.0.0",
@@ -15,6 +15,7 @@
     "비식별",
     "인사",
     "가리기",
+    "hwp",
     "hwpx",
     "pdf"
   ]

@@ -86,7 +86,7 @@ type Box = { id: number; page: number; x0: number; y0: number; x1: number; y1: n
 type Picture = { image: string; width: number; height: number };
 
 const TOOL_ID = "document_privacy_masker";
-const EXTENSIONS = ["hwpx", "pdf"];
+const EXTENSIONS = ["hwp", "hwpx", "pdf"];
 const LOW_CONFIDENCE = 0.8;
 
 const ACTION_LABELS: Record<Action, string> = {
@@ -357,11 +357,9 @@ export function DocumentPrivacyMaskerPanel({
   useEffect(() => setConfirmed(false), [reviewKey]);
 
   const takeInputs = (paths: string[]) => {
-    const hwp = paths.filter((path) => /\.hwp$/i.test(path));
-    if (hwp.length) say(`옛 한글(hwp) ${hwp.length}개는 'HWP→HWPX 변환'으로 hwpx 로 바꾼 뒤 넣어 주세요.`);
     const usable = filterByExtension(paths, EXTENSIONS).filter((path) => !inputs.includes(path));
     if (!usable.length) {
-      if (!hwp.length) say("한글(hwpx)·PDF 파일만 넣을 수 있습니다.");
+      say("한글(hwp·hwpx)·PDF 파일만 넣을 수 있습니다.");
       return;
     }
     setInputs((current) => [...current, ...usable]);
@@ -669,11 +667,11 @@ export function DocumentPrivacyMaskerPanel({
         </div>
         <button className={`drop-zone ${dropping ? "is-dropping" : ""}`} onClick={() => void pickFiles()}>
           <FolderOpen size={30} />
-          <strong>한글(hwpx)·PDF 문서를 선택하세요</strong>
+          <strong>한글(hwp·hwpx)·PDF 문서를 선택하세요</strong>
           <span>
             {dropping
               ? "여기에 놓으면 목록에 넣습니다."
-              : "옛 한글(hwp)은 'HWP→HWPX 변환'으로 바꾼 뒤 넣으세요. 스캔한 PDF(글자가 그림인 문서)는 처리하지 않습니다."}
+              : "옛 한글(hwp)은 한글로 hwpx 로 바꿔 읽고 사본도 hwpx 로 저장합니다(한글이 설치된 PC). 스캔한 PDF(글자가 그림인 문서)는 처리하지 않습니다."}
           </span>
         </button>
         {!!inputs.length && (

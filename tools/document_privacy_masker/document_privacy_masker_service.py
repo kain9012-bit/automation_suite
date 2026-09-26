@@ -6,6 +6,7 @@
 
 분석과 적용 사이에 문서를 다시 읽어 같은 규칙으로 찾기 때문에 항목 id 가 그대로 맞는다.
 원본 파일은 절대 고치지 않는다. 사본 이름: '원본이름_마스킹.hwpx' / '원본이름_마스킹.pdf'
+(옛 한글 hwp 는 한글로 hwpx 로 바꿔 읽고 사본도 hwpx 로 저장한다. dpm_hancom 참고)
 (같은 이름이 있으면 '(1)' 을 붙인다).
 """
 from __future__ import annotations
@@ -23,24 +24,32 @@ from dpm_kinds import ACTION_LABELS, FIXED_CODES, KEEP, KINDS, MASK_ALL, REPLACE
 from dpm_mask import masked_text  # noqa: E402
 # 한글·PDF 모듈도 여기서 불러 둔다. 설치본을 만들 때 사이드카 자체 점검(--selftest)이
 # 이 파일을 불러 보므로, 빠진 라이브러리가 있으면 배포 전에 드러난다.
+import dpm_hancom  # noqa: E402,F401
 import dpm_hwpx  # noqa: E402,F401
 import dpm_pdf  # noqa: E402,F401
 
-SUPPORTED = (".hwpx", ".pdf")
+SUPPORTED = (".hwp", ".hwpx", ".pdf")
+
+
+def _work_path(path: Path) -> Path:
+    """실제로 읽을 파일. 옛 한글(hwp) 형식이면 한글로 바꾼 임시 hwpx(확장자가 hwpx 인데 속이 hwp 인 것도)."""
+    if path.suffix.lower() in (".hwp", ".hwpx"):
+        from dpm_hancom import working_hwpx
+        return working_hwpx(path)
+    return path
 
 
 def _open(path: Path):
+    """path 는 _work_path 를 거친 파일."""
     ext = path.suffix.lower()
-    if ext == ".hwpx":
+    if ext in (".hwpx", ".hwp"):
         from dpm_hwpx import HwpxDoc, check_hwpx
         check_hwpx(path)
         return HwpxDoc(path)
     if ext == ".pdf":
         from dpm_pdf import PdfDoc
         return PdfDoc(path)
-    if ext == ".hwp":
-        raise ValueError("옛 한글(hwp) 파일은 'HWP→HWPX 변환'으로 hwpx 로 바꾼 뒤 넣어 주세요.")
-    raise ValueError(f"지원하지 않는 형식입니다: {path.suffix} (hwpx, pdf 만 됩니다)")
+    raise ValueError(f"지원하지 않는 형식입니다: {path.suffix} (hwp, hwpx, pdf 만 됩니다)")
 
 
 def _warnings(doc) -> list[str]:
@@ -97,7 +106,8 @@ def _changes(kind: str, text: str) -> dict[str, list[int]]:
 def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> dict[str, Any]:
     path = Path(path).expanduser().resolve()
     stamp = fingerprint(path)
-    doc = _open(path)
+    work = _work_path(path)
+    doc = _open(work)
     try:
         if not doc.units:
             if getattr(doc, "scanned_pages", None):
@@ -139,11 +149,12 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
         return {
             "file": str(path),
             "name": path.name,
-            "format": path.suffix.lower().lstrip("."),
+            "format": "pdf" if is_pdf else "hwpx",
             "fingerprint": stamp,
             "items": dicts,
             "counts": _counts(items),
-            "warnings": _warnings(doc),
+            "warnings": (["옛 한글(hwp) 형식이라 한글로 hwpx 로 바꿔 읽었습니다. 가린 사본은 hwpx 로 저장합니다."]
+                         if work != path else []) + _warnings(doc),
             "pages": pages,
             "view": view,
             "scanned_pages": list(getattr(doc, "scanned_pages", [])),
@@ -162,16 +173,17 @@ def _counts(items) -> dict[str, int]:
     return out
 
 
-def _output_path(path: Path, output_dir: Optional[Path]) -> Path:
+def _output_path(path: Path, output_dir: Optional[Path], suffix: Optional[str] = None) -> Path:
     folder = output_dir or path.parent
     folder.mkdir(parents=True, exist_ok=True)
-    base = folder / f"{path.stem}_마스킹{path.suffix.lower()}"
+    ext = suffix or path.suffix.lower()
+    base = folder / f"{path.stem}_마스킹{ext}"
     if not base.exists():
         return base
     n = 1
-    while (folder / f"{path.stem}_마스킹({n}){path.suffix.lower()}").exists():
+    while (folder / f"{path.stem}_마스킹({n}){ext}").exists():
         n += 1
-    return folder / f"{path.stem}_마스킹({n}){path.suffix.lower()}"
+    return folder / f"{path.stem}_마스킹({n}){ext}"
 
 
 def apply_file(
@@ -195,31 +207,36 @@ def apply_file(
     decisions = dict(decisions or {})
     if expected_fingerprint and fingerprint(path) != expected_fingerprint:
         raise ValueError(f"{path.name}: 확인한 뒤 파일이 바뀌었습니다. 파일을 다시 읽어 확인해 주세요.")
-    doc = _open(path)
+    work = _work_path(path)
+    doc = _open(work)
     items = _collect(doc, extra_terms)
     if reviewed_ids is not None and {it.id for it in items} != set(reviewed_ids):
         if hasattr(doc, "close"):
             doc.close()
         raise ValueError(f"{path.name}: 화면에서 확인한 목록과 다시 찾은 목록이 다릅니다. 파일을 다시 읽어 확인해 주세요.")
-    is_pdf = path.suffix.lower() == ".pdf"
+    is_pdf = work.suffix.lower() == ".pdf"
     for it in items:
         if is_pdf and (decisions.get(it.id) or KINDS.get(it.kind, KINDS["CUSTOM"]).default_action) == REPLACE:
             decisions[it.id] = MASK_ALL   # PDF 에는 '[종류]로 바꿈'이 없다(분석 화면과 같게)
     edits, masked = plan_edits(items, decisions)
-    out = _output_path(path, Path(output_dir).expanduser().resolve() if output_dir else None)
+    out = _output_path(path, Path(output_dir).expanduser().resolve() if output_dir else None,
+                       suffix=".pdf" if is_pdf else ".hwpx")
     say(f"{path.name}: {len(masked)}곳을 가립니다.")
-    if path.suffix.lower() == ".pdf":
+    if is_pdf:
         report = doc.write(edits, out, manual_boxes=manual_boxes)
     else:
         report = doc.write(edits, out)
     # 만든 사본을 다시 열어 검사한다.
     kept = [it for it in items if it not in masked]
     check = verify_output(out, masked, kept)
+    if work != path:
+        from dpm_hancom import forget
+        forget(path)   # 개인정보가 든 임시 hwpx 는 사본을 만든 뒤 지운다
     say("다시 검사: " + ("이상 없음" if check["ok"] else "확인 필요"))
     return {
         "output": str(out),
         "masked_count": len(masked),
-        "manual_boxes": len(manual_boxes or []) if path.suffix.lower() == ".pdf" else 0,
+        "manual_boxes": len(manual_boxes or []) if is_pdf else 0,
         "report": report,
         "verify": check,
         "warnings": _warnings(doc),

@@ -22,6 +22,7 @@
 
 ## 이 도구 파일
 
+- `dpm_hancom.py`  옛 한글(hwp)을 설치된 한글로 hwpx 임시 사본으로 바꿈(늦은 바인딩, 사본 만든 뒤 지움)
 - `document_privacy_masker_service.py` 앱이 부르는 입구(analyze_file → apply_file).
   확인 화면은 `app_analyze`·`app_page`·`app_apply` 를 부른다(bridge/extra_tools.py 에는 이 세 함수를 부르는 등록만 있다).
   화면 파일: `src/components/DocumentPrivacyMaskerPanel.tsx`, `src/components/document-privacy-masker.css`

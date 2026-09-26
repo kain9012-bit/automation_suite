@@ -172,6 +172,37 @@ def main() -> int:
         body = hwpx_text(Path(r["output"]))
         check(r["ok"] and "김민수" not in body and "[성명] * 2인" in body, "이름은 통째로 바뀌고 '외'만 가려짐")
 
+        print("\n[옛 한글 hwp] 한글로 hwpx 임시 사본을 만들어 읽고, 사본은 hwpx 로 저장")
+        import dpm_hancom
+        real_convert = dpm_hancom.convert_to_hwpx
+        calls = []
+
+        def fake_convert(src, dst):   # 이 시험 PC 에는 한글이 없어 변환 결과를 fixture 로 대신한다
+            calls.append(src)
+            shutil.copy(FIX / "hr_notice.hwpx", dst)
+
+        dpm_hancom.convert_to_hwpx = fake_convert
+        try:
+            old = tmp / "인사발령.hwp"
+            old.write_bytes(b"\xd0\xcf\x11\xe0" + b"\0" * 512)   # 옛 한글(OLE) 머리
+            info = svc.app_analyze({"path": str(old)})
+            check(info["format"] == "hwpx" and info["items"] and info["view"], f"hwpx 처럼 읽음: {len(info['items'])}곳")
+            check(any("hwp" in w for w in info["warnings"]), "바꿔 읽었다고 알림")
+            cache = dpm_hancom.cached_hwpx(old)
+            check(cache.exists(), "임시 hwpx 가 있음(찾기와 사본 만들기가 같은 파일을 씀)")
+            r = svc.app_apply({"confirmed": True, "files": [entry(info)]})
+            check(r["ok"] and Path(r["output"]).name == "인사발령_마스킹.hwpx", f"사본: {Path(r['output']).name}")
+            check(len(calls) == 1, f"한글 변환은 한 번만: {len(calls)}번")
+            check(not cache.exists(), "사본을 만든 뒤 임시 hwpx 를 지움")
+            check("780302-1234564" not in hwpx_text(Path(r["output"])), "사본에서 가려짐")
+        finally:
+            dpm_hancom.convert_to_hwpx = real_convert
+        try:
+            svc.app_analyze({"path": str(tmp / "인사발령.hwp")})
+            check(False, "한글이 없으면 알려야 함")
+        except Exception as exc:
+            check("한글" in str(exc), f"한글이 없는 PC: {exc}")
+
         print("\n[여러 파일] 한 파일이 실패해도 나머지는 만듦")
         good = svc.app_analyze({"path": str(tmp / "contacts.pdf")})
         bad = {"path": str(tmp / "없는파일.pdf")}
