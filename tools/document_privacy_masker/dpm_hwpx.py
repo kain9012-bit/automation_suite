@@ -78,6 +78,8 @@ class HwpxDoc:
         self.tables: list[TableGrid] = []
         self.image_count = sum(1 for n in self.data if n.startswith("BinData/"))
         self.warnings: list[str] = []
+        # 확인 화면의 글 미리보기용: 문서 순서대로 문단·표
+        self.blocks: list[dict] = []
         self._parse()
 
     # 본문 XML: Contents/ 아래에서 <hp:t> 가 있는 것(section, masterpage 등)
@@ -134,6 +136,8 @@ class HwpxDoc:
                         )
                         if unit.text.strip():
                             self.units.append(unit)
+                            if not in_cell:
+                                self.blocks.append({"type": "p", "unit": unit})
                         if in_cell:
                             tstack[-1]["cell"]["units"].append(unit)
                         # 문단이 닫히면 그 문단 안의 글자는 바깥 문단에 속하지 않는다.
@@ -147,10 +151,12 @@ class HwpxDoc:
                 elif local == "tbl":
                     if not closing and not selfclose:
                         table_no += 1
-                        tstack.append({"no": table_no, "cells": {}, "cell": None})
+                        tstack.append({"no": table_no, "cells": {}, "cell": None, "spans": {}})
                     elif closing and tstack:
                         t = tstack.pop()
-                        self.tables.append(_grid(t, f"{section_label} 표 {t['no']}", part))
+                        grid = _grid(t, f"{section_label} 표 {t['no']}", part)
+                        self.tables.append(grid)
+                        self.blocks.append({"type": "table", "grid": grid, "spans": t["spans"]})
                 elif local == "tc" and tstack:
                     if not closing and not selfclose:
                         tstack[-1]["cell"] = {"units": [], "addr": None, "depth": len(stack)}
@@ -158,14 +164,51 @@ class HwpxDoc:
                         cell = tstack[-1]["cell"]
                         if cell["addr"] is not None:
                             tstack[-1]["cells"][cell["addr"]] = cell["units"]
+                            if cell.get("span"):
+                                tstack[-1]["spans"][cell["addr"]] = cell["span"]
                         tstack[-1]["cell"] = None
                 elif local == "cellAddr" and tstack and tstack[-1]["cell"] is not None:
                     col = re.search(r'colAddr="(\d+)"', attrs)
                     row = re.search(r'rowAddr="(\d+)"', attrs)
                     if col and row:
                         tstack[-1]["cell"]["addr"] = (int(row.group(1)), int(col.group(1)))
+                elif local == "cellSpan" and tstack and tstack[-1]["cell"] is not None:
+                    cs = re.search(r'colSpan="(\d+)"', attrs)
+                    rs = re.search(r'rowSpan="(\d+)"', attrs)
+                    span = (int(rs.group(1)) if rs else 1, int(cs.group(1)) if cs else 1)
+                    if span != (1, 1):
+                        tstack[-1]["cell"]["span"] = span
             if stack:
                 self.warnings.append(f"{part}: 문단 구조를 끝까지 읽지 못했습니다.")
+
+    def view(self) -> tuple[list[dict], dict]:
+        """확인 화면의 글 미리보기: 문서 순서대로 문단·표 글과, 글자 위치 → [블록, 행, 열, 글자] 표.
+        문단은 행·열이 -1 이다. 표에서 병합으로 가려진 칸은 None."""
+        blocks: list[dict] = []
+        spot: dict = {}
+        for b_no, block in enumerate(self.blocks):
+            if block["type"] == "p":
+                unit = block["unit"]
+                blocks.append({"type": "p", "text": unit.text})
+                for i, p in enumerate(unit.positions):
+                    if p is not None:
+                        spot.setdefault(p, [b_no, -1, -1, i])
+                continue
+            rows = []
+            for r, row in enumerate(block["grid"].cells):
+                out = []
+                for c, cell in enumerate(row):
+                    if cell is None:
+                        out.append(None)
+                        continue
+                    rs, cs = block["spans"].get((r, c), (1, 1))
+                    out.append({"text": cell.text, "rs": rs, "cs": cs})
+                    for i, p in enumerate(cell.positions):
+                        if p is not None:
+                            spot.setdefault(p, [b_no, r, c, i])
+                rows.append(out)
+            blocks.append({"type": "table", "rows": rows})
+        return blocks, spot
 
     # ------------------------------------------------------------ 쓰기
 

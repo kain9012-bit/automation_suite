@@ -82,6 +82,22 @@ def _previews(kind: str, text: str, is_pdf: bool) -> dict[str, str]:
     return out
 
 
+def _changes(kind: str, text: str) -> dict[str, list[int]]:
+    """처리 방식마다 바뀌는 글자 자리(찾은 글 안의 순번). 미리보기에서 원래 글자 위에 칠할 곳."""
+    out = {}
+    for action in ACTION_LABELS:
+        if action == KEEP and kind in FIXED_CODES:
+            continue
+        new = masked_text(kind, text, action)
+        if new == text:
+            out[action] = []
+        elif len(new) == len(text):
+            out[action] = [i for i, (a, b) in enumerate(zip(text, new)) if a != b]
+        else:
+            out[action] = [i for i, ch in enumerate(text) if not ch.isspace()]
+    return out
+
+
 def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> dict[str, Any]:
     path = Path(path).expanduser().resolve()
     stamp = fingerprint(path)
@@ -96,7 +112,9 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
         dicts = [it.to_dict() for it in items]
         for it, d in zip(items, dicts):
             d["previews"] = _previews(it.kind, it.text, is_pdf)
+            d["changes"] = _changes(it.kind, it.text)
         pages = []
+        view = []
         if is_pdf:
             # PDF: 미리보기에서 칠해 보여 줄 자리(쪽 번호와 사각형)
             from dpm_pdf import _merge_rects
@@ -104,7 +122,17 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
                 rects = [doc.char_rect[k] for k in it.keys if k in doc.char_rect]
                 d["page"] = it.keys[0][0] + 1 if it.keys else None
                 d["rects"] = [[round(v, 1) for v in r] for r in _merge_rects(rects)]
+                # 글자마다 사각형(찾은 글과 같은 순서, 줄바꿈 등은 None): 바뀌는 글자만 칠하는 데 쓴다.
+                d["char_rects"] = [
+                    [round(v, 1) for v in doc.char_rect[p]] if p is not None and p in doc.char_rect else None
+                    for p in it.positions
+                ]
             pages = [{"width": round(p.rect.width, 1), "height": round(p.rect.height, 1)} for p in doc.doc]
+        elif hasattr(doc, "view"):
+            # 한글: 문단·표를 글로 다시 그린 미리보기와, 찾은 글자마다 그 안의 자리
+            view, spot = doc.view()
+            for it, d in zip(items, dicts):
+                d["spots"] = [spot.get(p) if p is not None else None for p in it.positions]
         return {
             "file": str(path),
             "name": path.name,
@@ -114,6 +142,7 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
             "counts": _counts(items),
             "warnings": _warnings(doc),
             "pages": pages,
+            "view": view,
             "scanned_pages": list(getattr(doc, "scanned_pages", [])),
             "kinds": {code: {"label": k.label, "fixed": k.fixed, "action": k.default_action} for code, k in KINDS.items()},
             "actions": ACTION_LABELS,

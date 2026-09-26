@@ -431,9 +431,15 @@
 .dpm-mark {
   position: absolute;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.9);
-  background: rgba(0, 0, 0, 0.55);
+  border: 0;
+  background: transparent;
   cursor: pointer;
+}
+
+/* 지워질 글자: 아래 글자가 보이도록 반투명 검은 칸 */
+.dpm-mark.is-ink {
+  background: rgba(0, 0, 0, 0.42);
+  outline: 1px solid rgba(0, 0, 0, 0.75);
 }
 
 .dpm-mark.is-keep {
@@ -452,8 +458,8 @@
 
 .dpm-box {
   position: absolute;
-  border: 1px solid #dc2626;
-  background: rgba(220, 38, 38, 0.35);
+  border: 1px dashed #dc2626;
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .dpm-box.is-drawing {
@@ -493,7 +499,12 @@
 }
 
 .dpm-legend .is-mask {
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.dpm-legend .is-found {
+  height: 2px;
+  border-bottom: 2px dotted #16a34a;
 }
 
 .dpm-legend .is-keep {
@@ -502,8 +513,63 @@
 }
 
 .dpm-legend .is-box {
-  border: 1px solid #dc2626;
-  background: rgba(220, 38, 38, 0.35);
+  border: 1px dashed #dc2626;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+/* 한글 글 미리보기 */
+.dpm-doc-wrap {
+  background: var(--bg-tertiary);
+}
+
+.dpm-doc {
+  padding: 18px 20px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.75;
+  box-shadow: var(--shadow-sm);
+}
+
+.dpm-doc p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dpm-doc table {
+  width: 100%;
+  margin: 6px 0 10px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dpm-doc td {
+  padding: 3px 6px;
+  border: 1px solid #9ca3af;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 가려질 글자: 원래 글자가 보이도록 반투명 검은 형광펜 */
+.dpm-ink {
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.dpm-ink.is-on {
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.dpm-ink.is-found {
+  border-bottom: 2px dotted #16a34a;
+}
+
+.dpm-ink.is-selected {
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
 }
 
 /* 직접 추가 */

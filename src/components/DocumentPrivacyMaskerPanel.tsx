@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
@@ -51,9 +51,18 @@ type Item = {
   fixed: boolean;
   action: Action;
   previews: Partial<Record<Action, string>>;
+  /** 처리 방식마다 바뀌는 글자 자리(text 안의 순번). 미리보기에서 원래 글자 위에 칠한다. */
+  changes: Partial<Record<Action, number[]>>;
   page?: number;
   rects?: number[][];
+  /** PDF: text 의 글자마다 사각형(줄바꿈 등은 null) */
+  char_rects?: (number[] | null)[];
+  /** 한글: text 의 글자마다 글 미리보기 안 자리 [블록, 행, 열, 글자] (문단은 행·열 -1) */
+  spots?: (number[] | null)[];
 };
+
+type ViewCell = { text: string; rs: number; cs: number } | null;
+type ViewBlock = { type: "p"; text: string } | { type: "table"; rows: ViewCell[][] };
 
 type Analysis = {
   file: string;
@@ -64,6 +73,7 @@ type Analysis = {
   counts: Record<string, number>;
   warnings: string[];
   pages: { width: number; height: number }[];
+  view: ViewBlock[];
   actions: Record<Action, string>;
 };
 
@@ -102,6 +112,119 @@ const TERM_KINDS: { code: string; label: string }[] = [
 const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
 const actionsFor = (item: Item) => ACTION_ORDER.filter((action) => !(item.fixed && action === "keep") && item.previews[action] !== undefined);
+
+/** 같은 줄에서 붙어 있는 글자 사각형을 하나로 합친다(PDF 미리보기). */
+function mergeRuns(rects: number[][]): number[][] {
+  const out: number[][] = [];
+  for (const r of rects) {
+    const last = out[out.length - 1];
+    if (last && Math.abs(last[1] - r[1]) < 1.5 && Math.abs(last[3] - r[3]) < 1.5 && r[0] - last[2] < 1 && r[0] >= last[0] - 0.5) {
+      last[2] = Math.max(last[2], r[2]);
+      last[1] = Math.min(last[1], r[1]);
+      last[3] = Math.max(last[3], r[3]);
+    } else {
+      out.push([...r]);
+    }
+  }
+  return out;
+}
+
+type Mark = { item: Item; changed: boolean };
+
+/**
+ * 한글 글 미리보기. 원래 글을 그대로 보여 주고, 가려질 글자에 검은 형광펜을 칠한다.
+ * 찾았지만 바뀌지 않는 글자(일부 가림에서 남는 글자, '그대로 둠')는 밑줄만 긋는다.
+ * 형광펜은 화면에만 있고 사본에는 들어가지 않는다.
+ */
+function HwpxView({
+  view,
+  items,
+  actionOf,
+  selectedItem,
+  onPick,
+}: {
+  view: ViewBlock[];
+  items: Item[];
+  actionOf: (item: Item) => Action;
+  selectedItem: string;
+  onPick: (item: Item) => void;
+}) {
+  const marks = useMemo(() => {
+    const map = new Map<string, Mark>();
+    for (const item of items) {
+      const changed = new Set(item.changes[actionOf(item)] ?? []);
+      (item.spots ?? []).forEach((spot, index) => {
+        if (!spot) return;
+        map.set(spot.join("|"), { item, changed: changed.has(index) });
+      });
+    }
+    return map;
+  }, [items, actionOf]);
+
+  const render = (text: string, b: number, r: number, c: number) => {
+    const out: JSX.Element[] = [];
+    let run = "";
+    let runMark: Mark | undefined;
+    const flush = (key: number) => {
+      if (!run) return;
+      if (!runMark) {
+        out.push(<span key={key}>{run}</span>);
+      } else {
+        const item = runMark.item;
+        out.push(
+          <span
+            key={key}
+            data-item={item.id}
+            className={`dpm-ink ${runMark.changed ? "is-on" : "is-found"} ${selectedItem === item.id ? "is-selected" : ""}`}
+            title={`${item.label}: ${item.text} (${ACTION_LABELS[actionOf(item)]})`}
+            onClick={() => onPick(item)}
+          >
+            {run}
+          </span>,
+        );
+      }
+      run = "";
+    };
+    for (let i = 0; i < text.length; i += 1) {
+      const mark = marks.get(`${b}|${r}|${c}|${i}`);
+      const same = mark === runMark || (mark && runMark && mark.item === runMark.item && mark.changed === runMark.changed);
+      if (!same) {
+        flush(i);
+        runMark = mark;
+      }
+      run += text[i];
+    }
+    flush(text.length);
+    return out;
+  };
+
+  if (!view.length) return <p className="dpm-muted">보여 줄 글이 없습니다.</p>;
+  return (
+    <div className="dpm-doc">
+      {view.map((block, b) =>
+        block.type === "p" ? (
+          <p key={b}>{render(block.text, b, -1, -1)}</p>
+        ) : (
+          <table key={b}>
+            <tbody>
+              {block.rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) =>
+                    cell ? (
+                      <td key={c} rowSpan={cell.rs > 1 ? cell.rs : undefined} colSpan={cell.cs > 1 ? cell.cs : undefined}>
+                        {render(cell.text, b, r, c)}
+                      </td>
+                    ) : null,
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ),
+      )}
+    </div>
+  );
+}
 
 /** 앞뒤 글에서 【 】로 표시된 찾은 부분을 굵게 보여 준다. */
 function Context({ text }: { text: string }) {
@@ -155,6 +278,7 @@ export function DocumentPrivacyMaskerPanel({
   const nextBoxId = useRef(1);
   const logRef = useRef<HTMLPreElement>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+  const docRef = useRef<HTMLDivElement>(null);
   const termsRef = useRef(terms);
   termsRef.current = terms;
 
@@ -294,11 +418,14 @@ export function DocumentPrivacyMaskerPanel({
   const state = active ? states[active] : undefined;
   const analysis = state?.status === "ready" ? state.analysis : null;
   const items = analysis?.items ?? [];
-  const myDecisions = (active && decisions[active]) || {};
-  const actionOf = (item: Item): Action => {
-    const chosen = myDecisions[item.id] ?? item.action;
-    return item.fixed && chosen === "keep" ? item.action : chosen;
-  };
+  const myDecisions = useMemo(() => (active && decisions[active]) || {}, [active, decisions]);
+  const actionOf = useCallback(
+    (item: Item): Action => {
+      const chosen = myDecisions[item.id] ?? item.action;
+      return item.fixed && chosen === "keep" ? item.action : chosen;
+    },
+    [myDecisions],
+  );
 
   const setAction = (targets: Item[], action: Action) => {
     if (!active) return;
@@ -367,6 +494,13 @@ export function DocumentPrivacyMaskerPanel({
   const selectItem = (item: Item, fromPicture = false) => {
     setSelectedItem(item.id);
     if (item.page && item.page !== page) goPage(item.page);
+    if (!fromPicture && !isPdf) {
+      // 한글 글 미리보기에서 그 자리로 옮긴다.
+      window.setTimeout(
+        () => docRef.current?.querySelector(`[data-item="${item.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }),
+        30,
+      );
+    }
     if (fromPicture) {
       if (filter !== "all" && !shown.includes(item)) setFilter("all");
       window.setTimeout(() => rowRefs.current[item.id]?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 30);
@@ -630,11 +764,11 @@ export function DocumentPrivacyMaskerPanel({
               <p className="dpm-help">
                 <Lock size={12} /> 표시가 있는 종류(주민등록번호·외국인등록번호·카드·휴대전화·계좌·여권·운전면허번호)는 '그대로 둠'을 고를 수 없습니다.
                 {isPdf
-                  ? " PDF 는 가린 글자가 검은 칸(■)이 되고 복사해도 나오지 않습니다."
-                  : " 한글 문서는 미리보기 그림이 없으니 앞뒤 글로 확인하고, 만든 사본을 한글에서 열어 한 번 더 보세요."}
+                  ? " 미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
+                  : " 미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 나 [성명] 처럼 바뀌고, 형광펜은 들어가지 않습니다."}
               </p>
 
-              <div className={`dpm-review ${isPdf ? "has-preview" : ""}`}>
+              <div className="dpm-review has-preview">
                 <div className="dpm-table-wrap">
                   {items.length ? (
                     <table className="dpm-table">
@@ -741,20 +875,28 @@ export function DocumentPrivacyMaskerPanel({
                           <img src={picture.image} alt={`${page}쪽`} draggable={false} />
                           {items
                             .filter((item) => item.page === page)
-                            .flatMap((item) =>
-                              (item.rects ?? []).map((r, index) => (
+                            .flatMap((item) => {
+                              const action = actionOf(item);
+                              const changed = item.changes[action] ?? [];
+                              // 그대로 두는 항목은 찾은 자리 전체에 점선, 가리는 항목은 바뀌는 글자만 반투명 검은 칸
+                              const boxes =
+                                action === "keep" || !changed.length
+                                  ? item.rects ?? []
+                                  : mergeRuns(changed.map((index) => item.char_rects?.[index]).filter((r): r is number[] => !!r));
+                              const kind = action === "keep" || !changed.length ? "is-keep" : "is-ink";
+                              return boxes.map((r, index) => (
                                 <button
                                   key={`${item.id}-${index}`}
-                                  className={`dpm-mark ${actionOf(item) === "keep" ? "is-keep" : ""} ${selectedItem === item.id ? "is-selected" : ""}`}
+                                  className={`dpm-mark ${kind} ${selectedItem === item.id ? "is-selected" : ""}`}
                                   style={boxStyle(r[0], r[1], r[2], r[3])}
-                                  title={`${item.label}: ${item.text} (${ACTION_LABELS[actionOf(item)]})`}
+                                  title={`${item.label}: ${item.text} → ${item.previews[action] ?? item.text} (${ACTION_LABELS[action]})`}
                                   onPointerDown={(event) => {
                                     if (!drawMode) event.stopPropagation();
                                   }}
                                   onClick={() => !drawMode && selectItem(item, true)}
                                 />
-                              )),
-                            )}
+                              ));
+                            })}
                           {myBoxes
                             .filter((box) => box.page === page)
                             .map((box) => (
@@ -791,9 +933,30 @@ export function DocumentPrivacyMaskerPanel({
                       )}
                     </div>
                     <p className="dpm-legend">
-                      <span className="is-mask" /> 가릴 곳
-                      <span className="is-keep" /> 그대로 둘 곳
+                      <span className="is-mask" /> 지워질 글자
+                      <span className="is-keep" /> 찾았지만 그대로 둘 곳
                       <span className="is-box" /> 직접 그린 영역{myBoxes.length ? ` ${myBoxes.length}개` : ""}
+                    </p>
+                  </div>
+                )}
+
+                {!isPdf && analysis && (
+                  <div className="dpm-preview">
+                    <div className="dpm-preview-bar">
+                      <span>글 미리보기 · 원래 글 위에 가려질 곳을 표시합니다(글자 모양·배치는 실제와 다를 수 있음)</span>
+                    </div>
+                    <div className="dpm-page dpm-doc-wrap" ref={docRef}>
+                      <HwpxView
+                        view={analysis.view ?? []}
+                        items={items}
+                        actionOf={actionOf}
+                        selectedItem={selectedItem}
+                        onPick={(item) => selectItem(item, true)}
+                      />
+                    </div>
+                    <p className="dpm-legend">
+                      <span className="is-mask" /> 가려질 글자
+                      <span className="is-found" /> 찾았지만 그대로 남는 글자
                     </p>
                   </div>
                 )}

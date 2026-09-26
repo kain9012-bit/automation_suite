@@ -7,8 +7,8 @@
   "icon": "",
   "description": "한글(hwpx)·PDF 문서에서 개인정보를 찾아 확인한 뒤 가린 사본을 만듭니다.",
   "order": 90,
-  "enabled": false,
-  "version": "0.1.0",
+  "enabled": true,
+  "version": "1.0.0",
   "keywords": [
     "마스킹",
     "개인정보",
