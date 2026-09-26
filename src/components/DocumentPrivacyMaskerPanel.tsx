@@ -310,8 +310,14 @@ export function DocumentPrivacyMaskerPanel({
     queue.current = queue.current.then(async () => {
       if (generation.current[path] !== gen) return;
       try {
-        const result = (await runNativeTool(`${TOOL_ID}__analyze`, { path, extra_terms: withTerms })) as unknown as Analysis;
+        const raw = await runNativeTool(`${TOOL_ID}__analyze`, { path, extra_terms: withTerms });
         if (generation.current[path] !== gen) return;
+        // 도구가 결과(JSON) 말고 다른 글을 함께 찍으면 앱은 그 글을 message 로만 넘긴다.
+        // 모양을 확인하지 않으면 화면이 'undefined' 오류로 멈추므로 여기서 걸러 알린다.
+        if (!Array.isArray((raw as { items?: unknown }).items)) {
+          throw new Error(`도구 결과를 읽지 못했습니다. ${String(raw.message ?? "").slice(0, 300)}`);
+        }
+        const result = raw as unknown as Analysis;
         setStates((current) => (path in current ? { ...current, [path]: { status: "ready", analysis: result } } : current));
         // 다시 읽어도 같은 항목은 id 가 같다. 사라진 항목의 결정만 버린다.
         const alive = new Set(result.items.map((item) => item.id));
@@ -476,6 +482,7 @@ export function DocumentPrivacyMaskerPanel({
       .then((result) => {
         if (stale) return;
         const pic = result as unknown as Picture;
+        if (typeof pic.image !== "string") throw new Error(`미리보기를 읽지 못했습니다. ${String(result.message ?? "").slice(0, 300)}`);
         setPictures((current) => ({ ...current, [pictureKey]: pic }));
       })
       .catch((reason) => {

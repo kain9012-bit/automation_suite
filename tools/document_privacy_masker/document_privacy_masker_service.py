@@ -366,7 +366,8 @@ def _popup(results: list[dict], failed: list[dict], stopped: bool, total: int) -
         else:
             problem = True
             for left in (verify.get("remained") or [])[:8]:
-                lines.append(f"  ⚠ 남아 있음: {left['label']} '{left['text']}' ({left['where']})")
+                lines.append(f"  ⚠ 사본에 같은 글자가 남아 있음: {left['label']} '{left['text']}' "
+                             f"(가린 곳: {left['where']}). 다른 자리에도 쓰였는지 확인하세요.")
             for left in (verify.get("fixed_left") or [])[:8]:
                 lines.append(f"  ⚠ 가려지지 않은 {left['label']}: '{left['text']}'")
         report = r.get("report") or {}

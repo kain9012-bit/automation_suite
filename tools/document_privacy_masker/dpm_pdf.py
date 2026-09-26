@@ -13,10 +13,24 @@
 """
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 from typing import Optional
 
-import pymupdf
+# 앱은 도구가 표준출력에 쓴 글을 결과(JSON)로 읽는다. PyMuPDF 는 표 찾기(find_tables)를 처음 쓸 때
+# 'Consider using the pymupdf_layout package…' 안내를, MuPDF 경고는 평소 표준출력에 찍는다.
+# 그 한 줄이 결과 앞에 붙으면 앱이 결과를 읽지 못해 화면이 멈춘다. 그래서 안내는 끄고 경고는 오류 출력으로 보낸다.
+os.environ.setdefault("PYMUPDF_SUGGEST_LAYOUT_ANALYZER", "0")
+
+import pymupdf  # noqa: E402
+
+if hasattr(pymupdf, "no_recommend_layout"):
+    pymupdf.no_recommend_layout()
+try:
+    pymupdf.set_messages(stream=sys.stderr)
+except Exception:
+    pass
 
 from dpm_items import Edit, TableGrid, Unit
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pythoncom
 import win32com.client
+import win32com.client.dynamic
 
 SUPPORTED_EXTS = {".hwp", ".hwpx"}
 
@@ -17,6 +18,14 @@ def list_han_files_in_folder(folder: Path) -> list[Path]:
 
 
 def get_hwp_object():
+    """한글을 늦은 바인딩(dynamic)으로 부른다.
+
+    win32com.client.Dispatch 는 임시 폴더(AppData/Local/Temp/gen_py)에 남은 한글 기능 목록
+    캐시가 있으면 그것을 믿고 쓴다. 그 캐시는 PC마다 따로 만들어지고(HWP→HWPX 변환 등이
+    gencache 로 만든다), 일부 파일이 지워지면 "has no attribute 'CLSIDToPackageMap'" 처럼
+    한글을 부르지도 못하고 멈춘다. 캐시를 쓰지 않고 한글에게 직접 묻는 방식이면 캐시가
+    없든, 있든, 망가졌든 똑같이 동작한다. 늦은 바인딩은 속성 이름의 대소문자도 가리지 않는다.
+    """
     prog_ids = [
         "HWPFrame.HwpObject",
         "HwpFrame.HwpObject",
@@ -26,7 +35,7 @@ def get_hwp_object():
     last_err = None
     for pid in prog_ids:
         try:
-            return win32com.client.Dispatch(pid)
+            return win32com.client.dynamic.Dispatch(pid)
         except Exception as e:
             last_err = e
 

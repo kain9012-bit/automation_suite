@@ -64,6 +64,14 @@ def main() -> int:
             shutil.copy(FIX / name, tmp / name)
         hwpx, pdf = tmp / "hr_notice.hwpx", tmp / "hr_form.pdf"
 
+        print("\n[출력] 결과(JSON) 말고는 표준출력에 아무것도 찍지 않음")
+        import contextlib, io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            svc.app_analyze({"path": str(tmp / "contacts.pdf")})   # 표가 있어 find_tables 를 쓴다
+            svc.app_page({"path": str(tmp / "contacts.pdf"), "page": 1})
+        check(buf.getvalue() == "", f"표준출력 비어 있음: {buf.getvalue()[:80]!r}")
+
         print("\n[읽기] app_analyze")
         a = svc.app_analyze({"path": str(hwpx)})
         check(a["ok"] and a["items"] and a["fingerprint"], f"항목 {len(a['items'])}개, 파일 표시 {a['fingerprint']}")
