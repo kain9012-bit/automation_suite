@@ -113,6 +113,20 @@ const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? 
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
 const actionsFor = (item: Item) => ACTION_ORDER.filter((action) => !(item.fixed && action === "keep") && item.previews[action] !== undefined);
 
+/** '[성명]으로', '[주소]로' 처럼 받침에 맞는 조사. */
+function roAfter(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return "(으)로";
+  const tail = code % 28;
+  return tail === 0 || tail === 8 ? "로" : "으로";
+}
+
+/** 처리 방식 이름. '종류로 바꿈'은 무엇으로 바뀌는지 보이게 '[성명]으로 바꿈'처럼 쓴다. */
+function actionName(item: Item, action: Action) {
+  if (action === "replace") return `[${item.label}]${roAfter(item.label)} 바꿈`;
+  return ACTION_LABELS[action];
+}
+
 /** 같은 줄에서 붙어 있는 글자 사각형을 하나로 합친다(PDF 미리보기). */
 function mergeRuns(rects: number[][]): number[][] {
   const out: number[][] = [];
@@ -176,7 +190,7 @@ function HwpxView({
             key={key}
             data-item={item.id}
             className={`dpm-ink ${runMark.changed ? "is-on" : "is-found"} ${selectedItem === item.id ? "is-selected" : ""}`}
-            title={`${item.label}: ${item.text} (${ACTION_LABELS[actionOf(item)]})`}
+            title={`${item.label}: ${item.text} (${actionName(item, actionOf(item))})`}
             onClick={() => onPick(item)}
           >
             {run}
@@ -762,7 +776,7 @@ export function DocumentPrivacyMaskerPanel({
                   </span>
                   {actionsFor(shown[0]).map((action) => (
                     <button key={action} className="secondary-button" onClick={() => setAction(shown, action)}>
-                      {ACTION_LABELS[action]}
+                      {actionName(shown[0], action)}
                     </button>
                   ))}
                 </div>
@@ -772,10 +786,11 @@ export function DocumentPrivacyMaskerPanel({
                 <Lock size={12} /> 표시가 있는 종류(주민등록번호·외국인등록번호·카드·휴대전화·계좌·여권·운전면허번호)는 '그대로 둠'을 고를 수 없습니다.
                 {isPdf
                   ? " 미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
-                  : " 미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 나 [성명] 처럼 바뀌고, 형광펜은 들어가지 않습니다."}
+                  : " 미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, '[성명]으로 바꿈'을 고르면 값 전체가 '[성명]' 글자로 바뀝니다. 형광펜은 사본에 들어가지 않습니다."}
               </p>
 
               <div className="dpm-review has-preview">
+                <div className="dpm-list-col">
                 <div className="dpm-table-wrap">
                   {items.length ? (
                     <table className="dpm-table">
@@ -821,8 +836,9 @@ export function DocumentPrivacyMaskerPanel({
                                 >
                                   {actionsFor(item).map((option) => (
                                     <option key={option} value={option}>
-                                      {ACTION_LABELS[option]}
+                                      {actionName(item, option)}
                                       {option === item.action ? " (기본)" : ""}
+                                      {option !== "keep" && item.previews[option] ? `  ${item.previews[option]}` : ""}
                                     </option>
                                   ))}
                                 </select>
@@ -846,6 +862,7 @@ export function DocumentPrivacyMaskerPanel({
                       찾은 개인정보가 없습니다. 빠진 것이 있으면 아래 '직접 추가'로 넣거나{isPdf ? ", 미리보기에 영역을 그리세요" : ""}.
                     </p>
                   )}
+                </div>
                 </div>
 
                 {isPdf && (
@@ -896,7 +913,7 @@ export function DocumentPrivacyMaskerPanel({
                                   key={`${item.id}-${index}`}
                                   className={`dpm-mark ${kind} ${selectedItem === item.id ? "is-selected" : ""}`}
                                   style={boxStyle(r[0], r[1], r[2], r[3])}
-                                  title={`${item.label}: ${item.text} → ${item.previews[action] ?? item.text} (${ACTION_LABELS[action]})`}
+                                  title={`${item.label}: ${item.text} → ${item.previews[action] ?? item.text} (${actionName(item, action)})`}
                                   onPointerDown={(event) => {
                                     if (!drawMode) event.stopPropagation();
                                   }}

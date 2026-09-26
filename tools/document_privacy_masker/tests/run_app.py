@@ -82,6 +82,9 @@ def main() -> int:
         p = svc.app_analyze({"path": str(pdf)})
         check(len(p["pages"]) == 1 and p["pages"][0]["width"] > 0, "PDF 쪽 크기를 돌려줌")
         check(all(it.get("rects") and it.get("page") for it in p["items"]), "PDF 항목마다 쪽·사각형이 있음")
+        check(all("replace" not in it["previews"] and it["action"] != "replace" for it in p["items"]),
+              "PDF 에는 '[종류]로 바꿈'이 없음(검은 칸이라 전부 가림과 같음)")
+        check("replace" in person["previews"] and person["previews"]["replace"] == "[성명]", "한글은 '[성명]으로 바꿈'을 고를 수 있음")
         phone = next(it for it in p["items"] if it["kind"] == "MOBILE")
         check("■" in phone["previews"]["mask_part"] and phone["previews"]["mask_part"].startswith("010-"),
               f"PDF 는 지워질 자리를 ■ 로 보여 줌: {phone['previews']['mask_part']}")

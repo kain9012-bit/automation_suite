@@ -200,14 +200,35 @@
   gap: 12px;
 }
 
+/* 목록과 미리보기를 반씩. 높이는 미리보기(쪽 전체)가 정하고, 목록은 그 높이 안에서 넘치면 스크롤한다. */
 .dpm-review.has-preview {
-  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.dpm-list-col {
+  position: relative;
+  min-height: 420px;
+}
+
+.dpm-review.has-preview .dpm-list-col > .dpm-table-wrap {
+  position: absolute;
+  inset: 0;
+  max-height: none;
 }
 
 @media (max-width: 980px) {
   .dpm-review.has-preview {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dpm-list-col {
+    min-height: 0;
+  }
+
+  .dpm-review.has-preview .dpm-list-col > .dpm-table-wrap {
+    position: static;
+    max-height: 560px;
   }
 }
 
@@ -223,6 +244,15 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
+}
+
+.dpm-table th:nth-child(1) {
+  width: 104px;
+}
+
+.dpm-table th:nth-child(2) {
+  width: 46%;
 }
 
 .dpm-table th {
@@ -263,8 +293,7 @@
 }
 
 .dpm-kind {
-  width: 1%;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .dpm-kind-badge {
@@ -296,14 +325,15 @@
 }
 
 .dpm-value {
-  width: 40%;
-  min-width: 150px;
   overflow-wrap: anywhere;
 }
 
 .dpm-value select {
   display: block;
+  max-width: 100%;
   margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dpm-original {
@@ -373,10 +403,10 @@
 }
 
 .dpm-preview {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  position: sticky;
-  top: 8px;
+  min-width: 0;
 }
 
 .dpm-preview-bar {
@@ -399,9 +429,9 @@
   color: var(--error);
 }
 
+/* PDF 쪽은 세로 스크롤 없이 한 쪽 전체를 보여 준다. */
 .dpm-page {
-  max-height: 620px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-tertiary);
@@ -517,12 +547,16 @@
   background: rgba(0, 0, 0, 0.42);
 }
 
-/* 한글 글 미리보기 */
-.dpm-doc-wrap {
+/* 한글 글 미리보기: 글이 길 수 있어 A4 비율 높이 안에서 스크롤한다. */
+.dpm-page.dpm-doc-wrap {
+  aspect-ratio: 1 / 1.414;
+  overflow: auto;
   background: var(--bg-tertiary);
 }
 
 .dpm-doc {
+  box-sizing: border-box;
+  min-height: 100%;
   padding: 18px 20px;
   background: #ffffff;
   color: #111827;
