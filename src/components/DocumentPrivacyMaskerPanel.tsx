@@ -240,19 +240,6 @@ function HwpxView({
   );
 }
 
-/** 앞뒤 글에서 【 】로 표시된 찾은 부분을 굵게 보여 준다. */
-function Context({ text }: { text: string }) {
-  const match = /^(.*?)【(.*?)】(.*)$/s.exec(text);
-  if (!match) return <>{text}</>;
-  return (
-    <>
-      {match[1]}
-      <mark>{match[2]}</mark>
-      {match[3]}
-    </>
-  );
-}
-
 export function DocumentPrivacyMaskerPanel({
   tool,
   presetPaths,
@@ -793,9 +780,10 @@ export function DocumentPrivacyMaskerPanel({
                     <table className="dpm-table">
                       <thead>
                         <tr>
-                          <th>종류</th>
-                          <th>찾은 내용 → 바뀐 모양 · 처리</th>
-                          <th>위치·앞뒤 글</th>
+                          {isPdf && <th className="dpm-col-page">쪽</th>}
+                          <th className="dpm-col-kind">종류</th>
+                          <th>찾은 내용 → 바뀐 모양</th>
+                          <th className="dpm-col-action">처리</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -811,6 +799,7 @@ export function DocumentPrivacyMaskerPanel({
                               className={`${selectedItem === item.id ? "is-selected" : ""} ${action === "keep" ? "is-keep" : ""}`}
                               onClick={() => selectItem(item)}
                             >
+                              {isPdf && <td className="dpm-page-no">{item.page ?? ""}</td>}
                               <td className="dpm-kind">
                                 <span className={`dpm-kind-badge ${item.fixed ? "is-fixed" : ""}`}>
                                   {item.fixed && <Lock size={11} />}
@@ -819,11 +808,11 @@ export function DocumentPrivacyMaskerPanel({
                                 {item.confidence < LOW_CONFIDENCE && <span className="dpm-check-badge">확인 필요</span>}
                               </td>
                               <td className="dpm-value">
-                                <div>
-                                  <span className="dpm-original">{item.text}</span>
-                                  <span className="dpm-arrow">→</span>
-                                  <span className="dpm-result">{item.previews[action] ?? item.text}</span>
-                                </div>
+                                <span className="dpm-original">{item.text}</span>
+                                <span className="dpm-arrow">→</span>
+                                <span className="dpm-result">{item.previews[action] ?? item.text}</span>
+                              </td>
+                              <td className="dpm-action">
                                 <select
                                   value={action}
                                   className={`${changed ? "is-changed" : ""} ${item.fixed && action === "keep" ? "is-risky" : ""}`}
@@ -841,15 +830,6 @@ export function DocumentPrivacyMaskerPanel({
                                     </option>
                                   ))}
                                 </select>
-                              </td>
-                              <td className="dpm-where">
-                                <small>{item.where}</small>
-                                <span className="dpm-context">
-                                  <Context text={item.context} />
-                                </span>
-                                <small className="dpm-reason" title={`찾은 근거 · 신뢰도 ${Math.round(item.confidence * 100)}%`}>
-                                  {item.reasons.join(" · ")}
-                                </small>
                               </td>
                             </tr>
                           );

@@ -247,12 +247,27 @@
   table-layout: fixed;
 }
 
-.dpm-table th:nth-child(1) {
-  width: 104px;
+.dpm-table th.dpm-col-page {
+  width: 38px;
+  text-align: center;
 }
 
-.dpm-table th:nth-child(2) {
-  width: 46%;
+.dpm-table th.dpm-col-kind {
+  width: 108px;
+}
+
+.dpm-table th.dpm-col-action {
+  width: 116px;
+}
+
+.dpm-page-no {
+  color: var(--text-muted);
+  font-weight: 700;
+  text-align: center;
+}
+
+.dpm-table td.dpm-action select {
+  width: 100%;
 }
 
 .dpm-table th {
@@ -271,7 +286,7 @@
 .dpm-table td {
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .dpm-table tbody tr {
@@ -328,12 +343,9 @@
   overflow-wrap: anywhere;
 }
 
-.dpm-value select {
+.dpm-action select {
   display: block;
   max-width: 100%;
-  margin-top: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dpm-original {
@@ -379,7 +391,7 @@
   font-size: 11px;
 }
 
-.dpm-value select,
+.dpm-action select,
 .dpm-term-row select {
   padding: 4px 6px;
   border: 1px solid var(--border);
@@ -389,12 +401,12 @@
   font-size: 12px;
 }
 
-.dpm-value select.is-changed {
+.dpm-action select.is-changed {
   border-color: var(--warning);
   box-shadow: 0 0 0 1px var(--warning);
 }
 
-.dpm-value select.is-risky {
+.dpm-action select.is-risky {
   border-color: var(--error);
   box-shadow: 0 0 0 1px var(--error);
   color: var(--error);
