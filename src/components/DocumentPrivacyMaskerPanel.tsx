@@ -111,7 +111,7 @@ const TERM_KINDS: { code: string; label: string }[] = [
 
 const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
-const actionsFor = (item: Item) => ACTION_ORDER.filter((action) => !(item.fixed && action === "keep") && item.previews[action] !== undefined);
+const actionsFor = (item: Item) => ACTION_ORDER.filter((action) => item.previews[action] !== undefined);
 
 /** '[성명]으로', '[주소]로' 처럼 받침에 맞는 조사. */
 function roAfter(word: string) {
@@ -441,8 +441,7 @@ export function DocumentPrivacyMaskerPanel({
   const myDecisions = useMemo(() => (active && decisions[active]) || {}, [active, decisions]);
   const actionOf = useCallback(
     (item: Item): Action => {
-      const chosen = myDecisions[item.id] ?? item.action;
-      return item.fixed && chosen === "keep" ? item.action : chosen;
+      return myDecisions[item.id] ?? item.action;
     },
     [myDecisions],
   );
@@ -452,7 +451,6 @@ export function DocumentPrivacyMaskerPanel({
     setDecisions((current) => {
       const mine = { ...(current[active] ?? {}) };
       for (const item of targets) {
-        if (item.fixed && action === "keep") continue;
         if (!actionsFor(item).includes(action)) continue;
         if (action === item.action) delete mine[item.id];
         else mine[item.id] = action;
@@ -605,8 +603,7 @@ export function DocumentPrivacyMaskerPanel({
           reviewed_ids: info.items.map((item) => item.id),
           decisions: Object.fromEntries(
             info.items.map((item) => {
-              const chosen = mine[item.id] ?? item.action;
-              return [item.id, item.fixed && chosen === "keep" ? item.action : chosen];
+              return [item.id, mine[item.id] ?? item.action];
             }),
           ),
           extra_terms: terms,
@@ -783,7 +780,7 @@ export function DocumentPrivacyMaskerPanel({
               )}
 
               <p className="dpm-help">
-                <Lock size={12} /> 표시가 있는 종류(주민등록번호·외국인등록번호·카드·휴대전화·계좌·여권·운전면허번호)는 '그대로 둠'을 고를 수 없습니다.
+                <Lock size={12} /> 표시가 있는 종류(주민등록번호·외국인등록번호·카드·휴대전화·계좌·여권·운전면허번호)는 법으로 공개가 금지된 정보입니다. '그대로 둠'을 고르면 빨간 테두리로 표시됩니다.
                 {isPdf
                   ? " 미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
                   : " 미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, '[성명]으로 바꿈'을 고르면 값 전체가 '[성명]' 글자로 바뀝니다. 형광펜은 사본에 들어가지 않습니다."}
@@ -829,16 +826,18 @@ export function DocumentPrivacyMaskerPanel({
                                 </div>
                                 <select
                                   value={action}
-                                  className={changed ? "is-changed" : ""}
+                                  className={`${changed ? "is-changed" : ""} ${item.fixed && action === "keep" ? "is-risky" : ""}`}
                                   onClick={(event) => event.stopPropagation()}
-                                  onChange={(event) => setAction([item], event.target.value as Action)}
+                                  onFocus={() => selectItem(item)}
+                                  onChange={(event) => {
+                                    setAction([item], event.target.value as Action);
+                                    selectItem(item);
+                                  }}
                                   aria-label={`${item.text} 처리 방식`}
                                 >
                                   {actionsFor(item).map((option) => (
                                     <option key={option} value={option}>
                                       {actionName(item, option)}
-                                      {option === item.action ? " (기본)" : ""}
-                                      {option !== "keep" && item.previews[option] ? `  ${item.previews[option]}` : ""}
                                     </option>
                                   ))}
                                 </select>

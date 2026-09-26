@@ -394,6 +394,12 @@
   box-shadow: 0 0 0 1px var(--warning);
 }
 
+.dpm-value select.is-risky {
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px var(--error);
+  color: var(--error);
+}
+
 .dpm-empty {
   margin: 0;
   padding: 18px;

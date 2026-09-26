@@ -70,8 +70,6 @@ def _previews(kind: str, text: str, is_pdf: bool) -> dict[str, str]:
     """처리 방식마다 바뀐 모양. PDF 는 지운 글자 자리가 검은 칸이 되므로 ■ 로 보여 준다."""
     out = {}
     for action in ACTION_LABELS:
-        if action == KEEP and kind in FIXED_CODES:
-            continue
         new = masked_text(kind, text, action)
         if is_pdf and new != text:
             if len(new) == len(text):
@@ -86,8 +84,6 @@ def _changes(kind: str, text: str) -> dict[str, list[int]]:
     """처리 방식마다 바뀌는 글자 자리(찾은 글 안의 순번). 미리보기에서 원래 글자 위에 칠할 곳."""
     out = {}
     for action in ACTION_LABELS:
-        if action == KEEP and kind in FIXED_CODES:
-            continue
         new = masked_text(kind, text, action)
         if new == text:
             out[action] = []
@@ -189,7 +185,7 @@ def apply_file(
     reviewed_ids: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     """decisions: {항목 id: 처리 방식}. 적지 않은 항목은 기본 처리 방식을 쓴다.
-    법정 7종은 '그대로 둠'을 주어도 가린다.
+    법정 7종(주민번호 등)도 사람이 '그대로 둠'을 고르면 그대로 둔다(화면에서 자물쇠로 알린다).
 
     expected_fingerprint·reviewed_ids 를 주면(앱 화면), 확인한 뒤 파일이 바뀌었거나 다시 찾은
     항목이 화면에서 확인한 목록과 다르면 사본을 만들지 않고 멈춘다. 사람이 보지 않은 항목이
@@ -207,8 +203,6 @@ def apply_file(
         raise ValueError(f"{path.name}: 화면에서 확인한 목록과 다시 찾은 목록이 다릅니다. 파일을 다시 읽어 확인해 주세요.")
     is_pdf = path.suffix.lower() == ".pdf"
     for it in items:
-        if it.kind in FIXED_CODES and decisions.get(it.id) == "keep":
-            decisions[it.id] = KINDS[it.kind].default_action
         if is_pdf and (decisions.get(it.id) or KINDS.get(it.kind, KINDS["CUSTOM"]).default_action) == REPLACE:
             decisions[it.id] = MASK_ALL   # PDF 에는 '[종류]로 바꿈'이 없다(분석 화면과 같게)
     edits, masked = plan_edits(items, decisions)

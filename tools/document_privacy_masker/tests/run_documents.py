@@ -67,8 +67,6 @@ def test_hwpx(tmp: Path) -> None:
 
     dec = {}
     for it in a["items"]:
-        if it["kind"] == "RRN":
-            dec[it["id"]] = "keep"          # 법정 7종: 무시되고 가려져야 한다
         if it["text"] == "이재민":
             dec[it["id"]] = "keep"
         if it["text"] == "김민수":

@@ -27,7 +27,7 @@ class Kind:
     code: str
     label: str
     default_action: str
-    # 법으로 공개가 금지된 고유식별정보·금융정보 등. 화면에서 '그대로 둠'을 고를 수 없다.
+    # 법으로 공개가 금지된 고유식별정보·금융정보 등. 화면에 자물쇠로 표시하고, 다시 검사 때 가려지지 않은 채 남았는지 따로 알린다.
     fixed: bool = False
 
 
@@ -52,7 +52,7 @@ KINDS: dict[str, Kind] = {k.code: k for k in (
     Kind("CUSTOM", "직접 추가", MASK_ALL),
 )}
 
-# 법정 7종: 확인 화면에서 '그대로 둠'을 막는다.
+# 법정 7종: 확인 화면에 자물쇠로 표시한다.
 FIXED_CODES = frozenset(code for code, kind in KINDS.items() if kind.fixed)
 
 # ko-pii 라벨 → 이 도구의 종류. 여기 없는 라벨(학력·직책·나이 등)은 쓰지 않는다.

@@ -76,7 +76,7 @@ def main() -> int:
         a = svc.app_analyze({"path": str(hwpx)})
         check(a["ok"] and a["items"] and a["fingerprint"], f"항목 {len(a['items'])}개, 파일 표시 {a['fingerprint']}")
         rrn = next(it for it in a["items"] if it["kind"] == "RRN")
-        check("keep" not in rrn["previews"], "법정 7종은 '그대로 둠' 미리보기가 없음")
+        check("keep" in rrn["previews"] and rrn["fixed"], "법정 7종도 '그대로 둠'을 고를 수 있고 자물쇠 표시가 있음")
         person = next(it for it in a["items"] if it["kind"] == "PERSON")
         check(set(person["previews"]) == {"mask_all", "mask_part", "replace", "keep"}, "성명은 네 가지 모양을 미리 보여 줌")
         p = svc.app_analyze({"path": str(pdf)})
@@ -106,9 +106,8 @@ def main() -> int:
             check("확인" in str(exc), f"알림: {exc}")
         check(not list(tmp.glob("*_마스킹*")), "사본이 생기지 않음")
 
-        print("\n[적용] 화면 결정 그대로 (법정 7종 '그대로 둠'은 무시)")
+        print("\n[적용] 화면 결정 그대로")
         dec = {it["id"]: it["action"] for it in a["items"]}
-        dec[rrn["id"]] = "keep"
         keep_name = next(it for it in a["items"] if it["text"] == "이재민")
         dec[keep_name["id"]] = "keep"
         r = svc.app_apply({"confirmed": True, "files": [entry(a, decisions=dec)]})
@@ -117,6 +116,13 @@ def main() -> int:
         check("780302-1234564" not in body, "주민번호는 가려짐")
         check("이재민" in body, "'그대로 둠'으로 고른 이름은 남음")
         check("다시 검사" in r["popup"]["message"], "알림에 다시 검사 결과가 있음")
+
+        print("\n[적용] 법정 7종도 사람이 '그대로 둠'을 고르면 남김")
+        dec = {it["id"]: it["action"] for it in a["items"]}
+        dec[rrn["id"]] = "keep"
+        r = svc.app_apply({"confirmed": True, "files": [entry(a, decisions=dec)]})
+        body = hwpx_text(Path(r["output"]))
+        check("780302-1234564" in body and r["results"][0]["verify"]["ok"], "주민번호가 남고, 사람이 고른 것이라 다시 검사도 통과")
 
         print("\n[적용] 확인한 뒤 파일이 바뀌면 멈춤")
         info = svc.app_analyze({"path": str(pdf)})

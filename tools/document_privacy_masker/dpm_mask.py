@@ -115,13 +115,10 @@ _PART = {
 
 
 def masked_text(kind: str, text: str, action: str) -> str:
-    """처리 방식대로 바꾼 글자. 법정 7종은 '그대로 둠'을 주어도 전부 가린다."""
+    """처리 방식대로 바꾼 글자. '그대로 둠'이면 종류와 상관없이 원래 글자(사람이 확인 화면에서 고른 것)."""
     kind_info = KINDS.get(kind)
     if action == KEEP:
-        if kind_info and kind_info.fixed:
-            action = MASK_ALL
-        else:
-            return text
+        return text
     if action == REPLACE:
         return f"[{kind_info.label if kind_info else '개인정보'}]"
     if action == MASK_PART:

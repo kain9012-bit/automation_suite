@@ -195,7 +195,7 @@ def plan_edits(items: list[Item], decisions: dict[str, str]) -> tuple[list[Edit]
     done: list[Item] = []
     for it in items:
         action = decisions.get(it.id) or (KINDS[it.kind].default_action if it.kind in KINDS else MASK_ALL)
-        if action == KEEP and it.kind not in FIXED_CODES:
+        if action == KEEP:
             continue
         new = masked_text(it.kind, it.text, action)
         if new == it.text:
