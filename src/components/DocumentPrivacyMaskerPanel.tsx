@@ -7,7 +7,6 @@ import {
   EyeOff,
   FolderOpen,
   LoaderCircle,
-  Lock,
   Play,
   Plus,
   RefreshCw,
@@ -447,13 +446,13 @@ export function DocumentPrivacyMaskerPanel({
   };
 
   const kindsHere = useMemo(() => {
-    const map = new Map<string, { label: string; fixed: boolean; items: Item[] }>();
+    const map = new Map<string, { label: string; items: Item[] }>();
     for (const item of items) {
-      const entry = map.get(item.kind) ?? { label: item.label, fixed: item.fixed, items: [] };
+      const entry = map.get(item.kind) ?? { label: item.label, items: [] };
       entry.items.push(item);
       map.set(item.kind, entry);
     }
-    return [...map.entries()].sort((a, b) => Number(b[1].fixed) - Number(a[1].fixed));
+    return [...map.entries()];
   }, [items]);
 
   const lowCount = items.filter((item) => item.confidence < LOW_CONFIDENCE).length;
@@ -747,7 +746,6 @@ export function DocumentPrivacyMaskerPanel({
                 )}
                 {kindsHere.map(([kind, entry]) => (
                   <button key={kind} className={`dpm-chip ${filter === kind ? "is-on" : ""}`} onClick={() => setFilter(kind)}>
-                    {entry.fixed && <Lock size={11} />}
                     {entry.label} <small>{entry.items.length}</small>
                   </button>
                 ))}
@@ -767,10 +765,9 @@ export function DocumentPrivacyMaskerPanel({
               )}
 
               <p className="dpm-help">
-                <Lock size={12} /> 표시가 있는 종류(주민등록번호·외국인등록번호·카드·휴대전화·계좌·여권·운전면허번호)는 법으로 공개가 금지된 정보입니다. '그대로 둠'을 고르면 빨간 테두리로 표시됩니다.
                 {isPdf
-                  ? " 미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
-                  : " 미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, '[성명]으로 바꿈'을 고르면 값 전체가 '[성명]' 글자로 바뀝니다. 형광펜은 사본에 들어가지 않습니다."}
+                  ? "미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
+                  : "미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, '[성명]으로 바꿈'을 고르면 값 전체가 '[성명]' 글자로 바뀝니다. 형광펜은 사본에 들어가지 않습니다."}
               </p>
 
               <div className="dpm-review has-preview">
@@ -801,8 +798,7 @@ export function DocumentPrivacyMaskerPanel({
                             >
                               {isPdf && <td className="dpm-page-no">{item.page ?? ""}</td>}
                               <td className="dpm-kind">
-                                <span className={`dpm-kind-badge ${item.fixed ? "is-fixed" : ""}`}>
-                                  {item.fixed && <Lock size={11} />}
+                                <span className="dpm-kind-badge">
                                   {item.label}
                                 </span>
                                 {item.confidence < LOW_CONFIDENCE && <span className="dpm-check-badge">확인 필요</span>}
@@ -815,7 +811,7 @@ export function DocumentPrivacyMaskerPanel({
                               <td className="dpm-action">
                                 <select
                                   value={action}
-                                  className={`${changed ? "is-changed" : ""} ${item.fixed && action === "keep" ? "is-risky" : ""}`}
+                                  className={changed ? "is-changed" : ""}
                                   onClick={(event) => event.stopPropagation()}
                                   onFocus={() => selectItem(item)}
                                   onChange={(event) => {

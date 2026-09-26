@@ -322,11 +322,6 @@
   font-weight: 650;
 }
 
-.dpm-kind-badge.is-fixed {
-  background: color-mix(in srgb, var(--error) 12%, var(--bg-secondary));
-  color: var(--error);
-}
-
 .dpm-check-badge {
   display: block;
   width: fit-content;
@@ -404,12 +399,6 @@
 .dpm-action select.is-changed {
   border-color: var(--warning);
   box-shadow: 0 0 0 1px var(--warning);
-}
-
-.dpm-action select.is-risky {
-  border-color: var(--error);
-  box-shadow: 0 0 0 1px var(--error);
-  color: var(--error);
 }
 
 .dpm-empty {
