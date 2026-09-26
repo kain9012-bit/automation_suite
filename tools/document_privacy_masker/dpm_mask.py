@@ -115,7 +115,7 @@ _PART = {
 
 
 def masked_text(kind: str, text: str, action: str) -> str:
-    """처리 방식대로 바꾼 글자. '그대로 둠'이면 종류와 상관없이 원래 글자(사람이 확인 화면에서 고른 것)."""
+    """처리 방식대로 바꾼 글자. '가리지 않음'이면 종류와 상관없이 원래 글자(사람이 확인 화면에서 고른 것)."""
     kind_info = KINDS.get(kind)
     if action == KEEP:
         return text

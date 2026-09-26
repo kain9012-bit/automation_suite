@@ -185,7 +185,7 @@ def apply_file(
     reviewed_ids: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     """decisions: {항목 id: 처리 방식}. 적지 않은 항목은 기본 처리 방식을 쓴다.
-    법정 7종(주민번호 등)도 사람이 '그대로 둠'을 고르면 그대로 둔다(화면에서 자물쇠로 알린다).
+    사람이 '가리지 않음'을 고른 항목은 종류와 상관없이 그대로 둔다.
 
     expected_fingerprint·reviewed_ids 를 주면(앱 화면), 확인한 뒤 파일이 바뀌었거나 다시 찾은
     항목이 화면에서 확인한 목록과 다르면 사본을 만들지 않고 멈춘다. 사람이 보지 않은 항목이

@@ -93,7 +93,7 @@ const ACTION_LABELS: Record<Action, string> = {
   mask_all: "전부 가림",
   mask_part: "일부 가림",
   replace: "종류로 바꿈",
-  keep: "그대로 둠",
+  keep: "가리지 않음",
 };
 const ACTION_ORDER: Action[] = ["mask_part", "mask_all", "replace", "keep"];
 // 체크한 항목에 한꺼번에 적용하는 방식
@@ -148,7 +148,7 @@ type Mark = { item: Item; changed: boolean };
 
 /**
  * 한글 글 미리보기. 원래 글을 그대로 보여 주고, 가려질 글자에 검은 형광펜을 칠한다.
- * 찾았지만 바뀌지 않는 글자(일부 가림에서 남는 글자, '그대로 둠')는 밑줄만 긋는다.
+ * 찾았지만 바뀌지 않는 글자(일부 가림에서 남는 글자, '가리지 않음')는 밑줄만 긋는다.
  * 형광펜은 화면에만 있고 사본에는 들어가지 않는다.
  */
 function HwpxView({
@@ -984,7 +984,7 @@ export function DocumentPrivacyMaskerPanel({
                     </div>
                     <p className="dpm-legend">
                       <span className="is-mask" /> 지워질 글자
-                      <span className="is-keep" /> 찾았지만 그대로 둘 곳
+                      <span className="is-keep" /> 찾았지만 가리지 않을 곳
                       <span className="is-box" /> 직접 그린 영역{myBoxes.length ? ` ${myBoxes.length}개` : ""}
                     </p>
                   </div>
@@ -1006,7 +1006,7 @@ export function DocumentPrivacyMaskerPanel({
                     </div>
                     <p className="dpm-legend">
                       <span className="is-mask" /> 가려질 글자
-                      <span className="is-found" /> 찾았지만 그대로 남는 글자
+                      <span className="is-found" /> 찾았지만 가리지 않는 글자
                     </p>
                   </div>
                 )}

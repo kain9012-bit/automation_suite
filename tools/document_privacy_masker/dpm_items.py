@@ -224,7 +224,7 @@ def _locked(value: Optional[str]) -> bool:
 def leftover_check(masked: list[Item], kept: list[Item], after_units: list[Unit],
                    after_tables: list[TableGrid]) -> dict[str, Any]:
     """다시 연 결과 문서에서
-      - 가린 값이 원래 모양대로 남아 있는지(사람이 '그대로 둠'으로 고른 같은 값은 제외)
+      - 가린 값이 원래 모양대로 남아 있는지(사람이 '가리지 않음'으로 고른 같은 값은 제외)
       - 법정 7종(주민번호·계좌 등)이 가려지지 않은 채 보이는지
     를 확인한다."""
     texts = [u.text for u in after_units]

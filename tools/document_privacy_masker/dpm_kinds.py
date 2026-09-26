@@ -12,13 +12,13 @@ from dataclasses import dataclass
 MASK_ALL = "mask_all"      # 전부 가림:   880101-1234567 → **************
 MASK_PART = "mask_part"    # 일부 가림:   010-1234-5678  → 010-****-5678
 REPLACE = "replace"        # 종류로 바꿈: 홍길동         → [성명]
-KEEP = "keep"              # 그대로 둠
+KEEP = "keep"              # 가리지 않음
 
 ACTION_LABELS = {
     MASK_ALL: "전부 가림",
     MASK_PART: "일부 가림",
     REPLACE: "종류로 바꿈",
-    KEEP: "그대로 둠",
+    KEEP: "가리지 않음",
 }
 
 
