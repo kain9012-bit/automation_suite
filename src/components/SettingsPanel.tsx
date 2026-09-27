@@ -3,6 +3,7 @@ import {
   Download,
   Eraser,
   FolderCog,
+  History,
   LoaderCircle,
   MonitorCog,
   MousePointerClick,
@@ -22,6 +23,9 @@ import {
   setAutoUpdateEnabled,
 } from "../hooks/useAutoUpdater";
 import "./settings-panel.css";
+import { getVersion } from "@tauri-apps/api/app";
+import { ReleaseNotesDialog } from "./ReleaseNotesDialog";
+import { RELEASE_NOTES } from "../lib/releaseNotes";
 import { HotkeyInput } from "./HotkeyInput";
 import {
   DEFAULT_TOGGLE_HOTKEY,
@@ -45,6 +49,15 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
   const [enabled, setEnabled] = useState(isAutoUpdateEnabled);
   const [busy, setBusy] = useState<"app" | "tools" | null>(null);
   const [message, setMessage] = useState("");
+  // 업데이트 내역 창
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    void getVersion()
+      .then(setAppVersion)
+      .catch(() => undefined);
+  }, []);
 
   const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: true, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY });
   const [desktopBusy, setDesktopBusy] = useState(false);
@@ -314,6 +327,20 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
 
       <section className="settings-card">
         <div className="setting-icon">
+          <History size={20} />
+        </div>
+        <div>
+          <strong>업데이트 내역</strong>
+          <p>버전마다 무엇이 바뀌었는지 봅니다.{appVersion ? ` 지금 버전: ${appVersion}` : ""}</p>
+        </div>
+        <button className="secondary-button" onClick={() => setHistoryOpen(true)}>
+          <History size={15} />
+          업데이트 내역
+        </button>
+      </section>
+
+      <section className="settings-card">
+        <div className="setting-icon">
           <PackagePlus size={20} />
         </div>
         <div>
@@ -342,6 +369,15 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
       </section>
 
       {message && <div className="update-message">{message}</div>}
+
+      {historyOpen && (
+        <ReleaseNotesDialog
+          title="업데이트 내역"
+          notes={RELEASE_NOTES}
+          current={appVersion}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Command,
   Download,
+  PartyPopper,
   LoaderCircle,
   Search,
   Sparkles,
@@ -26,6 +27,8 @@ import { ToolGrid } from "./components/ToolGrid";
 import { TutorialOverlay } from "./components/TutorialOverlay";
 import { useTools } from "./hooks/useTools";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
+import { useReleaseNotice } from "./hooks/useReleaseNotice";
+import { ReleaseNotesDialog } from "./components/ReleaseNotesDialog";
 import {
   CONTEXT_OPEN_EVENT,
   DEFAULT_TOGGLE_HOTKEY,
@@ -47,6 +50,9 @@ function titleFor(view: View) {
 export default function App() {
   const registry = useTools();
   const updater = useAutoUpdater(registry.refresh);
+  // 업데이트 뒤 처음 켰을 때 위쪽 띠 → [업데이트 내용 보기]
+  const releaseNotice = useReleaseNotice();
+  const [releaseOpen, setReleaseOpen] = useState(false);
   const [view, setView] = useState<View>({ kind: "home" });
   // 도구 화면의 초기화 버튼. 화면을 새로 만들어 넣은 파일·설정·기록을 모두 비운다.
   // 탐색기 우클릭으로 받아 온 파일도 지운다.
@@ -386,6 +392,21 @@ export default function App() {
             </div>
           </div>
         )}
+        {!!releaseNotice.notes.length && !releaseOpen && (
+          <div className="update-banner is-updated">
+            <span>
+              <PartyPopper size={15} />새 버전 {releaseNotice.current} 업데이트가 끝났습니다.
+            </span>
+            <div>
+              <button className="secondary-button" onClick={releaseNotice.done}>
+                닫기
+              </button>
+              <button className="primary-button" onClick={() => setReleaseOpen(true)}>
+                업데이트 내용 보기
+              </button>
+            </div>
+          </div>
+        )}
         <main className="app-content" data-tour="tool-area">{content()}</main>
         <footer className="status-bar">
           <span>
@@ -396,6 +417,18 @@ export default function App() {
         </footer>
       </div>
 
+
+      {releaseOpen && (
+        <ReleaseNotesDialog
+          title={`${releaseNotice.current} 업데이트 내용`}
+          notes={releaseNotice.notes}
+          current={releaseNotice.current}
+          onClose={() => {
+            setReleaseOpen(false);
+            releaseNotice.done();
+          }}
+        />
+      )}
 
       {commandOpen && (
         <div className="command-backdrop" onMouseDown={() => setCommandOpen(false)}>
