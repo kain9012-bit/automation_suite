@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import {
   ChevronDown,
   ChevronUp,
@@ -15,47 +14,19 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { runMacroAction, type MacroActionPayload } from "../lib/bridge";
+import {
+  listenDeckRuns,
+  readStoredDeck,
+  runDeckAction,
+  writeStoredDeck,
+  type ActionType,
+  type DeckAction,
+  type DeckState,
+} from "../lib/quickDeck";
 import { HotkeyInput } from "./HotkeyInput";
 import "./quick-launcher.css";
 
-export type ActionType =
-  | "site"
-  | "folder"
-  | "file"
-  | "program"
-  | "command"
-  | "hotkey"
-  | "text"
-  | "wait"
-  | "macro";
-
-export interface DeckAction extends MacroActionPayload {
-  id: string;
-  name: string;
-  type: ActionType;
-  target: string;
-  arguments: string;
-  hotkey: string;
-  color: string;
-  size: string;
-  steps: DeckAction[];
-}
-
-interface DeckPage {
-  id: string;
-  name: string;
-  actions: DeckAction[];
-}
-
-interface DeckState {
-  activePageId: string;
-  pages: DeckPage[];
-  recent: { name: string; time: string }[];
-}
-
-// 기존 슬라이드 패널이 쓰던 키를 그대로 이어받아 등록해 둔 버튼이 사라지지 않게 한다.
-const STORAGE_KEY = "jbedu-suite:macro-deck";
+export type { ActionType, DeckAction };
 
 const ACTION_LABELS: Record<ActionType, string> = {
   site: "사이트",
@@ -86,12 +57,7 @@ function initialState(): DeckState {
 }
 
 function readState(): DeckState {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as DeckState | null;
-    return saved?.pages?.length ? saved : initialState();
-  } catch {
-    return initialState();
-  }
+  return readStoredDeck() ?? initialState();
 }
 
 /** 고른 경로를 보고 폴더·프로그램·파일 중 무엇인지 추측한다. */
@@ -122,7 +88,8 @@ export function QuickLauncher() {
     deckRef.current = deck;
   });
 
-  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(deck)), [deck]);
+  // 저장하면서 App 의 단축키 등록에도 알린다(useQuickLauncherHotkeys).
+  useEffect(() => writeStoredDeck(deck), [deck]);
 
   const activePage = deck.pages.find((page) => page.id === deck.activePageId) ?? deck.pages[0];
   const actions = useMemo(
@@ -144,92 +111,24 @@ export function QuickLauncher() {
       pages: deck.pages.map((page) => (page.id === activePage.id ? { ...page, actions: nextActions } : page)),
     });
 
-  const run = useCallback(async (action: DeckAction) => {
-    setStatus(`실행 중: ${action.name}`);
-    try {
-      const result = await runMacroAction(action);
-      const entry = {
-        name: action.name,
-        time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setDeck((current) => ({ ...current, recent: [entry, ...current.recent].slice(0, 10) }));
-      setStatus(String(result.message || `${action.name} 실행 완료`));
-    } catch (error) {
-      setStatus(`실행 실패: ${String(error)}`);
-    }
-  }, []);
-
-  const runRef = useRef(run);
-  useEffect(() => {
-    runRef.current = run;
-  });
-
-  // 전역 등록에 성공한 조합은 창 keydown 폴백에서 제외해 두 번 실행되지 않게 한다.
-  const globalHotkeys = useRef(new Set<string>());
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement ||
-        event.target instanceof HTMLSelectElement
-      )
-        return;
-      const combo = [
-        event.ctrlKey && "ctrl",
-        event.altKey && "alt",
-        event.shiftKey && "shift",
-        event.metaKey && "win",
-        event.key.toLowerCase(),
-      ]
-        .filter(Boolean)
-        .join("+");
-      if (globalHotkeys.current.has(combo)) return;
-      const action = activePage.actions.find((item) => item.hotkey.trim().toLowerCase() === combo);
-      if (action) {
-        event.preventDefault();
-        void runRef.current(action);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  });
-
-  const shortcutSignature = JSON.stringify(
-    activePage.actions.map((action) => [action.id, action.hotkey, action.type, action.target, action.arguments, action.steps]),
+  // 버튼 단축키는 App 에서 등록한다(useQuickLauncherHotkeys). 여기서는 단축키로
+  // 실행된 것까지 포함해 실행 상황을 받아 상태 줄과 최근 기록에 반영한다.
+  useEffect(
+    () =>
+      listenDeckRuns((event) => {
+        if (event.phase === "start") {
+          setStatus(`실행 중: ${event.action.name}`);
+        } else if (event.phase === "done") {
+          setDeck((current) => ({ ...current, recent: [event.entry, ...current.recent].slice(0, 10) }));
+          setStatus(event.message);
+        } else {
+          setStatus(`실행 실패: ${event.message}`);
+        }
+      }),
+    [],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    const registered: string[] = [];
-    const targets = activePage.actions.filter((action) => action.hotkey.trim());
-    void (async () => {
-      for (const action of targets) {
-        if (cancelled) return;
-        const hotkey = action.hotkey.trim();
-        try {
-          await register(hotkey, (event) => {
-            if (event.state === "Pressed") void runRef.current(action);
-          });
-        } catch {
-          continue;
-        }
-        if (cancelled) {
-          void unregister(hotkey).catch(() => undefined);
-          return;
-        }
-        registered.push(hotkey);
-        globalHotkeys.current.add(hotkey.toLowerCase());
-      }
-    })();
-    return () => {
-      cancelled = true;
-      for (const hotkey of registered) {
-        globalHotkeys.current.delete(hotkey.toLowerCase());
-        void unregister(hotkey).catch(() => undefined);
-      }
-    };
-  }, [shortcutSignature]);
+  const run = useCallback((action: DeckAction) => runDeckAction(action), []);
 
   // 같은 대상이 이미 있으면 등록하지 않는다. 등록했으면 true.
   const addAction = useCallback(

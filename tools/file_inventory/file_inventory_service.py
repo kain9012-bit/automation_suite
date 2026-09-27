@@ -253,8 +253,18 @@ def collect_inventory(
 
     log("파일/폴더 목록을 수집하는 중...")
 
+    def on_walk_error(exc: OSError) -> None:
+        # 권한이 없는 폴더 등 열지 못한 폴더는 조용히 빠지지 않게 오류 기록에 남긴다.
+        result.errors.append(
+            {
+                "path": str(getattr(exc, "filename", "") or root),
+                "kind": "폴더",
+                "error": f"폴더를 읽을 수 없습니다 ({getattr(exc, 'strerror', '') or exc})",
+            }
+        )
+
     if include_subfolders:
-        for current, dirs, files in os.walk(root):
+        for current, dirs, files in os.walk(root, onerror=on_walk_error):
             current_path = Path(current)
             if exclude_office_temp:
                 dirs[:] = [dirname for dirname in dirs if not should_skip_name(dirname)]
@@ -328,7 +338,16 @@ def adjust_column_width(ws, max_width: int = 70) -> None:
         ws.column_dimensions[column].width = min(max_len + 2, max_width)
 
 
+def keep_as_text(ws) -> None:
+    """'=' 로 시작하는 파일 이름 등이 함수로 저장되지 않게 글자로 둔다(현황표의 값은 모두 글자·숫자다)."""
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.data_type == "f":
+                cell.data_type = "s"
+
+
 def finalize_sheet(ws) -> None:
+    keep_as_text(ws)
     set_common_sheet_style(ws)
     adjust_column_width(ws)
 

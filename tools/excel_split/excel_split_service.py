@@ -8,8 +8,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+import zipfile
+from xml.etree.ElementTree import ParseError
+
 from openpyxl import Workbook, load_workbook
+from openpyxl.formula.translate import Translator
 from openpyxl.utils import get_column_letter, range_boundaries
+from openpyxl.utils.exceptions import InvalidFileException
+
+try:  # openpyxl 이 lxml 로 읽을 때 나는 오류
+    from lxml.etree import XMLSyntaxError
+except Exception:  # pragma: no cover
+    XMLSyntaxError = ParseError
 
 
 MODE_COLUMN = "column"
@@ -119,7 +129,11 @@ def load_source_workbook(path: Path, data_only: bool = False):
             ws.append(row)
         return wb, True
 
-    return load_workbook(path, data_only=data_only), False
+    try:
+        return load_workbook(path, data_only=data_only), False
+    except (zipfile.BadZipFile, InvalidFileException, KeyError, EOFError, ParseError, XMLSyntaxError) as exc:
+        # 암호를 건 파일·DRM 보호 파일·손상된 파일은 ZIP 이 아니어서 'File is not a zip file' 만 나온다.
+        raise ValueError(f"엑셀 파일을 열 수 없습니다(암호·DRM 보호 또는 손상): {path.name}") from exc
 
 
 def detect_header_row(ws, max_scan_rows: int = 50) -> int:
@@ -187,8 +201,37 @@ def preview_rows(path: Path, sheet_name: str, max_rows: int = 80, max_cols: int 
     return rows
 
 
-def _copy_cell(src, dst) -> None:
+def _translated_formula(formula: str, src, dst) -> str:
+    """함수를 새 칸 위치에 맞게 옮긴다(=C4+D4 가 3행으로 가면 =C3+D3)."""
+    try:
+        return Translator(formula, origin=src.coordinate).translate_formula(dst.coordinate)
+    except Exception:
+        return formula
+
+
+def _copy_value(src, dst, cached=None) -> None:
+    """칸 값을 옮긴다. 함수는 원본에 저장된 계산 결과값으로 넣는다.
+
+    행 위치가 바뀌거나 다른 시트를 가리키는 함수를 그대로 옮기면 값이 틀어지기 때문이다.
+    결과값이 저장돼 있지 않은 함수만 새 위치에 맞게 고쳐서 넣는다.
+    '=' 로 시작하는 글자는 함수가 아니라 글자로 넣는다.
+    """
+    if src.data_type == "f":
+        if cached is not None:
+            dst.value = cached
+            if isinstance(cached, str) and cached.startswith("="):
+                dst.data_type = "s"
+            return
+        formula = src.value if isinstance(src.value, str) else getattr(src.value, "text", None)
+        dst.value = _translated_formula(formula, src, dst) if isinstance(formula, str) else None
+        return
     dst.value = src.value
+    if isinstance(src.value, str) and src.value.startswith("="):
+        dst.data_type = "s"
+
+
+def _copy_cell(src, dst, cached=None) -> None:
+    _copy_value(src, dst, cached)
     if src.has_style:
         dst.font = copy(src.font)
         dst.fill = copy(src.fill)
@@ -240,9 +283,21 @@ def _copy_merges(ws_in, ws_out, row_map: dict[int, int]) -> None:
             pass
 
 
-def copy_sheet_rows_to_file(source_path: Path, sheet_name: str, rows_to_keep: list[int], output_path: Path) -> None:
-    wb_in, _ = load_source_workbook(source_path)
+def copy_sheet_rows_to_file(
+    source_path: Path,
+    sheet_name: str,
+    rows_to_keep: list[int],
+    output_path: Path,
+    wb_in=None,
+    wb_values=None,
+) -> None:
+    """고른 행만 새 파일로 옮긴다. 이미 연 통합문서(wb_in: 함수, wb_values: 계산된 값)를 주면 다시 열지 않는다."""
+    if wb_in is None:
+        wb_in, _ = load_source_workbook(source_path)
+    if wb_values is None:
+        wb_values, _ = load_source_workbook(source_path, data_only=True)
     ws_in = wb_in[sheet_name] if sheet_name in wb_in.sheetnames else wb_in.worksheets[0]
+    ws_values = wb_values[ws_in.title] if ws_in.title in wb_values.sheetnames else None
 
     wb_out = Workbook()
     default_ws = wb_out.active
@@ -255,7 +310,8 @@ def copy_sheet_rows_to_file(source_path: Path, sheet_name: str, rows_to_keep: li
     for old_row in unique_rows:
         new_row = row_map[old_row]
         for col in range(1, (ws_in.max_column or 1) + 1):
-            _copy_cell(ws_in.cell(row=old_row, column=col), ws_out.cell(row=new_row, column=col))
+            cached = ws_values.cell(row=old_row, column=col).value if ws_values is not None else None
+            _copy_cell(ws_in.cell(row=old_row, column=col), ws_out.cell(row=new_row, column=col), cached)
 
     _copy_dimensions(ws_in, ws_out, row_map)
     _copy_merges(ws_in, ws_out, row_map)
@@ -268,6 +324,7 @@ def copy_sheet_rows_to_file(source_path: Path, sheet_name: str, rows_to_keep: li
 
 def split_by_sheet(options: SplitOptions, log: Callable[[str], None] | None = None) -> SplitResult:
     wb, _ = load_source_workbook(options.source_path)
+    wb_values, _ = load_source_workbook(options.source_path, data_only=True)
     result = SplitResult(output_folder=options.output_folder)
     base = options.source_path.stem
 
@@ -277,7 +334,7 @@ def split_by_sheet(options: SplitOptions, log: Callable[[str], None] | None = No
         try:
             target = unique_path(options.output_folder, f"{base}_{ws.title}.xlsx")
             rows = list(range(1, (ws.max_row or 0) + 1))
-            copy_sheet_rows_to_file(options.source_path, ws.title, rows, target)
+            copy_sheet_rows_to_file(options.source_path, ws.title, rows, target, wb, wb_values)
             result.created_files.append(target)
             result.created_count += 1
             if log:
@@ -290,6 +347,7 @@ def split_by_sheet(options: SplitOptions, log: Callable[[str], None] | None = No
 
 def split_by_chunk(options: SplitOptions, log: Callable[[str], None] | None = None) -> SplitResult:
     wb, _ = load_source_workbook(options.source_path)
+    wb_values, _ = load_source_workbook(options.source_path, data_only=True)
     ws = wb[options.sheet_name] if options.sheet_name in wb.sheetnames else wb.worksheets[0]
     result = SplitResult(output_folder=options.output_folder)
     base = options.source_path.stem
@@ -308,7 +366,7 @@ def split_by_chunk(options: SplitOptions, log: Callable[[str], None] | None = No
         rows_to_keep = [*range(1, header_row + 1), *range(start_row, end_row + 1)]
         try:
             target = unique_path(options.output_folder, f"{base}_part{part}_rows{start_row}-{end_row}.xlsx")
-            copy_sheet_rows_to_file(options.source_path, ws.title, rows_to_keep, target)
+            copy_sheet_rows_to_file(options.source_path, ws.title, rows_to_keep, target, wb, wb_values)
             result.created_files.append(target)
             result.created_count += 1
             if log:
@@ -358,7 +416,7 @@ def split_by_column(options: SplitOptions, log: Callable[[str], None] | None = N
         rows_to_keep = [*range(1, header_row + 1), *data_rows]
         try:
             target = unique_path(options.output_folder, f"{base}_{safe_file_name(key)}.xlsx")
-            copy_sheet_rows_to_file(options.source_path, ws.title, rows_to_keep, target)
+            copy_sheet_rows_to_file(options.source_path, ws.title, rows_to_keep, target, wb, wb_values)
             result.created_files.append(target)
             result.created_count += 1
             if log:

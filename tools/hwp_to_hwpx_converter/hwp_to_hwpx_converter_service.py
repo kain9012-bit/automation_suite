@@ -11,6 +11,9 @@ from typing import Callable
 SUPPORTED_EXT = ".hwp"
 LogCallback = Callable[[str], None]
 StatusCallback = Callable[[Path, str], None]
+CancelCheck = Callable[[], bool]
+
+ALLOW_HINT = "한글이 파일 접근을 물으면 [허용]을 눌러 주세요."
 
 
 @dataclass
@@ -29,6 +32,7 @@ class HwpToHwpxBatchResult:
     delete_fail_count: int = 0
     fail_count: int = 0
     overwrite_count: int = 0
+    stopped: bool = False
     results: list[HwpToHwpxResult] = field(default_factory=list)
 
 
@@ -117,20 +121,16 @@ def try_register_file_path_security_module(hwp):
 
 
 def create_hwp_object(visible: bool = False):
-    import win32com.client
+    # 늦은 바인딩(dynamic)만 쓴다. gencache.EnsureDispatch 는 임시 폴더(gen_py)에 한글
+    # 기능 목록 캐시를 만들고, 그 캐시가 망가지면 이 도구뿐 아니라 한글을 쓰는 다른 도구도
+    # "has no attribute 'CLSIDToPackageMap'" 로 멈춘다.
     import win32com.client.dynamic
-
-    attempts = [
-        lambda: win32com.client.gencache.EnsureDispatch("HWPFrame.HwpObject"),
-        lambda: win32com.client.Dispatch("HWPFrame.HwpObject"),
-        lambda: win32com.client.dynamic.Dispatch("HWPFrame.HwpObject"),
-    ]
 
     hwp = None
     errors: list[str] = []
-    for attempt in attempts:
+    for prog_id in ("HWPFrame.HwpObject", "HwpFrame.HwpObject", "HWPFrame.HwpObject.1"):
         try:
-            hwp = attempt()
+            hwp = win32com.client.dynamic.Dispatch(prog_id)
             break
         except Exception as exc:
             errors.append(str(exc))
@@ -142,14 +142,34 @@ def create_hwp_object(visible: bool = False):
             "내부 오류:\n" + "\n".join(errors[-3:])
         )
 
-    security_ok, security_module_name, security_error = try_register_file_path_security_module(hwp)
-
     try:
-        hwp.XHwpWindows.Item(0).Visible = bool(visible)
-    except Exception:
-        pass
+        security_ok, security_module_name, security_error = try_register_file_path_security_module(hwp)
+
+        # 보안 모듈이 없으면 한글이 '접근 허용' 창을 띄운다. 창을 숨기면 그 창도 안 보여
+        # 누를 수 없고 변환이 끝나지 않으므로, 그때는 한글 창을 보여 준다.
+        try:
+            hwp.XHwpWindows.Item(0).Visible = bool(visible) or not security_ok
+        except Exception:
+            pass
+    except BaseException:
+        # 한글을 띄운 뒤 실패하면 여기서 끄지 않으면 숨은 Hwp.exe 가 남는다.
+        quit_hwp(hwp)
+        raise
 
     return hwp, security_ok, security_module_name, security_error
+
+
+def quit_hwp(hwp) -> None:
+    if hwp is None:
+        return
+    try:
+        hwp.Clear(1)
+    except Exception:
+        pass
+    try:
+        hwp.Quit()
+    except Exception:
+        pass
 
 
 def close_current_hwp_document(hwp) -> None:
@@ -294,10 +314,17 @@ def convert_hwp_files_to_hwpx(
     visible: bool = False,
     log: LogCallback | None = None,
     status: StatusCallback | None = None,
+    cancel: CancelCheck | None = None,
 ) -> HwpToHwpxBatchResult:
     def emit(message: str = "") -> None:
         if log is not None:
             log(message)
+
+    def cancelled() -> bool:
+        try:
+            return bool(cancel and cancel())
+        except Exception:
+            return False
 
     def set_status(path: Path, text: str) -> None:
         if status is not None:
@@ -329,18 +356,23 @@ def convert_hwp_files_to_hwpx(
             emit("보안모듈 등록: 실패 또는 미등록")
             if security_error:
                 emit(f"  - 사유: {security_error}")
-            emit("  - 한글 파일 접근 허용 창이 뜨면 허용을 선택해 주세요.")
+            emit(f"  - {ALLOW_HINT}")
         emit()
 
         for index, src_path in enumerate(ordered, start=1):
+            if cancelled():
+                batch.stopped = True
+                emit("중지했습니다. 그때까지 바꾼 파일은 그대로 둡니다.")
+                break
             # 같은 이름의 HWPX 가 이미 있으면 덮어쓰지 않고 '이름(1).hwpx' 로 저장한다.
             dst_path = output_hwpx_path(src_path)
             renamed = dst_path.exists()
             if renamed:
-                index = 1
-                while (dst_path.parent / f"{dst_path.stem}({index}).hwpx").exists():
-                    index += 1
-                dst_path = dst_path.parent / f"{dst_path.stem}({index}).hwpx"
+                # 번호 변수를 따로 둔다. index 를 다시 쓰면 아래 [번호/전체] 안내가 틀어진다.
+                number = 1
+                while (dst_path.parent / f"{dst_path.stem}({number}).hwpx").exists():
+                    number += 1
+                dst_path = dst_path.parent / f"{dst_path.stem}({number}).hwpx"
             overwritten = False
 
             set_status(src_path, "변환 중")
@@ -401,15 +433,15 @@ def convert_hwp_files_to_hwpx(
                 )
             emit()
     finally:
-        if hwp is not None:
+        try:
+            quit_hwp(hwp)
+        finally:
+            # CoUninitialize 보다 먼저 한글 연결을 놓아야 한다.
+            hwp = None
             try:
-                hwp.Quit()
+                pythoncom.CoUninitialize()
             except Exception:
                 pass
-        try:
-            pythoncom.CoUninitialize()
-        except Exception:
-            pass
 
     emit("===== 완료 =====")
     emit(f"성공: {batch.success_count}개")

@@ -16,11 +16,12 @@ import copy
 import os
 import re
 from dataclasses import dataclass, field
-from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup, Comment
 from openpyxl import Workbook
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.utils import get_column_letter
 import datetime
 
@@ -94,6 +95,9 @@ class CrawlResult:
     errors: list = field(default_factory=list)
     headers: list = field(default_factory=list)
     cancelled: bool = False
+    # 목록 페이지를 연 수와, 열지 못한 페이지의 이유. 하나도 못 열었으면 수집이 실패한 것이다.
+    pages_opened: int = 0
+    page_failures: list = field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -694,9 +698,74 @@ def parse_detail(html: str, title_hint: str = "") -> dict:
             "body": extract_body_from_view(html, title_hint)}
 
 
+def request_error_text(error: Exception) -> str:
+    """페이지 요청이 실패한 이유를 한국어로. 원래 오류 문구도 뒤에 붙인다."""
+    if isinstance(error, requests.exceptions.SSLError):
+        head = "보안 인증서(TLS) 문제로 접속하지 못했습니다"
+    elif isinstance(error, requests.exceptions.ProxyError):
+        head = "프록시 설정 문제로 접속하지 못했습니다"
+    elif isinstance(error, requests.exceptions.Timeout):
+        head = "사이트가 제시간에 응답하지 않았습니다"
+    elif isinstance(error, requests.exceptions.ConnectionError):
+        head = "사이트에 접속하지 못했습니다(인터넷 연결·주소 확인)"
+    elif isinstance(error, requests.exceptions.HTTPError):
+        status = getattr(getattr(error, "response", None), "status_code", "")
+        head = f"사이트가 오류를 돌려주었습니다(HTTP {status})"
+    else:
+        head = "페이지를 열지 못했습니다"
+    return f"{head}: {error}"
+
+
 def safe_filename(name: str) -> str:
     """윈도우 파일 이름에 쓸 수 없는 문자 제거"""
-    return re.sub(r'[\\/:*?"<>|]', "_", name).strip() or "무제"
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", name).strip() or "무제"
+
+
+def _header_filename(cd: str) -> str:
+    """Content-Disposition 에서 서버가 알려 준 파일 이름을 꺼낸다(한글 이름 복원 포함)."""
+    if not cd:
+        return ""
+    m = re.search(r"filename\*\s*=\s*([^;]+)", cd, flags=re.I)
+    if m:
+        part = m.group(1).strip().strip('"')
+        charset, _, encoded = part.partition("''")
+        if encoded:
+            try:
+                return unquote(encoded, encoding=charset or "utf-8", errors="strict")
+            except (LookupError, UnicodeDecodeError):
+                return unquote(encoded)
+        return unquote(part)
+    m = re.search(r'filename\s*=\s*("([^"]*)"|[^;]+)', cd, flags=re.I)
+    if not m:
+        return ""
+    name = (m.group(2) if m.group(2) is not None else m.group(1)).strip()
+    # requests 는 머리글을 latin-1 로 읽는다. 원래 바이트로 되돌려 UTF-8 → cp949 순으로 읽는다.
+    try:
+        raw = name.encode("latin-1")
+        for encoding in ("utf-8", "cp949"):
+            try:
+                name = raw.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+    except UnicodeEncodeError:
+        pass
+    if re.search(r"%[0-9A-Fa-f]{2}", name):
+        name = unquote(name)
+    return name
+
+
+def choose_attachment_name(desired: str, server_name: str) -> str:
+    """저장할 첨부 이름. 링크 글자('다운로드', '미리보기')를 이름으로 쓰면 확장자가 빠지므로,
+    고른 이름에 서버 파일의 확장자가 없으면 서버 파일 이름을 쓴다."""
+    desired = (desired or "").strip()
+    server_name = (server_name or "").strip()
+    server_ext = os.path.splitext(server_name)[1]
+    if not desired:
+        return server_name
+    if not server_ext or desired.lower().endswith(server_ext.lower()):
+        return desired
+    return server_name
 
 
 def clean_attachment_display_name(text: str) -> str:
@@ -735,16 +804,13 @@ def download_attachment(session, full_url, save_dir, log_func, error_list,
         resp = http_get(session, full_url, timeout=30, stream=True)
         resp.raise_for_status()
 
-        filename = desired_filename
-        if not filename:
-            cd = resp.headers.get("Content-Disposition", "")
-            if "filename" in cd:
-                m = re.search(r"filename\*?=([^;]+)", cd)
-                if m:
-                    part = m.group(1).strip().strip('"')
-                    if "''" in part:
-                        part = part.split("''", 1)[1]
-                    filename = part
+        server_name = _header_filename(resp.headers.get("Content-Disposition", ""))
+        if not server_name:
+            url_name = unquote(os.path.basename(urlparse(full_url).path))
+            # 'download.do' 같은 주소 끝은 파일 이름이 아니다.
+            if os.path.splitext(url_name)[1].lower() in ATTACH_EXTS:
+                server_name = url_name
+        filename = choose_attachment_name(desired_filename or "", server_name)
         if not filename:
             filename = os.path.basename(urlparse(full_url).path) or "downloaded_file"
 
@@ -870,7 +936,9 @@ def crawl_board(board_url, start_page, end_page, max_posts, log_func,
             except Exception as e:
                 log_func(f"  → 페이지 요청 실패: {e}")
                 note_error(page, "", "", f"페이지 요청 실패: {e}")
+                result.page_failures.append(request_error_text(e))
                 continue
+            result.pages_opened += 1
 
             resp.encoding = resp.apparent_encoding or "utf-8"
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -1093,8 +1161,23 @@ def _flat_values(row) -> dict:
     return out
 
 
+def _cell_value(value):
+    """엑셀 칸에 넣을 값. 제목 등에 섞인 제어 문자(\\x08 등)는 엑셀이 받지 않아 저장 전체가
+    실패하므로 지운다. '=' 로 시작하는 글자는 함수가 아니라 글자로 넣는다(_append_row)."""
+    if isinstance(value, str):
+        return ILLEGAL_CHARACTERS_RE.sub("", value)
+    return value
+
+
+def _append_row(ws, values) -> None:
+    ws.append([_cell_value(value) for value in values])
+    for cell in ws[ws.max_row]:
+        if cell.data_type == "f":
+            cell.data_type = "s"
+
+
 def _sheet_title(name: str, used: set) -> str:
-    base = re.sub(r"[\\/*?:\[\]]", "_", name).strip() or "표"
+    base = re.sub(r"[\\/*?:\[\]]", "_", ILLEGAL_CHARACTERS_RE.sub("", str(name))).strip() or "표"
     base = base[:31]
     title, n = base, 2
     while title in used:
@@ -1117,7 +1200,7 @@ def save_to_excel(headers, rows, errors, excel_path, board_url) -> str:
     wb = Workbook()
     ws = wb.active
     ws.title = "게시글"
-    ws.append(list(headers) + info_cols + flat_cols + count_cols + EXTRA_HEADERS)
+    _append_row(ws, list(headers) + info_cols + flat_cols + count_cols + EXTRA_HEADERS)
 
     for row in rows:
         values = [row.get(h, "") for h in headers]
@@ -1132,7 +1215,7 @@ def save_to_excel(headers, rows, errors, excel_path, board_url) -> str:
             row.get("_첨부파일개수", ""),
             row.get("_첨부파일목록", ""),
         ]
-        ws.append(values)
+        _append_row(ws, values)
     adjust_column_width(ws)
 
     used = {"게시글", "오류_건너뜀"}
@@ -1143,20 +1226,20 @@ def save_to_excel(headers, rows, errors, excel_path, board_url) -> str:
                 if t["name"] == name and len(t["header"]) > len(header):
                     header = t["header"]
         sheet = wb.create_sheet(_sheet_title(name, used))
-        sheet.append(["번호", "제목", "상세URL"] + header)
+        _append_row(sheet, ["번호", "제목", "상세URL"] + header)
         for row in rows:
             for t in (row.get("_상세") or {}).get("tables") or []:
                 if t["name"] != name:
                     continue
                 for cells in t["rows"]:
-                    sheet.append([row.get("_번호", ""), row.get("_제목", ""), row.get("_상세URL", "")] + cells)
+                    _append_row(sheet, [row.get("_번호", ""), row.get("_제목", ""), row.get("_상세URL", "")] + cells)
         adjust_column_width(sheet)
 
     ws_err = wb.create_sheet("오류_건너뜀")
-    ws_err.append(["페이지", "게시글번호", "제목", "오류내용"])
+    _append_row(ws_err, ["페이지", "게시글번호", "제목", "오류내용"])
     for err in errors:
-        ws_err.append([err.get("page", ""), err.get("post_no", ""),
-                       err.get("title", ""), err.get("error", "")])
+        _append_row(ws_err, [err.get("page", ""), err.get("post_no", ""),
+                             err.get("title", ""), err.get("error", "")])
     adjust_column_width(ws_err)
 
     wb.save(excel_path)

@@ -8,6 +8,6 @@
   "description": "HWP/HWPX 파일을 PDF로 일괄 변환합니다.",
   "order": 40,
   "enabled": true,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "keywords": []
 }

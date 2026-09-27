@@ -8,6 +8,6 @@
   "description": "하나의 엑셀 파일을 여러 파일로 분할하는 도구",
   "order": 20,
   "enabled": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "keywords": []
 }

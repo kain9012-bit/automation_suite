@@ -8,6 +8,6 @@
   "description": "여러 개의 엑셀 파일을 하나로 병합하는 도구",
   "order": 10,
   "enabled": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "keywords": []
 }

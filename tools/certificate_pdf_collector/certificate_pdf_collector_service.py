@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import pdfplumber
+
+# pdfminer 경고가 오류 창에 영어로 섞이지 않게 줄인다.
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 
 def detect_org(text: str) -> str:
@@ -236,6 +240,76 @@ def extract_info_from_text(text: str) -> dict:
     return info
 
 
+def describe_pdf_error(error: BaseException) -> str:
+    """PDF 라이브러리의 영어 오류를 짧은 한국어 사유로 바꾼다. 이미 한국어면 그대로 둔다.
+
+    pdfplumber 는 암호가 걸린 PDF 에서 빈 문구의 오류를 낸다. 그래도 사유가 보이게 한다.
+    """
+    text = str(error).strip()
+    probe = f"{type(error).__name__} {text} {error!r}".lower()
+    if any(key in probe for key in ("decrypt", "encrypt", "password")):
+        return "암호가 걸린 PDF라 읽을 수 없습니다. 암호를 해제한 뒤 다시 시도하세요."
+    if any(key in probe for key in (
+        "failed to open", "eof", "startxref", "xref", "stream has ended",
+        "invalid pdf header", "/root", "trailer", "pdfsyntaxerror", "pdfminer",
+        "psexception", "not a pdf",
+    )):
+        return "PDF 파일이 손상되었거나 PDF 형식이 아닙니다."
+    if re.search(r"[가-힣]", text):
+        return text
+    return f"처리하지 못했습니다. ({text or type(error).__name__})"
+
+
+def _same_certificate(key: tuple, other: tuple) -> bool:
+    """(성명, 연수번호) 가 같은 이수증인지. 한쪽 연수번호를 못 읽었으면 성명만 본다."""
+    if key[0] != other[0]:
+        return False
+    return not key[1] or not other[1] or key[1] == other[1]
+
+
+def split_certificates(page_texts: list[str]) -> list[dict]:
+    """쪽별 글자를 이수증 단위로 묶는다.
+
+    여러 사람(또는 여러 과정)의 이수증을 한 PDF 로 묶어 받는 일이 많다. 통째로 이으면
+    첫 사람 값만 읽히고 나머지가 사라지므로 쪽마다 성명·연수번호를 읽어
+    - 앞 이수증과 다른 사람(또는 다른 연수번호)이 나오는 쪽에서 새 이수증을 시작하고,
+    - 성명이 없는 쪽(표지·뒷면·이어지는 쪽)은 앞 이수증에 붙인다.
+    반환: [{"pages": [1부터 센 쪽 번호...], "text": 이어 붙인 글자}]
+    """
+    segments: list[dict] = []
+    for page_no, text in enumerate(page_texts, start=1):
+        name = ""
+        number = ""
+        if text.strip():
+            info = extract_info_from_text(text)
+            name = str(info.get("성명") or "").strip()
+            number = str(info.get("연수번호") or "").strip()
+        key = (name, number)
+        current = segments[-1] if segments else None
+        starts_new = current is None or (
+            bool(name) and bool(current["key"][0]) and not _same_certificate(current["key"], key)
+        )
+        if starts_new:
+            segments.append({"pages": [page_no], "texts": [text], "key": key})
+            continue
+        current["pages"].append(page_no)
+        current["texts"].append(text)
+        if name and not current["key"][0]:
+            current["key"] = key
+        elif name and number and not current["key"][1]:
+            current["key"] = key
+    return [
+        {"pages": segment["pages"], "text": "\n".join(segment["texts"])}
+        for segment in segments
+    ]
+
+
+def _page_label(pages: list[int]) -> str:
+    if len(pages) == 1:
+        return f"{pages[0]}쪽"
+    return f"{pages[0]}-{pages[-1]}쪽"
+
+
 def process_pdfs(pdf_files: list[Path]):
     if not pdf_files:
         raise ValueError("선택된 PDF 파일이 없습니다.")
@@ -253,23 +327,28 @@ def process_pdfs(pdf_files: list[Path]):
                 for page in pdf.pages:
                     page_text = page.extract_text() or ""
                     texts.append(page_text)
-                full_text = "\n".join(texts)
 
-            info = extract_info_from_text(full_text)
-            info["파일명"] = pdf_path.name
+            certificates = split_certificates(texts) or [{"pages": [], "text": ""}]
+            for certificate in certificates:
+                info = extract_info_from_text(certificate["text"])
+                if len(certificates) > 1:
+                    # 한 PDF 에 이수증이 여럿이면 몇 쪽에서 읽었는지 함께 적는다.
+                    info["파일명"] = f"{pdf_path.name} ({_page_label(certificate['pages'])})"
+                else:
+                    info["파일명"] = pdf_path.name
 
-            missing = [f for f in required_fields if not str(info.get(f, "")).strip()]
-            if missing:
-                info["상태"] = "확인필요"
-                info["누락필드"] = ", ".join(missing)
-                bad_records.append(info)
-            else:
-                info["상태"] = "정상"
-                info["누락필드"] = ""
-                good_records.append(info)
+                missing = [f for f in required_fields if not str(info.get(f, "")).strip()]
+                if missing:
+                    info["상태"] = "확인필요"
+                    info["누락필드"] = ", ".join(missing)
+                    bad_records.append(info)
+                else:
+                    info["상태"] = "정상"
+                    info["누락필드"] = ""
+                    good_records.append(info)
 
         except Exception as e:
-            error_records.append({"파일명": pdf_path.name, "에러메시지": str(e)})
+            error_records.append({"파일명": pdf_path.name, "에러메시지": describe_pdf_error(e)})
 
     df_good = pd.DataFrame(good_records)
     df_bad = pd.DataFrame(bad_records)

@@ -8,7 +8,7 @@
   "description": "선택한 폴더의 파일·폴더 목록을 엑셀 현황표로 작성합니다.",
   "order": 22,
   "enabled": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "keywords": ["파일", "폴더", "현황표", "목록", "엑셀"],
   "context_menu": {
     "targets": ["folder"],

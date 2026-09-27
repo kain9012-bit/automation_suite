@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowDown,
   ArrowDownAZ,
@@ -22,7 +21,16 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { cancelNativeTool, fileSizes, resultPath, revealPath, runNativeTool } from "../lib/bridge";
+import { cancelNativeTool, fileSizes, pathKinds, resultPath, revealPath, runNativeTool } from "../lib/bridge";
+import { failureMessage, summarizeFailures } from "../lib/failureSummary";
+import {
+  appendToolLog,
+  beginToolRun,
+  getToolRun,
+  openToolRun,
+  subscribeToolRuns,
+  updateToolRun,
+} from "../lib/toolRunStore";
 import {
   getToolSchema,
   initialToolOptions,
@@ -49,13 +57,10 @@ function fileName(path: string) {
 
 export function NativeToolPanel({
   tool,
-  // 탐색기 우클릭으로 열렸을 때 이미 정해진 처리 대상.
-  presetPaths,
   // 초기화: 넣은 파일·설정·기록을 모두 지우고 처음 들어온 상태로 되돌린다.
   onReset,
 }: {
   tool: ToolManifest;
-  presetPaths?: string[];
   onReset?: () => void;
 }) {
   const schema = useMemo(() => getToolSchema(tool.id), [tool.id]);
@@ -63,12 +68,12 @@ export function NativeToolPanel({
   const [output, setOutput] = useState("");
   const [options, setOptions] = useState<Options>(() => initialToolOptions(schema));
   const [confirmed, setConfirmed] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
-  // 작업이 끝난 뒤 결과를 바로 열어 볼 수 있도록 저장 경로를 기억한다.
-  const [done, setDone] = useState("");
-  // 작업이 끝나면 결과를 크게 띄우는 창. 도구가 popup 을 돌려줄 때만 쓴다.
-  const [popup, setPopup] = useState<ResultPopup | null>(null);
+  // 실행 상태·기록·결과는 화면 바깥(toolRunStore)에 둔다. 실행 중에 다른 화면에
+  // 다녀와도 이어서 보이고, 중지할 수 있고, 같은 도구를 겹쳐 돌리지 못한다.
+  useState(() => openToolRun(tool.id));
+  const runState = useSyncExternalStore(subscribeToolRuns, () => getToolRun(tool.id));
+  const { running, stopping, log, done, popup } = runState;
+  const setLog = (...lines: string[]) => appendToolLog(tool.id, ...lines);
   // 크기를 보여 주는 도구에서 쓰는 파일별 크기. 한 번 잰 파일은 다시 묻지 않는다.
   const [sizes, setSizes] = useState<Record<string, number | null>>({});
   // 합치는 순서가 결과를 바꾸는 도구에서만 순서 조작 목록을 쓴다.
@@ -79,19 +84,13 @@ export function NativeToolPanel({
   const listRef = useRef<HTMLOListElement>(null);
   const logRef = useRef<HTMLPreElement>(null);
 
-  // 도구가 실행되는 동안 한 줄씩 올라오는 진행 상황을 그때그때 기록에 붙인다.
-  // 끝난 뒤에 한꺼번에 받으면 오래 걸리는 작업에서 아무것도 안 보인다.
+  // 도구가 바꾼 입력 경로(파일명 변경 등)를 받아 온다. 실행이 끝났을 때 이 화면이
+  // 잠깐 사라져 있었어도, 돌아오면 여기서 받아 간다.
   useEffect(() => {
-    let stop: UnlistenFn | undefined;
-    void listen<{ toolId: string; text: string }>("tool-progress", (event) => {
-      // 도구 하나가 보조 동작을 가질 수 있어 앞부분으로 견준다.
-      if (event.payload.toolId.split("__")[0] !== tool.id) return;
-      setLog((items) => [...items, event.payload.text]);
-    })
-      .then((unlisten) => { stop = unlisten; })
-      .catch(() => undefined);
-    return () => stop?.();
-  }, [tool.id]);
+    if (!runState.nextInputs) return;
+    setInputs(runState.nextInputs);
+    updateToolRun(tool.id, () => ({ nextInputs: null }));
+  }, [runState.nextInputs, tool.id]);
 
   useEffect(() => {
     if (!schema.showSizes) return;
@@ -124,26 +123,12 @@ export function NativeToolPanel({
   }, [log]);
 
   useEffect(() => {
-    // 우클릭으로 들어온 경로는 미리 담아 두고, 사용자는 실행만 누르면 되게 한다.
-    // 파일 하나만 받는 도구에는 첫 번째만 넣는다.
-    const preset = presetPaths?.length
-      ? schema.multiple
-        ? presetPaths
-        : presetPaths.slice(0, 1)
-      : [];
-    setInputs(preset);
     setOutput("");
     setOptions(initialToolOptions(schema));
     setConfirmed(false);
-    setLog(
-      preset.length
-        ? [`탐색기에서 ${preset.length}개를 받아 왔습니다. 설정을 확인하고 실행하세요.`]
-        : [],
-    );
-    setDone("");
     setDragFrom(null);
     setDragOver(null);
-  }, [schema, tool.id, presetPaths]);
+  }, [schema, tool.id]);
 
   /**
    * 여러 개를 받는 도구는 새로 고른 파일을 목록 뒤에 덧붙인다. 한 번에 다 고르지 않고
@@ -166,7 +151,7 @@ export function NativeToolPanel({
         merged.push(path);
       }
       if (skipped) {
-        setLog((items) => [...items, `이미 목록에 있는 ${skipped}개는 넣지 않았습니다.`]);
+        setLog(`이미 목록에 있는 ${skipped}개는 넣지 않았습니다.`);
       }
       return merged;
     });
@@ -246,11 +231,11 @@ export function NativeToolPanel({
     window.addEventListener("pointercancel", onUp);
   };
 
-  const chooseInput = async () => {
+  const chooseInput = async (directory = schema.inputMode === "folder") => {
     const selected = await open({
       multiple: schema.multiple,
-      directory: schema.inputMode === "folder",
-      filters: schema.extensions
+      directory,
+      filters: schema.extensions && !directory
         ? [{ name: "지원 파일", extensions: schema.extensions }]
         : undefined,
     });
@@ -259,15 +244,61 @@ export function NativeToolPanel({
   };
 
   const dropping = useFileDrop((paths) => {
-    // 폴더를 받는 도구는 확장자를 따지지 않는다.
-    const usable =
-      schema.inputMode === "folder" ? paths : filterByExtension(paths, schema.extensions);
-    if (!usable.length) {
-      setLog((items) => [...items, "이 도구가 처리할 수 있는 파일이 없습니다."]);
+    void acceptDropped(paths);
+  }, schema.inputMode !== "none");
+
+  /**
+   * 끌어다 놓은 것 중 이 도구가 받을 수 있는 것만 넣는다.
+   * 폴더만 받는 도구에 파일을 넣으면 실행한 뒤에야 파이썬 쪽에서 실패하므로 여기서 거른다.
+   */
+  const acceptDropped = async (paths: string[]) => {
+    if (schema.inputMode === "file") {
+      const usable = filterByExtension(paths, schema.extensions);
+      if (!usable.length) {
+        setLog("이 도구가 처리할 수 있는 파일이 없습니다.");
+        return;
+      }
+      takeInputs(usable);
       return;
     }
+
+    let kinds: string[] | null = null;
+    try {
+      kinds = await pathKinds(paths);
+    } catch {
+      kinds = null;
+    }
+    // 종류를 알 수 없으면(앱 밖 등) 예전처럼 넘기고 도구가 판단하게 한다.
+    if (!kinds) {
+      takeInputs(paths);
+      return;
+    }
+    const isFolder = (index: number) => kinds?.[index] === "folder";
+    const usable =
+      schema.inputMode === "folder"
+        ? paths.filter((_, index) => isFolder(index))
+        : paths.filter(
+            (path, index) =>
+              isFolder(index) || filterByExtension([path], schema.extensions).length > 0,
+          );
+    const rejected = paths.length - usable.length;
+    if (!usable.length) {
+      setLog(
+        schema.inputMode === "folder"
+          ? "이 도구는 폴더만 받습니다. 파일이 아니라 폴더를 끌어다 놓으세요."
+          : "이 도구가 처리할 수 있는 파일이나 폴더가 없습니다.",
+      );
+      return;
+    }
+    if (rejected) {
+      setLog(
+        schema.inputMode === "folder"
+          ? `폴더가 아닌 ${rejected}개는 넣지 않았습니다.`
+          : `처리할 수 없는 ${rejected}개는 넣지 않았습니다.`,
+      );
+    }
     takeInputs(usable);
-  }, schema.inputMode !== "none");
+  };
 
   const chooseOutput = async () => {
     if (schema.outputMode === "folder") {
@@ -287,19 +318,18 @@ export function NativeToolPanel({
     setOptions((current) => ({ ...current, [key]: value }));
   };
 
-  // 중지를 누른 뒤에는 버튼을 다시 누르지 못하게 막는다.
-  const [stopping, setStopping] = useState(false);
-
+  // 중지를 누른 뒤에는 버튼을 다시 누르지 못하게 막는다(stopping).
   const stop = async () => {
-    setStopping(true);
-    setLog((items) => [...items, "중지를 요청했습니다. 하던 항목까지 마치고 멈춥니다."]);
+    const toolId = tool.id;
+    updateToolRun(toolId, () => ({ stopping: true }));
+    appendToolLog(toolId, "중지를 요청했습니다. 하던 항목까지 마치고 멈춥니다.");
     try {
-      await cancelNativeTool(tool.id);
+      await cancelNativeTool(toolId);
     } catch (reason) {
-      setLog((items) => [
-        ...items,
+      appendToolLog(
+        toolId,
         `중지 요청 실패: ${reason instanceof Error ? reason.message : String(reason)}`,
-      ]);
+      );
     }
   };
 
@@ -310,76 +340,86 @@ export function NativeToolPanel({
     const action = field.action;
     if (!action) return;
     setChecking(field.key);
-    setLog((items) => [...items, `${action.label} 중입니다...`]);
+    setLog(`${action.label} 중입니다...`);
     try {
       const result = await runNativeTool(action.tool, {
         [action.payloadKey]: options[field.key],
       });
-      setLog((items) => [...items, String(result.message ?? "확인했습니다.")]);
+      setLog(String(result.message ?? "확인했습니다."));
       const fill = result.fill;
       if (fill && typeof fill === "object" && !Array.isArray(fill)) {
         setOptions((current) => ({ ...current, ...(fill as Options) }));
       }
     } catch (reason) {
-      setLog((items) => [
-        ...items,
-        `${action.label} 실패: ${reason instanceof Error ? reason.message : String(reason)}`,
-      ]);
+      setLog(`${action.label} 실패: ${reason instanceof Error ? reason.message : String(reason)}`);
     } finally {
       setChecking("");
     }
   };
 
   const run = async () => {
-    setStopping(false);
-    setRunning(true);
-    setLog((current) => [...current, `${tool.name} 작업을 시작합니다.`]);
+    // 이 화면이 실행 중에 사라졌다 다시 만들어져도 결과는 toolRunStore 로 간다.
+    // 그래서 아래에서는 화면 상태(setState)를 건드리지 않는다.
+    const toolId = tool.id;
+    if (!beginToolRun(toolId, `${tool.name} 작업을 시작합니다.`)) return;
     try {
-      const result = await runNativeTool(tool.id, {
+      const result = await runNativeTool(toolId, {
         inputs,
         output,
         ...options,
         confirmed,
       });
       const saved = resultPath(result);
-      setDone(saved);
+      const message = String(result.message ?? "작업이 완료되었습니다.");
+      const failures = summarizeFailures(result);
 
       // 파일명 일괄 변경처럼 원본 이름을 바꾸는 도구는 새 경로를 돌려준다.
       // 갈아 끼우지 않으면 이어서 한 번 더 돌릴 때 없는 파일을 가리켜 실패한다.
       const nextInputs = (result as { inputs?: unknown }).inputs;
-      if (
-        Array.isArray(nextInputs) &&
-        nextInputs.every((item) => typeof item === "string")
-      ) {
-        setInputs(nextInputs as string[]);
-      }
-      setLog((current) => [
-        ...current,
-        String(result.message ?? "작업이 완료되었습니다."),
-        saved ? `저장 위치: ${saved}` : "",
-      ].filter(Boolean));
-      // 도구가 따로 문구를 주면 그것을, 아니면 결과 메시지와 저장 위치로 팝업을 띄운다.
-      setPopup(
-        readResultPopup((result as { popup?: unknown }).popup) ?? {
-          level: "success",
-          title: "작업을 마쳤습니다",
-          message: [
-            String(result.message ?? "작업이 완료되었습니다."),
-            saved ? `저장 위치: ${saved}` : "",
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-        },
-      );
+      const renamed =
+        Array.isArray(nextInputs) && nextInputs.every((item) => typeof item === "string")
+          ? (nextInputs as string[])
+          : null;
+
+      // 도구가 따로 문구를 주면 그것을 쓴다. 없으면 실패한 항목이 있을 때는 경고,
+      // 모두 됐으면 결과 메시지와 저장 위치로 성공 팝업을 띄운다.
+      const popup: ResultPopup =
+        readResultPopup((result as { popup?: unknown }).popup) ??
+        (failures
+          ? {
+              level: "warning",
+              title: "일부 항목을 처리하지 못했습니다",
+              message: failureMessage(failures, message, saved),
+            }
+          : {
+              level: "success",
+              title: "작업을 마쳤습니다",
+              message: [message, saved ? `저장 위치: ${saved}` : ""].filter(Boolean).join("\n\n"),
+            });
+
+      updateToolRun(toolId, (current) => ({
+        done: saved,
+        popup,
+        nextInputs: renamed,
+        log: [
+          ...current.log,
+          message,
+          failures ? `처리하지 못한 항목: ${failures.count}개` : "",
+          saved ? `저장 위치: ${saved}` : "",
+        ].filter(Boolean),
+      }));
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
-      setLog((current) => [...current, `실패: ${message}`]);
-      setPopup({ level: "error", title: "작업을 마치지 못했습니다", message });
+      updateToolRun(toolId, (current) => ({
+        log: [...current.log, `실패: ${message}`],
+        popup: { level: "error", title: "작업을 마치지 못했습니다", message },
+      }));
     } finally {
-      setRunning(false);
-      setStopping(false);
+      updateToolRun(toolId, () => ({ running: false, stopping: false }));
     }
   };
+
+  const closePopup = () => updateToolRun(tool.id, () => ({ popup: null }));
 
   return (
     <div className="native-tool content-column">
@@ -406,7 +446,7 @@ export function NativeToolPanel({
             파일은 PC 밖으로 전송되지 않습니다.
           </span>
         </div>
-        <button className={`drop-zone ${dropping ? "is-dropping" : ""}`} onClick={chooseInput}>
+        <button className={`drop-zone ${dropping ? "is-dropping" : ""}`} onClick={() => void chooseInput()}>
           <FolderOpen size={30} />
           <strong>{schema.inputLabel}</strong>
           <span>
@@ -414,9 +454,19 @@ export function NativeToolPanel({
               ? "여기에 놓으면 처리 대상으로 넣습니다."
               : schema.multiple && inputs.length
                 ? "클릭하거나 끌어다 놓으면 목록 뒤에 더 넣습니다."
-                : "클릭해서 고르거나, 창으로 끌어다 놓으세요."}
+                : schema.inputMode === "both"
+                  ? "클릭해서 파일을 고르거나, 파일·폴더를 창으로 끌어다 놓으세요."
+                  : "클릭해서 고르거나, 창으로 끌어다 놓으세요."}
           </span>
         </button>
+        {schema.inputMode === "both" && (
+          <div className="folder-pick-row">
+            <button className="link-button" onClick={() => void chooseInput(true)}>
+              <FolderOpen size={14} />
+              폴더로 고르기
+            </button>
+          </div>
+        )}
         {!!inputs.length && !orderable && (
           <div className="picked-files">
             {schema.multiple && (
@@ -651,7 +701,7 @@ export function NativeToolPanel({
       {popup && (
         <ResultDialog
           popup={popup}
-          onClose={() => setPopup(null)}
+          onClose={closePopup}
           onReveal={done ? () => void revealPath(done).catch(() => undefined) : undefined}
         />
       )}

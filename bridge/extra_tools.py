@@ -103,23 +103,35 @@ def _plain(value: Any) -> Any:
 def run_empty_folder_cleaner(payload: dict[str, Any]) -> dict[str, Any]:
     if not bool(payload.get("confirmed", False)):
         raise ValueError("빈 폴더 삭제 작업을 확인한 뒤 다시 실행하세요.")
-    roots = [path for path in _paths(payload) if path.is_dir()]
-    if len(roots) != 1:
-        raise ValueError("정리할 기준 폴더 하나를 선택하세요.")
     service = _module(
         "empty_folder_cleaner",
         "services.empty_folder_cleaner_service",
     )
+    # 고른 폴더 자체가 바로가기(정션·링크)면 경로를 풀면서 다른 곳이 기준 폴더가 된다.
+    for raw in payload.get("inputs") or []:
+        if service.is_link_or_junction(str(raw)):
+            raise ValueError(f"바로가기(정션·링크) 폴더는 기준 폴더로 선택할 수 없습니다. 실제 폴더를 골라 주세요: {raw}")
+    roots = [path for path in _paths(payload) if path.is_dir()]
+    if len(roots) != 1:
+        raise ValueError("정리할 기준 폴더 하나를 선택하세요.")
     scan = service.scan_empty_folders(
         roots[0],
         include_root=bool(payload.get("include_root", False)),
     )
-    result = service.delete_empty_folders(scan.folders)
+    result = service.delete_empty_folders(scan.folders, root=scan.root_folder)
+    message = f"빈 폴더 {result.deleted_count}개를 정리했습니다."
+    failed = [
+        {"name": Path(text.split(": ", 1)[0]).name, "error": f"지우지 못했습니다 ({text.split(': ', 1)[-1]})"}
+        for text in result.errors
+    ]
+    if failed:
+        message += f" {len(failed)}개는 지우지 못했습니다."
     return {
         "ok": True,
-        "message": f"빈 폴더 {result.deleted_count}개를 정리했습니다.",
+        "message": message,
         "scanned_count": len(scan.folders),
         "result": _plain(result),
+        "failed": failed,
     }
 
 
@@ -152,19 +164,28 @@ def run_certificate_splitter(payload: dict[str, Any]) -> dict[str, Any]:
         _certificate_fields(payload),
         str(payload.get("delimiter") or "_"),
     )
+    failed = result.get("failed") or []
+    message = "이수증 PDF 분리를 완료했습니다."
+    if failed:
+        message = (
+            f"이수증 PDF {len(pdf_files)}개 중 {len(pdf_files) - len(failed)}개를 분리했습니다. "
+            f"{len(failed)}개는 처리하지 못했습니다."
+        )
     return {
         "ok": True,
-        "message": f"이수증 PDF 분리를 완료했습니다.",
+        "message": message,
         "output": str(result.get("run_dir") or output_root),
         "result": _plain(result),
+        "failed": _plain(failed),
     }
 
 
 def run_certificate_renamer(payload: dict[str, Any]) -> dict[str, Any]:
     if not bool(payload.get("confirmed", False)):
         raise ValueError("원본 PDF 파일명 변경을 확인한 뒤 다시 실행하세요.")
+    selected = _paths(payload)
     pdf_files = [
-        path for path in _paths(payload) if path.suffix.lower() == ".pdf"
+        path for path in selected if path.suffix.lower() == ".pdf"
     ]
     service = _module(
         "certificate_pdf_renamer",
@@ -175,10 +196,33 @@ def run_certificate_renamer(payload: dict[str, Any]) -> dict[str, Any]:
         _certificate_fields(payload),
         str(payload.get("delimiter") or "_"),
     )
+
+    # 이름을 바꾸고 나면 화면이 들고 있는 경로는 더 이상 없는 파일을 가리킨다.
+    # 그대로 두면 이어서 한 번 더 돌릴 때 "파일을 찾을 수 없습니다"가 뜬다.
+    # rename_files 처럼 바뀐 이름으로 목록을 갈아 끼워 돌려준다.
+    renamed = result.get("renamed") or {}
+    updated: list[str] = []
+    for path in selected:
+        if path.exists():
+            updated.append(str(path))
+            continue
+        candidate = renamed.get(str(path))
+        if candidate and Path(candidate).exists():
+            updated.append(str(candidate))
+
+    failed = result.get("failed") or []
+    message = "이수증 PDF 파일명 변경을 완료했습니다."
+    if failed:
+        message = (
+            f"이수증 PDF {result.get('total', 0)}개 중 {result.get('changed', 0)}개의 파일명을 변경했습니다. "
+            f"{len(failed)}개는 처리하지 못했습니다."
+        )
     return {
         "ok": True,
-        "message": f"이수증 PDF 파일명 변경을 완료했습니다.",
+        "message": message,
         "result": _plain(result),
+        "inputs": updated,
+        "failed": _plain(failed),
     }
 
 
@@ -237,6 +281,11 @@ def run_homepage_collector(payload: dict[str, Any]) -> dict[str, Any]:
         cancel_event=FileCancel(),
         progress_func=counted,
     )
+    # 목록 페이지를 하나도 열지 못했으면(인터넷·프록시·인증서 문제 등) '0건 성공'이 아니라 실패다.
+    if not result.cancelled and not result.pages_opened and result.page_failures:
+        raise RuntimeError(
+            "게시판 페이지를 열지 못해 수집하지 못했습니다.\n\n이유: " + str(result.page_failures[0])
+        )
     emit_progress(
         "중지했습니다. 그때까지 모은 것만 저장합니다."
         if result.cancelled
@@ -329,13 +378,18 @@ def run_excel_merge(payload: dict[str, Any]) -> dict[str, Any]:
     )
     logs: list[str] = []
     result = service.merge_excel(options, logs.append)
+    failed = list(getattr(result, "failed", []) or [])
+    message = (
+        f"시트 {result.sheet_count}개를 한 파일에 모았습니다."
+        if mode == service.MODE_FILES_TO_SHEETS
+        else f"시트 {result.sheet_count}개, 데이터 {result.data_row_count}행을 병합했습니다."
+    )
+    if failed:
+        message += f" {len(failed)}개는 읽지 못해 넣지 않았습니다."
     return {
         "ok": True,
-        "message": (
-            f"시트 {result.sheet_count}개를 한 파일에 모았습니다."
-            if mode == service.MODE_FILES_TO_SHEETS
-            else f"시트 {result.sheet_count}개, 데이터 {result.data_row_count}행을 병합했습니다."
-        ),
+        "message": message,
+        "failed": failed,
         "output": str(result.output_path),
         "skipped_count": result.skipped_count,
         "warnings": result.warnings[-30:],
@@ -450,6 +504,8 @@ def run_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("분할할 엑셀 파일 하나를 선택하세요.")
     source = sources[0]
 
+    # 화면(ExcelSplitPanel)은 '저장 폴더'를 폴더 고르기 창으로만 받는다. 그래서 output 은 늘 폴더다.
+    # 이름에 점이 든 폴더('2026.03 자료')를 파일로 오해하지 않도록 확장자로 판단하지 않는다.
     output_text = str(payload.get("output") or "").strip()
     output_folder = (
         Path(output_text).expanduser().resolve()
@@ -457,7 +513,7 @@ def run_excel_split(payload: dict[str, Any]) -> dict[str, Any]:
         # 다시 분할해도 앞 결과를 덮어쓰지 않게 '이름_분할(1)' 처럼 새 폴더를 만든다.
         else unique_path(source.parent / f"{source.stem}_분할", folder=True)
     )
-    if output_folder.suffix:
+    if output_folder.is_file():
         output_folder = output_folder.parent
 
     options = service.SplitOptions(

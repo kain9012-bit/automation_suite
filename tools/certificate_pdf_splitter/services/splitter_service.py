@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -23,12 +24,18 @@ except ImportError:
         PdfWriter = None
 
 from .certificate_parser import (
+    describe_pdf_error,
     extract_info_from_text,
     safe_stem,
     build_output_stem,
     trim_filename,
     unique_path,
 )
+
+
+# pypdf·pdfminer 경고가 오류 창에 영어로 섞이지 않게 줄인다.
+logging.getLogger("pypdf").setLevel(logging.ERROR)
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 
 def write_single_page(reader, page_index: int, output_path: Path):
@@ -150,6 +157,7 @@ def split_certificate_pdfs(
     count_error = 0
     done = 0
     cancelled = False
+    failed = []
 
     for pdf_path in pdf_files:
         if cancel_event is not None and cancel_event.is_set():
@@ -163,11 +171,13 @@ def split_certificate_pdfs(
             page_count = len(reader.pages)
         except Exception as e:
             count_error += 1
+            reason = describe_pdf_error(e)
+            failed.append({"name": pdf_path.name, "error": reason})
             records.append({
                 "상태": "에러",
                 "원본파일명": pdf_path.name,
                 "원본페이지": "",
-                "에러메시지": f"PDF 열기 실패: {e}",
+                "에러메시지": f"PDF 열기 실패: {reason}",
             })
 
             done += 1
@@ -185,7 +195,7 @@ def split_certificate_pdfs(
                 "상태": "에러",
                 "원본파일명": pdf_path.name,
                 "원본페이지": "",
-                "에러메시지": f"텍스트 추출용 PDF 열기 실패: {e}",
+                "에러메시지": f"텍스트 추출용 PDF 열기 실패: {describe_pdf_error(e)}",
             })
 
         for page_index in range(page_count):
@@ -230,7 +240,7 @@ def split_certificate_pdfs(
 
             except Exception as e:
                 status = "에러"
-                error_message = str(e)
+                error_message = describe_pdf_error(e)
                 count_error += 1
 
                 try:
@@ -278,4 +288,5 @@ def split_certificate_pdfs(
         "error": count_error,
         "total": len(records),
         "cancelled": cancelled,
+        "failed": failed,
     }

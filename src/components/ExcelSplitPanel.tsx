@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   FileInput,
@@ -70,8 +70,14 @@ export function ExcelSplitPanel({
     [sheets, sheetName],
   );
 
+  // 분석 요청 번호. 큰 파일 A를 읽는 동안 작은 파일 B를 넣으면 B가 먼저 끝나고
+  // A의 늦은 응답이 B를 덮어쓴다. 마지막 요청의 응답만 받는다.
+  const analyzeSeq = useRef(0);
+
   const analyze = useCallback(
     async (path: string, wantedSheet?: string) => {
+      const request = ++analyzeSeq.current;
+      const stale = () => request !== analyzeSeq.current;
       setAnalyzing(true);
       try {
         const result = (await runNativeTool("excel_split__analyze", {
@@ -82,6 +88,7 @@ export function ExcelSplitPanel({
           preview: string[][];
           preview_sheet: string;
         };
+        if (stale()) return;
         setSheets(result.sheets);
         setPreview(result.preview);
         setSheetName(result.preview_sheet);
@@ -89,6 +96,7 @@ export function ExcelSplitPanel({
         if (found && autoHeader) setHeaderRow(found.auto_header_row || 1);
         setLog((items) => [...items, `파일을 읽었습니다. 시트 ${result.sheets.length}개`]);
       } catch (reason) {
+        if (stale()) return;
         setSheets([]);
         setPreview([]);
         setLog((items) => [
@@ -96,11 +104,21 @@ export function ExcelSplitPanel({
           `파일을 읽지 못했습니다: ${reason instanceof Error ? reason.message : String(reason)}`,
         ]);
       } finally {
-        setAnalyzing(false);
+        if (!stale()) setAnalyzing(false);
       }
     },
     [autoHeader],
   );
+
+  /** 새 파일을 받는다. 앞 파일의 시트 정보는 바로 비워 새 파일에 섞여 쓰이지 않게 한다. */
+  const takeSource = (path: string) => {
+    setSource(path);
+    setSplitColumn(1);
+    setSheets([]);
+    setSheetName("");
+    setPreview([]);
+    void analyze(path);
+  };
 
   useEffect(() => {
     if (activeSheet && autoHeader) setHeaderRow(activeSheet.auto_header_row || 1);
@@ -114,9 +132,7 @@ export function ExcelSplitPanel({
       filters: [{ name: "엑셀 파일", extensions: ["xlsx", "xlsm", "csv"] }],
     });
     if (typeof selected !== "string") return;
-    setSource(selected);
-    setSplitColumn(1);
-    void analyze(selected);
+    takeSource(selected);
   };
 
   const dropping = useFileDrop((paths) => {
@@ -125,9 +141,7 @@ export function ExcelSplitPanel({
       setLog((items) => [...items, "엑셀 파일(xlsx, xlsm, csv)만 넣을 수 있습니다."]);
       return;
     }
-    setSource(usable[0]);
-    setSplitColumn(1);
-    void analyze(usable[0]);
+    takeSource(usable[0]);
   });
 
   const pickOutput = async () => {
@@ -142,6 +156,8 @@ export function ExcelSplitPanel({
   };
 
   const run = async () => {
+    // 분석이 끝나기 전에는 시트 이름이 앞 파일 것일 수 있다.
+    if (analyzing) return;
     if (!source) {
       setLog((items) => [...items, "분할할 엑셀 파일을 먼저 선택하세요."]);
       return;
@@ -406,7 +422,7 @@ export function ExcelSplitPanel({
             초기화
           </button>
         )}
-        <button className="primary-button" onClick={() => void run()} disabled={running || !source}>
+        <button className="primary-button" onClick={() => void run()} disabled={running || analyzing || !source}>
           {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
           {running ? "처리 중" : "분할 실행"}
         </button>

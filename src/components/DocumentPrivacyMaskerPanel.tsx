@@ -238,14 +238,12 @@ function HwpxView({
 
 export function DocumentPrivacyMaskerPanel({
   tool,
-  presetPaths,
   onReset,
 }: {
   tool: ToolManifest;
-  presetPaths?: string[];
   onReset?: () => void;
 }) {
-  const [inputs, setInputs] = useState<string[]>(() => filterByExtension(presetPaths ?? [], EXTENSIONS));
+  const [inputs, setInputs] = useState<string[]>([]);
   const [states, setStates] = useState<Record<string, FileState>>({});
   // 사람이 고친 처리 방식. 파일 → 항목 id → 방식. 고치지 않은 항목은 기본 방식.
   const [decisions, setDecisions] = useState<Record<string, Record<string, Action>>>({});
@@ -331,13 +329,6 @@ export function DocumentPrivacyMaskerPanel({
       }
     });
   };
-
-  // 처음 받은 파일(탐색기 우클릭 등)을 읽는다.
-  useEffect(() => {
-    for (const path of inputs) analyze(path, termsRef.current);
-    if (inputs.length) setActive(inputs[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // 확인한 뒤 무엇이든 바뀌면 확인 표시를 다시 받는다.
   const reviewKey = useMemo(

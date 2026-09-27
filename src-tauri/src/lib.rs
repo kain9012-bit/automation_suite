@@ -40,22 +40,10 @@ struct ToolManifest {
     version: String,
     #[serde(default)]
     keywords: Vec<String>,
-    /// 이 블록이 있는 도구만 탐색기 우클릭 메뉴에 등록할 수 있다.
-    #[serde(default)]
-    context_menu: Option<ContextMenuSpec>,
     #[serde(skip_deserializing)]
     source: String,
     #[serde(skip_deserializing)]
     has_html: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct ContextMenuSpec {
-    /// 확장자 목록(["pdf", "xlsx"]) 또는 ["folder"]
-    targets: Vec<String>,
-    label: String,
-    #[serde(default)]
-    multiple: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -253,30 +241,19 @@ fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
     macro_deck::open_with_default(&html_path.to_string_lossy())
 }
 
-// ── 탐색기 우클릭 메뉴 ───────────────────────────────────────────────
-// HKCU에만 쓰므로 관리자 권한이 필요 없다. 키 이름을 이 접두어로 시작하게 두면
-// 프로그램을 제거할 때 한 번에 찾아 지울 수 있다.
-const CONTEXT_KEY_PREFIX: &str = "JBEduON.";
+// ── 예전 탐색기 우클릭 메뉴 정리 ─────────────────────────────────────
+// 우클릭 메뉴 기능은 없앴다. 그러나 예전 버전이 HKCU에 써 둔 키가 남아 있으면
+// 탐색기에 눌러도 아무 일이 없는 메뉴가 계속 보인다. 예전 버전이 쓰던 곳은 두 군데다.
+//   HKCU\Software\Classes\Directory\shell\JBEduON.<도구ID>
+//   HKCU\Software\Classes\SystemFileAssociations\.<확장자>\shell\JBEduON.<도구ID>
+// 앱이 뜰 때 따로 돌려 지운다. 실패해도 조용히 넘어가고 다음 실행 때 다시 해 본다.
 
-#[derive(Clone, Debug, Serialize)]
-pub struct ContextMenuEntry {
-    id: String,
-    name: String,
-    label: String,
-    targets: Vec<String>,
-    enabled: bool,
-}
+/// 예전 버전이 키 이름 앞에 붙이던 말.
+const LEGACY_CONTEXT_KEY_PREFIX: &str = "JBEduON.";
 
-/// 대상 하나에 대응하는 레지스트리 키 경로.
-fn context_key(target: &str, tool_id: &str) -> String {
-    let leaf = format!("{CONTEXT_KEY_PREFIX}{tool_id}");
-    if target.eq_ignore_ascii_case("folder") {
-        format!(r"HKCU\Software\Classes\Directory\shell\{leaf}")
-    } else {
-        let extension = target.trim_start_matches('.').to_lowercase();
-        format!(r"HKCU\Software\Classes\SystemFileAssociations\.{extension}\shell\{leaf}")
-    }
-}
+// reg query가 결과를 HKCU가 아니라 이 이름으로 찍어 주므로, 목록을 훑을 때는
+// 같은 표기를 써야 앞부분을 잘라낼 수 있다.
+const CLASSES_ROOT: &str = r"HKEY_CURRENT_USER\Software\Classes";
 
 fn reg(args: &[&str]) -> std::io::Result<std::process::Output> {
     let mut command = Command::new("reg");
@@ -288,70 +265,6 @@ fn reg(args: &[&str]) -> std::io::Result<std::process::Output> {
     }
     command.output()
 }
-
-fn context_registered(target: &str, tool_id: &str) -> bool {
-    reg(&["query", &context_key(target, tool_id)])
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
-/// 우클릭 메뉴에 넣을 수 있는 도구 목록과 현재 등록 상태.
-#[tauri::command]
-fn list_context_menu(app: AppHandle) -> Result<Vec<ContextMenuEntry>, String> {
-    let mut entries = Vec::new();
-    for record in read_tool_records(&app)? {
-        let Some(spec) = record.manifest.context_menu.clone() else {
-            continue;
-        };
-        let enabled = spec
-            .targets
-            .iter()
-            .all(|target| context_registered(target, &record.manifest.id));
-        entries.push(ContextMenuEntry {
-            id: record.manifest.id,
-            name: record.manifest.name,
-            label: spec.label,
-            targets: spec.targets,
-            enabled,
-        });
-    }
-    Ok(entries)
-}
-
-#[tauri::command]
-fn set_context_menu(app: AppHandle, tool_id: String, enabled: bool) -> Result<(), String> {
-    let record = find_tool(&app, &tool_id)?;
-    let spec = record
-        .manifest
-        .context_menu
-        .clone()
-        .ok_or_else(|| "이 도구는 우클릭 메뉴를 지원하지 않습니다.".to_string())?;
-
-    let exe = std::env::current_exe()
-        .map_err(|error| format!("실행 파일 경로를 찾지 못했습니다: {error}"))?;
-    let exe = exe.to_string_lossy().to_string();
-
-    for target in &spec.targets {
-        let key = context_key(target, &tool_id);
-        if enabled {
-            let command_key = format!(r"{key}\command");
-            let command_value = format!("\"{exe}\" --open-with {tool_id} --path \"%1\"");
-            reg(&["add", &key, "/ve", "/d", &spec.label, "/f"])
-                .map_err(|error| format!("메뉴를 등록하지 못했습니다: {error}"))?;
-            let _ = reg(&["add", &key, "/v", "Icon", "/d", &exe, "/f"]);
-            reg(&["add", &command_key, "/ve", "/d", &command_value, "/f"])
-                .map_err(|error| format!("메뉴를 등록하지 못했습니다: {error}"))?;
-        } else {
-            // 없는 키를 지우려 하면 실패하지만 결과는 같으므로 따지지 않는다.
-            let _ = reg(&["delete", &key, "/f"]);
-        }
-    }
-    Ok(())
-}
-
-// reg query가 결과를 HKCU가 아니라 이 이름으로 찍어 주므로, 목록을 훑을 때는
-// 같은 표기를 써야 앞부분을 잘라낼 수 있다.
-const CLASSES_ROOT: &str = r"HKEY_CURRENT_USER\Software\Classes";
 
 /// 주어진 키 바로 아래에 있는 하위 키의 전체 경로. 값과 손자 키는 빼고 본다.
 fn reg_subkeys(parent: &str) -> Vec<String> {
@@ -367,7 +280,6 @@ fn reg_subkeys(parent: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| {
             let line = line.trim();
-            // 바로 아래 자식만 본다. 더 깊은 경로는 여기서 걸러진다.
             let leaf = line.strip_prefix(prefix.as_str())?;
             if leaf.is_empty() || leaf.contains('\\') {
                 return None;
@@ -377,158 +289,55 @@ fn reg_subkeys(parent: &str) -> Vec<String> {
         .collect()
 }
 
-fn is_context_key(key: &str) -> bool {
+fn is_legacy_context_key(key: &str) -> bool {
     key.rsplit('\\')
         .next()
-        .map(|leaf| leaf.starts_with(CONTEXT_KEY_PREFIX))
+        .map(|leaf| leaf.starts_with(LEGACY_CONTEXT_KEY_PREFIX))
         .unwrap_or(false)
 }
 
-/// 지금 등록되어 있는 우클릭 메뉴 키 전부. 매니페스트에서 도구가 사라진 뒤에도 찾아낸다.
-fn registered_context_keys() -> Vec<String> {
+/// 예전 버전이 남긴 우클릭 메뉴 키 전부.
+fn legacy_context_keys() -> Vec<String> {
     let mut keys: Vec<String> = reg_subkeys(&format!(r"{CLASSES_ROOT}\Directory\shell"))
         .into_iter()
-        .filter(|key| is_context_key(key))
+        .filter(|key| is_legacy_context_key(key))
         .collect();
-
     for association in reg_subkeys(&format!(r"{CLASSES_ROOT}\SystemFileAssociations")) {
         keys.extend(
             reg_subkeys(&format!(r"{association}\shell"))
                 .into_iter()
-                .filter(|key| is_context_key(key)),
+                .filter(|key| is_legacy_context_key(key)),
         );
     }
     keys
 }
 
-/// 등록된 우클릭 메뉴를 지금 상태에 맞춘다.
-///
-/// 두 가지가 어긋날 수 있다. 도구를 없애면 메뉴만 남아 눌러도 아무 일이 없고,
-/// 프로그램 이름이나 설치 위치가 바뀌면 등록된 실행 파일 경로가 옛 것을 가리킨다.
-/// 레지스트리는 아무도 치우지 않으므로 앱이 뜰 때마다 스스로 맞춘다.
-pub fn refresh_context_menus(app: &AppHandle) {
-    let Ok(records) = read_tool_records(app) else {
-        // 도구 목록을 못 읽은 상태에서 지우면 멀쩡한 메뉴까지 날아간다.
+/// 예전 우클릭 메뉴 키를 지운다. 다 지워진 것을 확인하면 표시 파일을 남겨
+/// 다음부터는 레지스트리를 훑지 않는다.
+fn remove_legacy_context_menus(app: &AppHandle) {
+    if !cfg!(windows) {
         return;
-    };
-    let Ok(exe) = std::env::current_exe() else {
+    }
+    let marker = app
+        .path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("legacy-context-menu-removed"));
+    if marker.as_ref().map(|path| path.is_file()).unwrap_or(false) {
         return;
-    };
-    let exe = exe.to_string_lossy().to_string();
-
-    let alive: HashMap<String, ContextMenuSpec> = records
-        .into_iter()
-        .filter_map(|record| {
-            let spec = record.manifest.context_menu.clone()?;
-            Some((record.manifest.id, spec))
-        })
-        .collect();
-
-    for key in registered_context_keys() {
-        let leaf = key.rsplit('\\').next().unwrap_or_default();
-        let tool_id = leaf.trim_start_matches(CONTEXT_KEY_PREFIX);
-
-        let Some(spec) = alive.get(tool_id) else {
-            // 없어진 도구가 남긴 메뉴.
-            let _ = reg(&["delete", &key, "/f"]);
-            continue;
-        };
-
-        // 살아 있는 메뉴는 지금 실행 파일 경로로 다시 써 둔다. 같은 값이면 아무 일도 아니다.
-        let command_key = format!(r"{key}\command");
-        let command_value = format!("\"{exe}\" --open-with {tool_id} --path \"%1\"");
-        let _ = reg(&["add", &key, "/ve", "/d", &spec.label, "/f"]);
-        let _ = reg(&["add", &key, "/v", "Icon", "/d", &exe, "/f"]);
-        let _ = reg(&["add", &command_key, "/ve", "/d", &command_value, "/f"]);
     }
-}
-
-/// 등록된 우클릭 메뉴를 전부 지우고 지운 개수를 돌려준다.
-/// 설치 제거 훅이 놓친 것이나, 이름이 바뀐 옛 도구가 남긴 것도 함께 정리된다.
-#[tauri::command]
-fn clear_context_menus() -> Result<usize, String> {
-    let mut removed = 0;
-    for key in registered_context_keys() {
-        if reg(&["delete", &key, "/f"])
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-        {
-            removed += 1;
-        }
+    for key in legacy_context_keys() {
+        // reg delete 는 하위 키(command)까지 함께 지운다.
+        let _ = reg(&["delete", &key, "/f"]);
     }
-    Ok(removed)
-}
-
-// 탐색기에서 파일 여러 개를 골라도 Windows는 명령을 파일 개수만큼 각각 실행한다.
-// 그래서 잠깐 모았다가 한 번에 넘긴다.
-static CONTEXT_BUFFER: std::sync::Mutex<Option<(String, Vec<String>)>> =
-    std::sync::Mutex::new(None);
-
-fn parse_context_args(argv: &[String]) -> Option<(String, String)> {
-    let mut tool_id = None;
-    let mut path = None;
-    let mut index = 0;
-    while index + 1 < argv.len() {
-        match argv[index].as_str() {
-            "--open-with" => tool_id = Some(argv[index + 1].clone()),
-            "--path" => path = Some(argv[index + 1].clone()),
-            _ => {}
-        }
-        index += 1;
-    }
-    match (tool_id, path) {
-        (Some(tool_id), Some(path)) if !tool_id.is_empty() && !path.is_empty() => {
-            Some((tool_id, path))
-        }
-        _ => None,
-    }
-}
-
-/// 우클릭으로 들어온 경로를 모은다. 첫 경로가 들어오면 잠깐 기다렸다 한 번에 알린다.
-fn collect_context_request(app: &AppHandle, argv: &[String]) {
-    let Some((tool_id, path)) = parse_context_args(argv) else {
-        return;
-    };
-
-    let first = {
-        let Ok(mut buffer) = CONTEXT_BUFFER.lock() else {
-            return;
-        };
-        match buffer.as_mut() {
-            // 도구가 다르면 앞의 것은 버리고 새로 시작한다.
-            Some((current, paths)) if *current == tool_id => {
-                if !paths.contains(&path) {
-                    paths.push(path);
-                }
-                false
+    if legacy_context_keys().is_empty() {
+        if let Some(path) = marker {
+            if let Some(dir) = path.parent() {
+                let _ = fs::create_dir_all(dir);
             }
-            _ => {
-                *buffer = Some((tool_id.clone(), vec![path]));
-                true
-            }
+            let _ = fs::write(path, b"done");
         }
-    };
-
-    if !first {
-        return;
     }
-
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(800));
-        let taken = CONTEXT_BUFFER.lock().ok().and_then(|mut buffer| buffer.take());
-        if let Some((tool_id, paths)) = taken {
-            use tauri::Emitter;
-            let _ = handle.emit("context-open", json!({ "toolId": tool_id, "paths": paths }));
-        }
-    });
-}
-
-/// 앱이 꺼져 있던 상태에서 우클릭으로 실행됐을 때, 화면이 준비된 뒤 다시 확인한다.
-#[tauri::command]
-fn take_context_request() -> Option<Value> {
-    let taken = CONTEXT_BUFFER.lock().ok().and_then(|mut buffer| buffer.take())?;
-    Some(json!({ "toolId": taken.0, "paths": taken.1 }))
 }
 
 /// 넣은 파일들의 크기(바이트). 없는 파일이나 폴더는 None.
@@ -542,6 +351,20 @@ fn file_sizes(paths: Vec<String>) -> Vec<Option<u64>> {
                 .ok()
                 .filter(|meta| meta.is_file())
                 .map(|meta| meta.len())
+        })
+        .collect()
+}
+
+/// 넣은 경로가 파일인지 폴더인지. "file", "folder", 없으면 "missing".
+/// 끌어다 놓은 것을 도구가 받을 수 있는지 미리 가리는 데 쓴다.
+#[tauri::command]
+fn path_kinds(paths: Vec<String>) -> Vec<&'static str> {
+    paths
+        .iter()
+        .map(|path| match fs::metadata(path) {
+            Ok(meta) if meta.is_dir() => "folder",
+            Ok(_) => "file",
+            Err(_) => "missing",
         })
         .collect()
 }
@@ -805,8 +628,21 @@ fn run_native_tool_blocking(
     if let Some(stdout) = child.stdout.take() {
         use std::io::{BufRead, BufReader};
         use tauri::Emitter;
-        for line in BufReader::new(stdout).lines() {
-            let Ok(line) = line else { break };
+        // UTF-8이 아닌 줄이 섞여도 읽기를 멈추지 않는다. 멈추면 도구가 파이프가
+        // 끊겨 죽는다. 바이트로 읽어 깨진 글자만 바꿔 넣는다.
+        let mut reader = BufReader::new(stdout);
+        let mut raw = Vec::new();
+        loop {
+            raw.clear();
+            match reader.read_until(b'\n', &mut raw) {
+                Ok(0) => break,
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => break,
+            }
+            let line = String::from_utf8_lossy(&raw)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
             match line.trim().strip_prefix(PROGRESS_PREFIX) {
                 Some(text) => {
                     let _ = app.emit(
@@ -838,15 +674,29 @@ fn run_native_tool_blocking(
         });
     }
 
-    let body = body_lines.join("\n");
-    serde_json::from_str(body.trim())
-        .or_else(|_| {
-            Ok(json!({
-                "ok": true,
-                "message": body.trim()
-            }))
-        })
-        .map_err(|error: serde_json::Error| error.to_string())
+    parse_tool_output(&body_lines.join("\n"))
+}
+
+/// 도구가 낸 출력에서 결과 JSON을 읽는다.
+///
+/// 전체가 JSON 하나면 그것을, 아니면 마지막 줄을 본다(앞에 라이브러리가 찍은
+/// 안내가 섞일 수 있다). 둘 다 아니면 성공으로 치지 않고 오류로 돌려준다.
+fn parse_tool_output(body: &str) -> Result<Value, String> {
+    let body = body.trim();
+    if let Ok(value) = serde_json::from_str::<Value>(body) {
+        return Ok(value);
+    }
+    if let Some(last) = body.lines().rev().map(str::trim).find(|line| !line.is_empty()) {
+        if let Ok(value) = serde_json::from_str::<Value>(last) {
+            return Ok(value);
+        }
+    }
+    let head: String = body.chars().take(300).collect();
+    Err(if head.is_empty() {
+        "도구가 결과를 돌려주지 않았습니다.".to_string()
+    } else {
+        format!("도구 결과를 읽지 못했습니다: {head}")
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -854,22 +704,17 @@ pub fn run() {
     tauri::Builder::default()
         // 중복 실행 방지: 이미 떠 있으면 새 창을 만들지 않고, 트레이에 숨어 있던
         // 기존 창을 꺼내서 앞으로 가져온다. 반드시 첫 번째 플러그인이어야 한다.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             desktop::focus_main_window(app);
-            collect_context_request(app, &argv);
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
-            // 앱이 꺼져 있을 때 우클릭으로 실행되면 인자가 이 첫 실행에 들어온다.
-            let argv: Vec<String> = std::env::args().collect();
-            collect_context_request(app.handle(), &argv);
-
-            // 없어진 도구가 남긴 메뉴를 치우고, 살아 있는 메뉴의 실행 파일 경로를
-            // 지금 것으로 맞춘다. reg 조회가 느려 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
+            // 예전 버전이 남긴 탐색기 우클릭 메뉴를 치운다. reg 조회가 느려
+            // 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
             let handle = app.handle().clone();
-            std::thread::spawn(move || refresh_context_menus(&handle));
+            std::thread::spawn(move || remove_legacy_context_menus(&handle));
 
             setup_desktop(app)
         })
@@ -881,10 +726,7 @@ pub fn run() {
             open_tool_in_browser,
             reveal_path,
             file_sizes,
-            list_context_menu,
-            set_context_menu,
-            clear_context_menus,
-            take_context_request,
+            path_kinds,
             run_native_tool,
             cancel_native_tool,
             board_update::check_board_update,
@@ -900,3 +742,42 @@ pub fn run() {
         .expect("Tauri 애플리케이션 실행 실패");
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::{is_legacy_context_key, parse_tool_output};
+    use serde_json::json;
+
+    #[test]
+    fn reads_whole_json_body() {
+        let value = parse_tool_output("{\n  \"ok\": true,\n  \"count\": 2\n}\n").unwrap();
+        assert_eq!(value, json!({ "ok": true, "count": 2 }));
+    }
+
+    #[test]
+    fn reads_last_line_when_noise_precedes_result() {
+        let value = parse_tool_output("경고: 라이브러리 안내\n\n{\"ok\": true}\n\n").unwrap();
+        assert_eq!(value, json!({ "ok": true }));
+    }
+
+    #[test]
+    fn plain_text_is_an_error_not_success() {
+        let error = parse_tool_output("Traceback (most recent call last):\n  boom").unwrap_err();
+        assert!(error.starts_with("도구 결과를 읽지 못했습니다: Traceback"));
+        assert!(parse_tool_output("  \n").is_err());
+        let long = "가".repeat(1000);
+        assert_eq!(
+            parse_tool_output(&long).unwrap_err().chars().count(),
+            "도구 결과를 읽지 못했습니다: ".chars().count() + 300
+        );
+    }
+
+    #[test]
+    fn legacy_context_key_match() {
+        assert!(is_legacy_context_key(
+            r"HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.pdf\shell\JBEduON.pdf_compress"
+        ));
+        assert!(is_legacy_context_key(r"HKEY_CURRENT_USER\Software\Classes\Directory\shell\JBEduON.file_inventory"));
+        assert!(!is_legacy_context_key(r"HKEY_CURRENT_USER\Software\Classes\Directory\shell\Open"));
+    }
+}

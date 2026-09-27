@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -17,11 +18,16 @@ import pdfplumber
 import pandas as pd
 
 from .certificate_parser import (
+    describe_pdf_error,
     extract_info_from_text,
     build_output_stem,
     trim_filename,
     unique_path,
 )
+
+
+# pdfminer 경고가 오류 창에 영어로 섞이지 않게 줄인다.
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 
 def extract_text_and_page_count(pdf_path: Path):
@@ -123,6 +129,9 @@ def rename_certificate_pdfs(
 
     total = len(pdf_files)
     cancelled = False
+    # 이름을 바꾼 파일: 원래 경로 → 새 경로. 화면이 들고 있는 목록을 갈아 끼우는 데 쓴다.
+    renamed: dict = {}
+    failed: list = []
 
     for idx, pdf_path in enumerate(pdf_files, start=1):
         if cancel_event is not None and cancel_event.is_set():
@@ -183,11 +192,13 @@ def rename_certificate_pdfs(
                         pdf_path.rename(target_path)
                         status = "변경완료"
                         new_path = target_path
+                        renamed[str(original_path)] = str(target_path)
                         count_changed += 1
 
         except Exception as e:
             status = "에러"
-            error_message = str(e)
+            error_message = describe_pdf_error(e)
+            failed.append({"name": original_name, "error": error_message})
             count_error += 1
 
         record = {
@@ -216,4 +227,6 @@ def rename_certificate_pdfs(
         "error": count_error,
         "total": len(records),
         "cancelled": cancelled,
+        "renamed": renamed,
+        "failed": failed,
     }

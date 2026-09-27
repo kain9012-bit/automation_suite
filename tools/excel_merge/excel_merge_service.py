@@ -19,6 +19,8 @@ from __future__ import annotations
 import csv
 import datetime as _dt
 import re
+import zipfile
+from xml.etree.ElementTree import ParseError
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,6 +29,43 @@ from typing import Callable
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import get_column_letter, range_boundaries
+from openpyxl.utils.exceptions import InvalidFileException
+
+try:  # openpyxl 이 lxml 로 읽을 때 나는 오류
+    from lxml.etree import XMLSyntaxError
+except Exception:  # pragma: no cover
+    XMLSyntaxError = ParseError
+
+# 암호를 건 파일·DRM 보호 파일·손상된 파일을 열 때 나는 오류들. 'File is not a zip file' 같은
+# 영어 한 줄만 보이지 않도록 파일 이름을 담은 안내로 바꾼다.
+_OPEN_ERRORS = (zipfile.BadZipFile, InvalidFileException, KeyError, EOFError, ParseError, XMLSyntaxError)
+
+
+class WorkbookOpenError(ValueError):
+    """엑셀 파일 자체를 열 수 없을 때. 문구에 파일 이름이 들어 있다."""
+
+    def __init__(self, path: Path):
+        super().__init__(f"엑셀 파일을 열 수 없습니다(암호·DRM 보호 또는 손상): {path.name}")
+
+
+def _open_workbook(path: Path, **kwargs):
+    try:
+        return load_workbook(path, **kwargs)
+    except _OPEN_ERRORS as exc:
+        raise WorkbookOpenError(path) from exc
+
+
+def _failed_reason(exc: Exception) -> str:
+    if isinstance(exc, WorkbookOpenError):
+        return "엑셀 파일을 열 수 없습니다(암호·DRM 보호 또는 손상)"
+    return str(exc) or type(exc).__name__
+
+
+def _problem_text(path: Path, exc: Exception, sheet_name: str = "") -> str:
+    """경고 한 줄. 파일을 못 연 경우엔 그 안내에 이미 파일 이름이 있다."""
+    if isinstance(exc, WorkbookOpenError):
+        return str(exc)
+    return f"{path.name} › {sheet_name}: {exc}" if sheet_name else f"{path.name}: {exc}"
 
 
 MODE_WORKBOOK_SHEETS_TO_ONE = "workbook_sheets_to_one"
@@ -65,6 +104,8 @@ class MergeResult:
     verify_message: str = ""
     # 원본에서 함수였다가 계산된 값으로 저장된 셀 수.
     formula_count: int = 0
+    # 읽지 못해 빠진 파일·시트: [{"name": 이름, "error": 이유}]
+    failed: list = field(default_factory=list)
 
 
 @dataclass
@@ -160,11 +201,18 @@ def _read_csv_rows(path: Path) -> list[list[str]]:
 
 _CSV_NUMBER = re.compile(r"-?(0|[1-9]\d*)(\.\d+)?")
 
+# 엑셀은 숫자를 15자리까지만 정확히 담는다. 더 긴 숫자(카드·계좌·학번 등)는 글자로 둔다.
+_EXCEL_DIGITS = 15
+
 
 def _csv_value(value: str):
-    """CSV 의 숫자 글자는 숫자로 바꾼다. 0 으로 시작하는 코드(0012 등)는 글자 그대로 둔다."""
+    """CSV 의 숫자 글자는 숫자로 바꾼다. 0 으로 시작하는 코드(0012 등)와
+    15자리를 넘는 숫자(카드·계좌 번호 등)는 글자 그대로 둔다."""
     text = value.strip()
     if _CSV_NUMBER.fullmatch(text):
+        digits = sum(1 for ch in text if ch.isdigit())
+        if digits > _EXCEL_DIGITS:
+            return value
         return float(text) if "." in text else int(text)
     return value
 
@@ -184,7 +232,7 @@ def load_source_workbook(path: Path, data_only: bool = False):
             ws.append([_csv_value(value) for value in row])
         return wb, True
 
-    return load_workbook(path, data_only=data_only), False
+    return _open_workbook(path, data_only=data_only), False
 
 
 # ---------------------------------------------------------------- 시트 읽기
@@ -206,7 +254,9 @@ def worksheet_rows_and_formats(ws, with_styles: bool = False):
     styles: list[list] = []
     max_col = ws.max_column or 1
     for row in ws.iter_rows(min_row=1, max_row=ws.max_row or 1, min_col=1, max_col=max_col):
-        rows.append([normalize_value(cell.value) for cell in row])
+        # 값은 손대지 않고 그대로 둔다(칸 안 줄바꿈·앞 공백 유지). 빈 칸만 "" 로 맞춘다.
+        # 공백 정리(normalize_value)는 빈 줄 판단·항목명 맞추기에서만 쓴다.
+        rows.append(["" if cell.value is None else cell.value for cell in row])
         formats.append([cell.number_format or "General" for cell in row])
         if with_styles:
             styles.append([_cell_style(cell) for cell in row])
@@ -258,11 +308,12 @@ def _formula_stats(ws_formulas, rows: list[list]) -> tuple[int, int]:
         return 0, 0
     formulas = missing = 0
     try:
-        for r_idx, row in enumerate(ws_formulas.iter_rows(values_only=True)):
+        for r_idx, row in enumerate(ws_formulas.iter_rows()):
             # 결과값이 하나도 없는 줄은 rows 에서 잘려 나갔을 수 있으므로 끝까지 본다.
             got = rows[r_idx] if r_idx < len(rows) else []
-            for c_idx, value in enumerate(row):
-                if isinstance(value, str) and value.startswith("="):
+            for c_idx, cell in enumerate(row):
+                # '=== 확인 필요' 처럼 '=' 로 시작하는 글자 칸은 함수가 아니다.
+                if getattr(cell, "data_type", None) == "f":
                     formulas += 1
                     cached = got[c_idx] if c_idx < len(got) else ""
                     if cached == "":
@@ -515,8 +566,12 @@ def build_merged(
 
 # ---------------------------------------------------------------- 쓰기
 
-def _copy_cell(src, dst) -> None:
+def _copy_cell(src, dst, values_only: bool = False) -> None:
+    """칸을 서식째 옮긴다. values_only=True 면 src 가 계산된 값(data_only)으로 연 시트라서
+    '=' 로 시작하는 값은 모두 글자다."""
     dst.value = src.value
+    if isinstance(dst.value, str) and dst.value.startswith("=") and (values_only or src.data_type != "f"):
+        dst.data_type = "s"  # '=== 확인 필요' 같은 글자를 함수로 저장하지 않는다.
     if src.has_style:
         dst.font = copy(src.font)
         dst.fill = copy(src.fill)
@@ -550,7 +605,11 @@ def copy_worksheet_full(ws_in, wb_out: Workbook, title: str):
             dst_dim.hidden = src_dim.hidden
             dst_dim.outlineLevel = src_dim.outlineLevel
         for col_idx in range(1, (ws_in.max_column or 1) + 1):
-            _copy_cell(ws_in.cell(row=row_idx, column=col_idx), ws_out.cell(row=row_idx, column=col_idx))
+            _copy_cell(
+                ws_in.cell(row=row_idx, column=col_idx),
+                ws_out.cell(row=row_idx, column=col_idx),
+                values_only=True,
+            )
 
     for merged in list(ws_in.merged_cells.ranges):
         try:
@@ -623,6 +682,8 @@ def write_merged_sheet(wb_out: Workbook, title: str, merged: dict, sample: Sheet
                 continue
             value = row[c_idx - 1] if c_idx <= len(row) else None
             cell.value = None if value == "" else value
+            if isinstance(value, str) and value.startswith("="):
+                cell.data_type = "s"  # 값은 모두 계산된 결과다. '=' 로 시작해도 글자로 둔다.
             if r_idx > header_rows and c_idx <= len(fmt_row):
                 number_format = fmt_row[c_idx - 1]
                 if number_format and number_format != "General":
@@ -685,7 +746,8 @@ def _collect_all(options: MergeOptions, result: MergeResult, log) -> list[SheetD
             sheets.extend(found)
         except Exception as exc:
             result.skipped_count += 1
-            result.warnings.append(f"{path.name}: {exc}")
+            result.warnings.append(_problem_text(path, exc))
+            result.failed.append({"name": path.name, "error": _failed_reason(exc)})
     for sheet in sheets:
         result.formula_count += sheet.formula_count
         if sheet.missing_formula_values:
@@ -696,11 +758,21 @@ def _collect_all(options: MergeOptions, result: MergeResult, log) -> list[SheetD
     return sheets
 
 
+def _nothing_message(head: str, result: MergeResult) -> str:
+    """병합할 것이 없어 멈출 때, 왜 없는지(파일을 못 연 이유 등)를 함께 알려 준다."""
+    if not result.warnings:
+        return head
+    lines = [f"· {text}" for text in result.warnings[:10]]
+    if len(result.warnings) > 10:
+        lines.append(f"· 외 {len(result.warnings) - 10}건")
+    return head + "\n\n" + "\n".join(lines)
+
+
 def merge_workbook_sheets_to_one(options: MergeOptions, log: Callable[[str], None] | None = None) -> MergeResult:
     result = MergeResult(options.output_path)
     sheets = _collect_all(options, result, log)
     if not sheets:
-        raise ValueError("병합할 시트를 찾지 못했습니다.")
+        raise ValueError(_nothing_message("병합할 시트를 찾지 못했습니다.", result))
     merged = build_merged(sheets, options.add_source_file, options.add_source_sheet)
     result.warnings.extend(merged["notes"])
     wb_out = Workbook()
@@ -724,7 +796,7 @@ def merge_same_sheets_together(options: MergeOptions, log: Callable[[str], None]
     for sheet in sheets:
         groups.setdefault(sheet.sheet_name, []).append(sheet)
     if not groups:
-        raise ValueError("병합할 시트를 찾지 못했습니다.")
+        raise ValueError(_nothing_message("병합할 시트를 찾지 못했습니다.", result))
 
     wb_out = Workbook()
     wb_out.remove(wb_out.active)
@@ -746,8 +818,11 @@ def merge_same_sheets_together(options: MergeOptions, log: Callable[[str], None]
     return result
 
 
-def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, str]], list[str]]:
-    """(파일, 시트, 결과 시트 이름) 목록. 파일에 시트가 하나면 파일 이름, 여럿이면 '파일_시트'."""
+def _files_to_sheets_plan(
+    options: MergeOptions, failed: list | None = None
+) -> tuple[list[tuple[Path, str, str]], list[str]]:
+    """(파일, 시트, 결과 시트 이름) 목록. 파일에 시트가 하나면 파일 이름, 여럿이면 '파일_시트'.
+    failed 를 주면 열지 못한 파일을 {"name", "error"} 로 담는다."""
     plan = []
     warnings = []
     used: set[str] = set()
@@ -757,7 +832,7 @@ def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, 
                 # 불러올 때 붙는 시트 이름과 같게 한다(시트 고르기 키가 맞아야 한다).
                 names = [safe_sheet_title(path.stem)]
             else:
-                wb = load_workbook(path, read_only=True)
+                wb = _open_workbook(path, read_only=True)
                 names = [
                     ws.title for ws in wb.worksheets
                     if options.include_hidden_sheets or ws.sheet_state == "visible"
@@ -771,14 +846,16 @@ def _files_to_sheets_plan(options: MergeOptions) -> tuple[list[tuple[Path, str, 
                 base = path.stem if len(names) == 1 else f"{path.stem}_{name}"
                 plan.append((path, name, unique_sheet_title(base, used)))
         except Exception as exc:
-            warnings.append(f"{path.name}: {exc}")
+            warnings.append(_problem_text(path, exc))
+            if failed is not None:
+                failed.append({"name": path.name, "error": _failed_reason(exc)})
     return plan, warnings
 
 
 def merge_files_to_sheets(options: MergeOptions, log: Callable[[str], None] | None = None) -> MergeResult:
     """고른 시트를 서식 그대로 결과 파일의 시트로 옮긴다. 함수는 계산된 값으로 넣는다."""
     result = MergeResult(options.output_path)
-    plan, warnings = _files_to_sheets_plan(options)
+    plan, warnings = _files_to_sheets_plan(options, result.failed)
     result.warnings.extend(warnings)
     result.skipped_count += len(warnings)
     wb_out = Workbook()
@@ -807,13 +884,14 @@ def merge_files_to_sheets(options: MergeOptions, log: Callable[[str], None] | No
                 log(f"시트 추가: {path.name} › {sheet_name} → {title}")
         except Exception as exc:
             result.skipped_count += 1
-            result.warnings.append(f"{path.name} › {sheet_name}: {exc}")
+            result.warnings.append(_problem_text(path, exc, sheet_name))
+            result.failed.append({"name": f"{path.name} › {sheet_name}", "error": _failed_reason(exc)})
 
     for _, wb_formulas in opened.values():
         if wb_formulas is not None:
             wb_formulas.close()
     if result.sheet_count == 0:
-        raise ValueError("결과 파일에 추가할 시트가 없습니다.")
+        raise ValueError(_nothing_message("결과 파일에 추가할 시트가 없습니다.", result))
     wb_out.save(options.output_path)
     try:
         wb = load_workbook(options.output_path, read_only=True)
@@ -941,7 +1019,7 @@ def analyze_merge(
                 errors.append(f"{path.name}: 내용이 있는 시트가 없습니다.")
             sheets.extend(found)
         except Exception as exc:
-            errors.append(f"{path.name}: {exc}")
+            errors.append(_problem_text(path, exc))
 
     sheet_infos = []
     for sheet in sheets:

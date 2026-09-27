@@ -10,13 +10,32 @@
 from __future__ import annotations
 
 import io
+import os
+import re
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
-import pymupdf
-from PIL import Image
+# MuPDF 는 조금 깨진 PDF 를 만나면 "MuPDF error: ..." 를 stdout 으로 찍는다.
+# 앱은 stdout 을 결과(JSON)로 읽으므로 한 줄만 섞여도 결과를 못 읽는다.
+# 불러올 때 한 번 stdout 밖으로 돌리고, 오류 창에도 섞이지 않게 표시를 끈다.
+os.environ.setdefault("PYMUPDF_SUGGEST_LAYOUT_ANALYZER", "0")
+import pymupdf  # noqa: E402
+from PIL import Image  # noqa: E402
+
+if hasattr(pymupdf, "no_recommend_layout"):
+    pymupdf.no_recommend_layout()
+try:
+    pymupdf.set_messages(stream=sys.stderr)
+except Exception:
+    pass
+try:
+    pymupdf.TOOLS.mupdf_display_errors(False)
+    pymupdf.TOOLS.mupdf_display_warnings(False)
+except Exception:
+    pass
 
 # (이미지 최대 해상도 dpi, JPEG 품질). 약한 것부터 차례로 시도한다.
 LEVELS: List[Tuple[int, int]] = [
@@ -37,6 +56,23 @@ class CompressCancelled(RuntimeError):
     pass
 
 
+def describe_pdf_error(error: BaseException) -> str:
+    """PDF 라이브러리의 영어 오류를 짧은 한국어 사유로 바꾼다. 이미 한국어면 그대로 둔다."""
+    text = str(error).strip()
+    probe = f"{type(error).__name__} {text} {error!r}".lower()
+    if any(key in probe for key in ("decrypt", "encrypt", "password")):
+        return "암호가 걸린 PDF라 압축할 수 없습니다. 암호를 해제한 뒤 다시 시도하세요."
+    if any(key in probe for key in (
+        "failed to open", "eof", "startxref", "xref", "stream has ended",
+        "invalid pdf header", "/root", "trailer", "filedataerror", "emptyfileerror",
+        "not a pdf",
+    )):
+        return "PDF 파일이 손상되었거나 PDF 형식이 아닙니다."
+    if re.search(r"[가-힣]", text):
+        return text
+    return f"압축하지 못했습니다. ({text or type(error).__name__})"
+
+
 def bytes_to_mb(n: int) -> float:
     return n / (1024 * 1024)
 
@@ -48,10 +84,14 @@ def safe_output_path(in_fp: Path, target_mb: float = 0, folder: Optional[Path] =
 
 
 def _open(in_fp: Path) -> pymupdf.Document:
-    doc = pymupdf.open(str(in_fp))
+    try:
+        doc = pymupdf.open(str(in_fp))
+    except Exception as error:
+        # 파일 이름은 부르는 쪽(실패 목록)이 붙인다.
+        raise RuntimeError(describe_pdf_error(error)) from error
     if doc.needs_pass and not doc.authenticate(""):
         doc.close()
-        raise RuntimeError(f"암호가 걸린 PDF 라 압축할 수 없습니다: {in_fp.name}")
+        raise RuntimeError("암호가 걸린 PDF라 압축할 수 없습니다. 암호를 해제한 뒤 다시 시도하세요.")
     return doc
 
 
@@ -288,35 +328,41 @@ def compress_group_to_total(
         say(f"PDF {len(states)}개, 합계 {bytes_to_mb(total):.2f}MB → 목표 {bytes_to_mb(total_bytes):.2f}MB")
 
         steps = 0
-        while total > total_bytes:
-            check_cancel()
-            best = None
-            for state in states:
-                if state["done"]:
-                    continue
-                try:
-                    step = next_step(state)
-                except CompressCancelled:
-                    raise
-                except Exception as error:  # 이 파일만 원본 그대로 두고 넘어간다.
-                    state["error"] = str(error) or type(error).__name__
-                    state["level"] = 0
-                    state["done"] = True
-                    continue
-                if step is None:
-                    state["done"] = True
-                    continue
-                if best is None or step[1] > best[2]:
-                    best = (state, step[0], step[1])
-            if best is None:
-                break
-            state, level, saving = best
-            state["level"] = level
-            total -= saving
-            steps += 1
-            say(
-                f"{state['path'].name}: {level}단계로 줄임 → 합계 {bytes_to_mb(total):.2f}MB"
-            )
+        cancelled = False
+        try:
+            while total > total_bytes:
+                check_cancel()
+                best = None
+                for state in states:
+                    if state["done"]:
+                        continue
+                    try:
+                        step = next_step(state)
+                    except CompressCancelled:
+                        raise
+                    except Exception as error:  # 이 파일만 원본 그대로 두고 넘어간다.
+                        state["error"] = describe_pdf_error(error)
+                        state["level"] = 0
+                        state["done"] = True
+                        continue
+                    if step is None:
+                        state["done"] = True
+                        continue
+                    if best is None or step[1] > best[2]:
+                        best = (state, step[0], step[1])
+                if best is None:
+                    break
+                state, level, saving = best
+                state["level"] = level
+                total -= saving
+                steps += 1
+                say(
+                    f"{state['path'].name}: {level}단계로 줄임 → 합계 {bytes_to_mb(total):.2f}MB"
+                )
+        except CompressCancelled:
+            # 중지하면 버리지 않고 지금까지 고른 단계로 저장한다(화면 안내: 하던 항목까지 마치고 멈춤).
+            cancelled = True
+            say("중지 요청으로 멈췄습니다. 지금까지 줄인 결과로 저장합니다.")
 
         # 결과 폴더에 원래 이름으로 저장한다.
         stamp = datetime.datetime.now().strftime("%m%d_%H%M")
@@ -351,6 +397,7 @@ def compress_group_to_total(
             "final_total": final_total,
             "target_bytes": total_bytes,
             "achieved": final_total <= total_bytes,
+            "cancelled": cancelled,
         }
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)

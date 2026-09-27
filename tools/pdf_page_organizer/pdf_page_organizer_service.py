@@ -1,13 +1,63 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import re
+import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
 from pypdf import PdfReader, PdfWriter
+
+# MuPDF 는 조금 깨진 PDF 를 만나면 "MuPDF error: ..." 를 stdout 으로 찍는다.
+# 앱은 stdout 을 결과(JSON)로 읽으므로 한 줄만 섞여도 결과를 못 읽는다.
+# 불러올 때 한 번 stdout 밖으로 돌리고, 오류 창에도 섞이지 않게 표시를 끈다.
+os.environ.setdefault("PYMUPDF_SUGGEST_LAYOUT_ANALYZER", "0")
+import pymupdf  # noqa: E402
+
+if hasattr(pymupdf, "no_recommend_layout"):
+    pymupdf.no_recommend_layout()
+try:
+    pymupdf.set_messages(stream=sys.stderr)
+except Exception:
+    pass
+try:
+    pymupdf.TOOLS.mupdf_display_errors(False)
+    pymupdf.TOOLS.mupdf_display_warnings(False)
+except Exception:
+    pass
+
+# pypdf 경고("EOF marker not found" 등)가 오류 창에 영어로 섞이지 않게 줄인다.
+logging.getLogger("pypdf").setLevel(logging.ERROR)
+
+
+def describe_pdf_error(error: BaseException) -> str:
+    """PDF 라이브러리의 영어 오류를 짧은 한국어 사유로 바꾼다. 이미 한국어면 그대로 둔다."""
+    text = str(error).strip()
+    probe = f"{type(error).__name__} {text} {error!r}".lower()
+    if any(key in probe for key in ("decrypt", "encrypt", "password")):
+        return "암호가 걸린 PDF라 열 수 없습니다. 암호를 해제한 뒤 다시 시도하세요."
+    if any(key in probe for key in (
+        "failed to open", "eof", "startxref", "xref", "stream has ended",
+        "invalid pdf header", "/root", "trailer", "pdfreaderror", "pdfstreamerror",
+        "filedataerror", "emptyfileerror", "pdfsyntaxerror", "pdfminer", "not a pdf",
+    )):
+        return "PDF 파일이 손상되었거나 PDF 형식이 아닙니다."
+    if re.search(r"[가-힣]", text):
+        return text
+    return f"처리하지 못했습니다. ({text or type(error).__name__})"
+
+
+def pdf_error_message(error: BaseException, name: str) -> str:
+    """사용자에게 보일 오류 문장. 라이브러리 오류면 파일 이름을 붙여 한국어로 바꾼다."""
+    text = str(error).strip()
+    reason = describe_pdf_error(error)
+    if reason == text:
+        return text
+    return f"{name}: {reason}"
 
 
 @dataclass
@@ -126,24 +176,25 @@ def _format_pages(pages: list[int], limit: int = 20) -> str:
 
 
 def get_total_pages(pdf_path: Path) -> int:
-    reader = PdfReader(str(pdf_path))
-    if getattr(reader, "is_encrypted", False):
-        try:
-            if reader.decrypt("") == 0:
-                raise RuntimeError("암호가 설정된 PDF입니다.")
-        except Exception:
-            raise RuntimeError("암호가 설정된 PDF입니다.")
-    return len(reader.pages)
+    return len(_load_reader(pdf_path).pages)
 
 
 def _load_reader(pdf_path: Path) -> PdfReader:
-    reader = PdfReader(str(pdf_path))
+    name = Path(pdf_path).name
+    try:
+        reader = PdfReader(str(pdf_path))
+    except Exception as error:
+        raise RuntimeError(pdf_error_message(error, name)) from error
     if getattr(reader, "is_encrypted", False):
         try:
             if reader.decrypt("") == 0:
-                raise RuntimeError("암호가 설정된 PDF입니다.")
+                raise RuntimeError(f"{name}: 암호가 걸린 PDF라 열 수 없습니다. 암호를 해제한 뒤 다시 시도하세요.")
         except Exception:
-            raise RuntimeError("암호가 설정된 PDF입니다.")
+            raise RuntimeError(f"{name}: 암호가 걸린 PDF라 열 수 없습니다. 암호를 해제한 뒤 다시 시도하세요.")
+    try:
+        len(reader.pages)
+    except Exception as error:
+        raise RuntimeError(pdf_error_message(error, name)) from error
     return reader
 
 
@@ -380,9 +431,10 @@ PREVIEW_LONG_SIDE = 1600
 
 
 def _open_pdf(path: Path):
-    import pymupdf
-
-    doc = pymupdf.open(str(path))
+    try:
+        doc = pymupdf.open(str(path))
+    except Exception as error:
+        raise ValueError(pdf_error_message(error, Path(path).name)) from error
     if doc.needs_pass and not doc.authenticate(""):
         doc.close()
         raise ValueError(f"암호가 걸린 PDF 는 열 수 없습니다: {Path(path).name}")
@@ -392,8 +444,6 @@ def _open_pdf(path: Path):
 def _render_jpeg(page, long_side: int, quality: int) -> dict:
     """페이지를 긴 변 long_side 픽셀 JPEG 로 그려 data URL 로 돌려준다. 페이지의 원래 회전은 반영된다."""
     import base64
-
-    import pymupdf
 
     zoom = long_side / max(page.rect.width, page.rect.height, 1)
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
@@ -416,7 +466,10 @@ def load_documents(paths: list[Path], progress=None, cancel=None) -> list[dict]:
             for index in range(total):
                 if cancel is not None and cancel():
                     raise RuntimeError("중지 요청으로 불러오기를 멈췄습니다.")
-                pages.append(_render_jpeg(doc[index], THUMB_LONG_SIDE, 72))
+                try:
+                    pages.append(_render_jpeg(doc[index], THUMB_LONG_SIDE, 72))
+                except Exception as error:
+                    raise RuntimeError(pdf_error_message(error, path.name)) from error
                 if progress is not None and (index + 1 == total or (index + 1) % 20 == 0):
                     progress(f"{path.name}: {index + 1}/{total}쪽 미리보기를 만들었습니다.")
             documents.append({
@@ -462,8 +515,6 @@ def save_sequence(
     sequence 항목: {"path": 원본 PDF, "page": 0부터 센 쪽 번호, "rotate": 더 돌릴 각도(0/90/180/270)}
     save_mode: single(한 파일) / every_n(N쪽씩) / each(한 쪽씩)
     """
-    import pymupdf
-
     if not sequence:
         raise ValueError("저장할 페이지가 없습니다.")
     output_dir.mkdir(parents=True, exist_ok=True)

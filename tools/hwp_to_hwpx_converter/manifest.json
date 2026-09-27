@@ -8,7 +8,7 @@
   "description": "HWP 파일을 HWPX로 일괄 변환하고 성공한 원본 HWP를 정리합니다.",
   "order": 45,
   "enabled": true,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "keywords": ["HWP", "HWPX", "한글", "변환", "문서"],
   "context_menu": {
     "targets": ["hwp"],

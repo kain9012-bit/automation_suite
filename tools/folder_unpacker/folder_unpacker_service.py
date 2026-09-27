@@ -28,6 +28,8 @@ class UnpackResult:
     skipped_count: int = 0
     redundant_folders: list[Path] = field(default_factory=list)
     first_parent: Path | None = None
+    # 옮기지 못한 파일: [{"name": 파일 이름, "error": 이유}]
+    failed: list[dict] = field(default_factory=list)
 
 
 def _signed_hresult(value) -> int:
@@ -236,10 +238,39 @@ def normalize_folder_path(path: str | Path) -> str:
     return os.path.normcase(os.path.abspath(os.fspath(path)))
 
 
-def is_drive_root(path: str | Path) -> bool:
-    abs_path = os.path.abspath(os.fspath(path))
-    parent = os.path.dirname(abs_path)
-    return parent == abs_path
+def is_drive_root(path: str | Path, pathmod=os.path) -> bool:
+    """드라이브 맨 위(D:\\)나 네트워크 공유의 맨 위(\\\\서버\\공유)인지.
+
+    pathmod 는 시험용이다(리눅스에서 윈도 경로 규칙을 확인할 때 ntpath 를 넘긴다).
+    """
+    abs_path = pathmod.abspath(os.fspath(path))
+    _drive, rest = pathmod.splitdrive(abs_path)
+    if not rest.strip("\\/"):
+        return True
+    return pathmod.dirname(abs_path) == abs_path
+
+
+def is_link_or_junction(path: str | Path) -> bool:
+    """바로가기 폴더(심볼릭 링크·윈도 정션)인지. 이런 폴더 안은 고른 폴더 밖이므로 건드리지 않는다."""
+    target = os.fspath(path)
+    try:
+        if os.path.islink(target):
+            return True
+        isjunction = getattr(os.path, "isjunction", None)
+        if isjunction is not None:
+            return bool(isjunction(target))
+        if os.name == "nt":  # 파이썬 3.12 이전: 정션(마운트 지점) 표식을 직접 본다.
+            return getattr(os.lstat(target), "st_reparse_tag", 0) == 0xA0000003
+    except OSError:
+        return False
+    return False
+
+
+def _walk_inside(folder: str | Path):
+    """os.walk 와 같지만 링크·정션 폴더 안으로는 들어가지 않는다."""
+    for current, dirs, files in os.walk(folder):
+        dirs[:] = [name for name in dirs if not is_link_or_junction(os.path.join(current, name))]
+        yield current, dirs, files
 
 
 def is_child_path(child: str | Path, parent: str | Path) -> bool:
@@ -293,7 +324,7 @@ def collect_files(folder_path: str | Path, recursive: bool = True) -> list[Path]
 
     try:
         if recursive:
-            for current, _, files in os.walk(folder):
+            for current, _, files in _walk_inside(folder):
                 current_path = Path(current)
                 for filename in files:
                     result.append(current_path / filename)
@@ -313,8 +344,12 @@ def remove_empty_dirs(folder_path: str | Path) -> list[Path]:
     if not folder.is_dir():
         return removed
 
-    for current, _, _ in os.walk(folder, topdown=False):
+    # 위에서부터 훑은 순서를 뒤집으면 안쪽 폴더부터 지우게 된다. 링크·정션은 지우지 않는다.
+    found = [current for current, _, _ in _walk_inside(folder)]
+    for current in reversed(found):
         current_path = Path(current)
+        if is_link_or_junction(current_path):
+            continue
         try:
             current_path.rmdir()
             removed.append(current_path)
@@ -350,6 +385,15 @@ def unpack_folders(
     def emit(message: str = "") -> None:
         if log is not None:
             log(message)
+
+    # 드라이브 맨 위(D:\\)를 고르면 드라이브의 모든 파일이 맨 위로 옮겨지고 폴더가 지워진다.
+    # 하나라도 그렇다면 아무것도 옮기기 전에 멈춘다.
+    for folder in folders:
+        if is_drive_root(folder):
+            raise ValueError(
+                "드라이브 루트 폴더(예: D:\\)나 네트워크 공유 폴더의 맨 위는 선택할 수 없습니다: "
+                f"{folder}"
+            )
 
     target_folders, redundant_folders = filter_redundant_folders(folders, recursive=recursive)
     result = UnpackResult(redundant_folders=redundant_folders)
@@ -394,6 +438,7 @@ def unpack_folders(
                 emit(f"    - 이동: {original_name} -> {dst_path.name}")
             except Exception as exc:
                 result.error_count += 1
+                result.failed.append({"name": src_path.name, "error": f"옮기지 못했습니다 ({exc})"})
                 emit(f"    ! 파일 이동 실패: {src_path} / {exc}")
 
         removed_dirs = remove_empty_dirs(folder)

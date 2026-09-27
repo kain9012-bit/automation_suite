@@ -23,8 +23,9 @@ pub struct MacroAction {
 fn command_for_runner(app: &AppHandle) -> Result<Command, String> {
     // 개발 중에는 bridge/runner.py를 먼저 쓴다. 미리 빌드해 둔 sidecar exe는
     // 파이썬 코드를 고쳐도 갱신되지 않는다. 설치본에는 runner.py가 없다.
+    // 소스 경로는 빌드할 때 문자열로 박히므로 설치본에서는 보지 않는다(lib.rs bridge_path 와 같다).
     let runner = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap_or_else(|| std::path::Path::new(".")).join("bridge").join("runner.py");
-    let mut command = if runner.is_file() {
+    let mut command = if cfg!(debug_assertions) && runner.is_file() {
         let mut command = Command::new("python");
         command.arg(runner);
         command
@@ -63,6 +64,38 @@ pub fn open_with_default(target: &str) -> Result<(), String> {
     let mut command = Command::new("rundll32.exe");
     command.arg("url.dll,FileProtocolHandler").arg(target);
     spawn_detached(command)
+}
+
+/// 인수 문자열을 나눈다. 큰따옴표로 묶은 부분은 공백이 있어도 한 덩어리로 본다.
+/// ("C:\바탕 화면\a.txt" 처럼 공백이 든 경로를 넘길 수 있어야 한다.)
+/// 따옴표 자체는 빼고 넘긴다. 인수를 다시 조립할 때 Rust가 필요한 따옴표를 붙인다.
+pub(crate) fn split_arguments(value: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    let mut started = false;
+    for ch in value.chars() {
+        match ch {
+            '"' => {
+                quoted = !quoted;
+                started = true;
+            }
+            c if c.is_whitespace() && !quoted => {
+                if started {
+                    parts.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            c => {
+                current.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        parts.push(current);
+    }
+    parts
 }
 
 /// `~`와 `%APPDATA%` 같은 표기를 실제 경로로 바꾼다.
@@ -154,7 +187,7 @@ fn run_native(action: &MacroAction) -> Result<String, String> {
                 open_with_default(&path)?;
             } else {
                 let mut command = Command::new(&path);
-                command.args(arguments.split_whitespace());
+                command.args(split_arguments(arguments));
                 spawn_detached(command)?;
             }
             Ok(format!("{}을(를) 실행했습니다.", action.name))
@@ -164,6 +197,15 @@ fn run_native(action: &MacroAction) -> Result<String, String> {
                 return Err("실행할 명령을 입력해 주세요.".to_string());
             }
             let mut command = Command::new("cmd");
+            // cmd.exe 는 C 런타임식 \" 이스케이프를 모른다. args()로 넘기면 따옴표로
+            // 묶은 경로("C:\Program Files\...")가 깨지므로, 적은 그대로 붙여 넘긴다.
+            // /S 와 바깥 따옴표 한 겹: cmd 는 이 바깥 따옴표만 벗기고 안쪽은 그대로 둔다.
+            // 이렇게 하지 않으면 따옴표로 시작하는 명령에서 cmd 가 첫·끝 따옴표를 떼어 버린다.
+            #[cfg(windows)]
+            {
+                command.raw_arg("/S /C").raw_arg(format!("\"{target}\""));
+            }
+            #[cfg(not(windows))]
             command.args(["/C", target]);
             spawn_detached(command)?;
             Ok(format!("{} 명령을 실행했습니다.", action.name))
@@ -180,8 +222,16 @@ fn run_native(action: &MacroAction) -> Result<String, String> {
     }
 }
 
+/// 대기 단계나 키 입력 흉내는 오래 걸릴 수 있다. 동기 명령은 메인 스레드에서 돌아
+/// 그동안 창이 멈추므로 다른 스레드로 넘긴다.
 #[tauri::command]
-pub fn run_macro_action(app: AppHandle, action: MacroAction) -> Result<Value, String> {
+pub async fn run_macro_action(app: AppHandle, action: MacroAction) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || run_macro_action_blocking(app, action))
+        .await
+        .map_err(|error| format!("빠른 실행을 마치지 못했습니다: {error}"))?
+}
+
+fn run_macro_action_blocking(app: AppHandle, action: MacroAction) -> Result<Value, String> {
     if !needs_sidecar(&action) {
         let message = run_native(&action)?;
         return Ok(serde_json::json!({ "ok": true, "message": message }));
@@ -196,4 +246,32 @@ pub fn run_macro_action(app: AppHandle, action: MacroAction) -> Result<Value, St
         return Err(if message.is_empty() { "빠른 실행 중 오류가 발생했습니다.".to_string() } else { message });
     }
     serde_json::from_slice(&output.stdout).map_err(|error| format!("빠른 실행 결과를 읽지 못했습니다: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_arguments;
+
+    #[test]
+    fn splits_plain_words() {
+        assert_eq!(split_arguments("  -a  b\tc "), vec!["-a", "b", "c"]);
+    }
+
+    #[test]
+    fn keeps_quoted_paths_with_spaces() {
+        assert_eq!(
+            split_arguments(r#"/open "C:\Users\me\바탕 화면\a.txt" --x"#),
+            vec!["/open", r"C:\Users\me\바탕 화면\a.txt", "--x"]
+        );
+        assert_eq!(
+            split_arguments(r#""C:\Users\me\OneDrive - 기관\b.hwp""#),
+            vec![r"C:\Users\me\OneDrive - 기관\b.hwp"]
+        );
+    }
+
+    #[test]
+    fn joins_quoted_part_inside_word_and_keeps_empty_quotes() {
+        assert_eq!(split_arguments(r#"--path="a b" """#), vec!["--path=a b", ""]);
+        assert!(split_arguments("   ").is_empty());
+    }
 }

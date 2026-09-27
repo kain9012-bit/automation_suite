@@ -8,6 +8,6 @@
   "description": "전북교육청 홈페이지 게시글을 수집해 엑셀로 저장하고, 필요시 첨부파일도 다운로드합니다.",
   "order": 20,
   "enabled": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "keywords": []
 }

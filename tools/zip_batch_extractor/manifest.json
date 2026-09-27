@@ -8,6 +8,6 @@
   "description": "여러 ZIP 파일을 선택해 지정한 방식으로 일괄 압축 해제합니다.",
   "order": 23,
   "enabled": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "keywords": ["zip", "압축", "풀기", "압축해제", "일괄"]
 }

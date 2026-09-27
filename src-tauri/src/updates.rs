@@ -83,12 +83,16 @@ fn version(value: &str) -> Version {
 }
 
 pub(crate) fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("update-config.json");
-    if dev_path.is_file() {
-        return Ok(dev_path);
+    // 소스의 설정 파일은 개발 중에만 본다. 이 경로는 빌드할 때 문자열로 박히므로,
+    // 설치본이 이걸 보면 그 경로에 파일을 둔 PC에서만 업데이트 주소·공개키가 바뀐다.
+    if cfg!(debug_assertions) {
+        let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("update-config.json");
+        if dev_path.is_file() {
+            return Ok(dev_path);
+        }
     }
 
     let resource_dir = app
@@ -192,11 +196,14 @@ fn scan_versions(root: &Path, versions: &mut HashMap<String, String>) {
 
 fn installed_versions(app: &AppHandle) -> HashMap<String, String> {
     let mut versions = HashMap::new();
-    let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("tools");
-    scan_versions(&dev_root, &mut versions);
+    // 소스의 tools 폴더는 개발 중에만 본다. lib.rs 의 tool_roots 와 같은 이유다.
+    if cfg!(debug_assertions) {
+        let dev_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("tools");
+        scan_versions(&dev_root, &mut versions);
+    }
 
     if let Ok(resource_dir) = app.path().resource_dir() {
         scan_versions(&resource_dir.join("tools"), &mut versions);
@@ -233,8 +240,16 @@ fn available_updates(app: &AppHandle, catalog: &ToolCatalog) -> Vec<ToolUpdateIn
         .collect()
 }
 
+/// 내려받기는 오래 걸릴 수 있다. 동기 명령은 메인 스레드에서 돌아 창이 멈추므로
+/// 실제 작업은 다른 스레드로 넘긴다.
 #[tauri::command]
-pub fn check_tool_updates(app: AppHandle) -> Result<ToolUpdateCheck, String> {
+pub async fn check_tool_updates(app: AppHandle) -> Result<ToolUpdateCheck, String> {
+    tauri::async_runtime::spawn_blocking(move || check_tool_updates_blocking(app))
+        .await
+        .map_err(|error| format!("도구 업데이트 확인을 마치지 못했습니다: {error}"))?
+}
+
+fn check_tool_updates_blocking(app: AppHandle) -> Result<ToolUpdateCheck, String> {
     let config = read_config(&app)?;
     if !config.tools.enabled || config.tools.catalog_url.trim().is_empty() {
         return Ok(ToolUpdateCheck {
@@ -362,7 +377,13 @@ fn install_one(app: &AppHandle, tool: &CatalogTool, tools_dir: &Path) -> Result<
 }
 
 #[tauri::command]
-pub fn install_tool_updates(app: AppHandle) -> Result<ToolUpdateInstallResult, String> {
+pub async fn install_tool_updates(app: AppHandle) -> Result<ToolUpdateInstallResult, String> {
+    tauri::async_runtime::spawn_blocking(move || install_tool_updates_blocking(app))
+        .await
+        .map_err(|error| format!("도구 업데이트 설치를 마치지 못했습니다: {error}"))?
+}
+
+fn install_tool_updates_blocking(app: AppHandle) -> Result<ToolUpdateInstallResult, String> {
     let config = read_config(&app)?;
     if !config.tools.enabled || config.tools.catalog_url.trim().is_empty() {
         return Err("도구 업데이트 주소가 설정되지 않았습니다.".to_string());

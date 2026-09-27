@@ -401,9 +401,19 @@ class HwpCollectorPage(QWidget):
         QApplication.processEvents()
 
         try:
-            merge_han_files(self.files, save_path)
-            QMessageBox.information(self, "완료", f"파일 취합이 완료되었습니다.\n\n파일 위치:\n{save_path}")
-            self.status_label.setText("완료")
+            result = merge_han_files(self.files, save_path) or {}
+            failed = result.get("failed") or []
+            if failed:
+                lines = "\n".join(f"• {item['name']}: {item['error']}" for item in failed[:10])
+                QMessageBox.warning(
+                    self,
+                    "일부만 취합",
+                    f"{len(failed)}개 파일은 넣지 못해 빠졌습니다.\n\n{lines}\n\n파일 위치:\n{save_path}",
+                )
+                self.status_label.setText(f"완료({len(failed)}개 빠짐)")
+            else:
+                QMessageBox.information(self, "완료", f"파일 취합이 완료되었습니다.\n\n파일 위치:\n{save_path}")
+                self.status_label.setText("완료")
         except Exception as e:
             QMessageBox.critical(self, "에러", f"취합 중 오류가 발생했습니다.\n\n{e}")
             self.status_label.setText("오류 발생")

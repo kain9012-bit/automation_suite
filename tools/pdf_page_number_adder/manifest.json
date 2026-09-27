@@ -8,6 +8,6 @@
   "description": "선택한 PDF 파일에 페이지번호를 일괄 추가합니다.",
   "order": 70,
   "enabled": true,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "keywords": []
 }

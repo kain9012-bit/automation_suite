@@ -249,10 +249,10 @@ class MultiFormatPdfCombinerPage(QWidget):
             "지원 형식\n"
             "- PDF\n"
             "- 이미지(png/jpg/jpeg/webp/bmp/tif/tiff)\n"
-            "- DOCX (Word 설치 + pywin32 필요)\n"
+            "- DOC/DOCX (Word 설치 + pywin32 필요)\n"
             "- PPT/PPTX (PowerPoint 설치 + pywin32 필요)\n"
             "- HWP/HWPX (한글 설치 + pywin32 필요)\n\n"
-            "※ pikepdf 설치 시 일부 PDF 자동 복구 후 병합을 시도합니다."
+            "※ 손상된 PDF는 자동 복구 후 병합을 시도합니다."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet(f"font-size:12px; color:{MUTED};")

@@ -8,6 +8,6 @@
   "description": "여러 연수기관 이수증 PDF를 한 번에 엑셀로 정리합니다.",
   "order": 80,
   "enabled": true,
-  "version": "1.6.0",
+  "version": "1.6.1",
   "keywords": []
 }

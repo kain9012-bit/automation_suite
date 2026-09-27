@@ -32,7 +32,8 @@ export interface ToolField {
 }
 
 export interface ToolUiSchema {
-  inputMode: "file" | "folder" | "none";
+  /** "both": 파일과 폴더를 모두 받는다(폴더를 넣으면 도구가 안에서 찾는다). */
+  inputMode: "file" | "folder" | "both" | "none";
   inputLabel: string;
   multiple: boolean;
   extensions?: string[];
@@ -125,6 +126,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     outputExtension: "hwpx",
   },
   hwp_to_hwpx_converter: {
+    inputMode: "both",
     extensions: ["hwp"],
     outputMode: "hidden",
     fields: [
@@ -252,6 +254,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     ],
   },
   zip_batch_extractor: {
+    inputMode: "both",
     extensions: ["zip"],
     outputMode: "folder",
     outputLabel: "압축 해제 폴더(선택)",

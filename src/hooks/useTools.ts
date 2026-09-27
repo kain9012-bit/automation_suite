@@ -24,6 +24,8 @@ function readIds(key: string): string[] {
 export function useTools() {
   const [tools, setTools] = useState<ToolManifest[]>([]);
   const [loading, setLoading] = useState(true);
+  // 처음 한 번 불러오기를 마쳤는지. 그 뒤의 새로고침은 화면을 가리지 않는다.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [favorites, setFavorites] = useState<string[]>(() =>
     readIds(FAVORITES_KEY),
@@ -39,6 +41,7 @@ export function useTools() {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }, []);
 
@@ -85,6 +88,7 @@ export function useTools() {
   return {
     tools,
     loading,
+    loaded,
     error,
     categories,
     favorites,

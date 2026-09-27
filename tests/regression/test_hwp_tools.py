@@ -1,0 +1,613 @@
+"""한글(HWP) COM 도구 회귀 확인 — 한글 없이 가짜 COM 객체로 돌린다.
+
+대상: tools/hwp_collector, tools/hwp_to_pdf_converter, tools/hwp_to_hwpx_converter 와
+bridge/runner.py 의 run_hwp_collector / run_hwp_to_pdf / run_hwp_to_hwpx.
+
+실행: python tests/regression/test_hwp_tools.py   (실패가 하나라도 있으면 종료 코드 1)
+"""
+from __future__ import annotations
+
+import contextlib
+import importlib
+import io
+import json
+import os
+import sys
+import tempfile
+import traceback
+import types
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PROGRESS = "@@JBEDU_PROGRESS@@"
+HINT = "한글이 파일 접근을 물으면 [허용]을 눌러 주세요."
+
+
+# ------------------------------------------------------------------ 가짜 COM
+class State:
+    def reset(self) -> None:
+        self.hwps: list[FakeHwp] = []
+        self.dispatch_calls = 0
+        # True: gen_py 캐시가 망가진 PC(win32com.client.Dispatch 가 실패).
+        # 기본은 False 로 두어, 다른 결함 확인이 이 결함에 가려지지 않게 한다.
+        self.dispatch_broken = False
+        self.ensure_calls = 0
+        self.dynamic_calls: list[str] = []
+        self.progids_ok = {"HWPFrame.HwpObject"}
+        self.accepted_modules = {"SecurityModule"}
+        self.open_result = True
+        self.open_raises = False
+        self.path_empty = False
+        self.insert_fail: set[str] = set()
+        self.save_raises = False
+        self.on_open = None
+        self.on_insert = None
+        self.coinit = 0
+        self.couninit = 0
+
+
+S = State()
+S.reset()
+
+
+class FakeWindow:
+    def __init__(self, hwp):
+        self._hwp = hwp
+
+    @property
+    def Visible(self):
+        return self._hwp.visible[-1] if self._hwp.visible else False
+
+    @Visible.setter
+    def Visible(self, value):
+        self._hwp.visible.append(bool(value))
+
+
+class FakeWindows:
+    def __init__(self, hwp):
+        self._w = FakeWindow(hwp)
+
+    def Item(self, _i):
+        return self._w
+
+
+class FakeParam:
+    def __init__(self):
+        self.HSet = self
+        self.filename = ""
+        self.Format = ""
+        self.KeepSection = 1
+        self.Attributes = 0
+
+
+class FakeParamSets:
+    def __init__(self):
+        self.HInsertFile = FakeParam()
+        self.HFileOpenSave = FakeParam()
+
+
+def write_by_format(path: str, fmt: str) -> None:
+    fmt = (fmt or "").upper()
+    if fmt == "PDF":
+        data = b"%PDF-1.4 fake"
+    elif fmt.startswith("HWPX"):
+        data = b"PK\x03\x04 fake hwpx"
+    else:  # 형식을 안 주면 한글은 HWP(이진)로 저장한다.
+        data = b"\xd0\xcf\x11\xe0 fake hwp"
+    Path(path).write_bytes(data)
+
+
+class FakeAction:
+    def __init__(self, hwp):
+        self._hwp = hwp
+
+    def Run(self, name):
+        self._hwp.actions.append(name)
+        return True
+
+    def GetDefault(self, _name, _hset):
+        return True
+
+    def Execute(self, name, hset):
+        self._hwp.actions.append(name)
+        if name == "InsertFile":
+            fname = Path(hset.filename).name
+            if S.on_insert:
+                S.on_insert(fname)
+            if fname in S.insert_fail:
+                return False
+            self._hwp.inserted.append(fname)
+            return True
+        if name in ("FileSaveAs", "FileSaveAs_S"):
+            if S.save_raises:
+                raise RuntimeError("save boom")
+            write_by_format(hset.filename, hset.Format)
+            return True
+        return True
+
+
+class FakeHwp:
+    def __init__(self):
+        self.visible: list[bool] = []
+        self.registered: list[str] = []
+        self.actions: list[str] = []
+        self.inserted: list[str] = []
+        self.saved: list[tuple] = []
+        self.quit_called = False
+        self._path = ""
+        self.XHwpWindows = FakeWindows(self)
+        self.HAction = FakeAction(self)
+        self.HParameterSet = FakeParamSets()
+
+    def RegisterModule(self, _kind, name):
+        self.registered.append(name)
+        return name in S.accepted_modules
+
+    def Open(self, path, fmt="", opt=""):
+        if S.on_open:
+            S.on_open(Path(path).name)
+        if S.open_raises:
+            raise RuntimeError("open boom")
+        if not S.open_result:
+            return False
+        self._path = "" if S.path_empty else path
+        return True
+
+    @property
+    def Path(self):
+        return self._path
+
+    def SaveAs(self, path, fmt=None, arg=None):
+        self.saved.append((path, fmt))
+        if S.save_raises:
+            raise RuntimeError("save boom")
+        write_by_format(path, fmt or "")
+        return True
+
+    def Clear(self, _n):
+        self._path = ""
+
+    def Quit(self):
+        self.quit_called = True
+
+
+def _new_hwp():
+    hwp = FakeHwp()
+    S.hwps.append(hwp)
+    return hwp
+
+
+def _broken_dispatch(*_a, **_k):
+    S.dispatch_calls += 1
+    if not S.dispatch_broken:
+        return _new_hwp()
+    raise AttributeError("module 'win32com.gen_py.7D2B6F3C' has no attribute 'CLSIDToPackageMap'")
+
+
+def _ensure_dispatch(*_a, **_k):
+    # 동작은 하지만 gen_py 캐시를 만든다(다른 도구를 망가뜨리는 원인).
+    S.ensure_calls += 1
+    return _new_hwp()
+
+
+def _dynamic_dispatch(prog_id, *_a, **_k):
+    S.dynamic_calls.append(prog_id)
+    if prog_id not in S.progids_ok:
+        raise Exception("잘못된 클래스 문자열입니다.")
+    return _new_hwp()
+
+
+def _coinit():
+    S.coinit += 1
+
+
+def _couninit():
+    S.couninit += 1
+
+
+def install_stubs() -> None:
+    pythoncom = types.ModuleType("pythoncom")
+    pythoncom.CoInitialize = _coinit
+    pythoncom.CoUninitialize = _couninit
+    win32com = types.ModuleType("win32com")
+    client = types.ModuleType("win32com.client")
+    dynamic = types.ModuleType("win32com.client.dynamic")
+    gencache = types.ModuleType("win32com.client.gencache")
+    client.Dispatch = _broken_dispatch
+    dynamic.Dispatch = _dynamic_dispatch
+    gencache.EnsureDispatch = _ensure_dispatch
+    client.dynamic = dynamic
+    client.gencache = gencache
+    win32com.client = client
+    sys.modules.update({
+        "pythoncom": pythoncom,
+        "win32com": win32com,
+        "win32com.client": client,
+        "win32com.client.dynamic": dynamic,
+        "win32com.client.gencache": gencache,
+    })
+
+
+install_stubs()
+for sub in ("hwp_collector", "hwp_to_pdf_converter", "hwp_to_hwpx_converter"):
+    sys.path.insert(0, str(ROOT / "tools" / sub))
+sys.path.insert(0, str(ROOT / "bridge"))
+os.environ["JBEDU_PROJECT_ROOT"] = str(ROOT)
+os.environ.pop("JBEDU_CANCEL_FILE", None)
+os.environ.pop("HWP_FILE_PATH_CHECKER_MODULE", None)
+
+collector = importlib.import_module("hwp_collector_service")
+pdfconv = importlib.import_module("hwp_to_pdf_converter_service")
+hwpx = importlib.import_module("hwp_to_hwpx_converter_service")
+runner = importlib.import_module("runner")
+
+
+# ------------------------------------------------------------------ 도우미
+def make_files(folder: Path, names: list[str]) -> list[Path]:
+    paths = []
+    for name in names:
+        p = folder / name
+        p.write_bytes(b"\xd0\xcf\x11\xe0 source")
+        paths.append(p)
+    return paths
+
+
+def run_runner(tool: str, payload: dict, cancel_file: Path | None = None):
+    """runner.main 을 실제처럼 돌리고 (반환 코드, 결과 JSON, 진행 줄, stdout 전체) 를 준다."""
+    if cancel_file is not None:
+        os.environ["JBEDU_CANCEL_FILE"] = str(cancel_file)
+    out, err = io.StringIO(), io.StringIO()
+    argv = sys.argv
+    sys.argv = ["runner", "--tool", tool, "--payload", json.dumps(payload, ensure_ascii=False)]
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = runner.main()
+    finally:
+        sys.argv = argv
+        os.environ.pop("JBEDU_CANCEL_FILE", None)
+    lines = [line for line in out.getvalue().splitlines() if line.strip()]
+    progress = [line[len(PROGRESS):] for line in lines if line.startswith(PROGRESS)]
+    others = [line for line in lines if not line.startswith(PROGRESS)]
+    result = None
+    if others:
+        try:
+            result = json.loads(others[-1])
+        except Exception:
+            result = None
+    assert len(others) <= 1, f"stdout 에 JSON/진행 줄 말고 다른 것이 있음: {others}"
+    return code, result, progress, err.getvalue()
+
+
+def all_quit() -> bool:
+    return bool(S.hwps) and all(h.quit_called for h in S.hwps)
+
+
+def balanced() -> bool:
+    return S.coinit == S.couninit and S.coinit > 0
+
+
+RESULTS: list[tuple[str, bool, str]] = []
+
+
+def check(name):
+    def deco(fn):
+        S.reset()
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                fn(Path(tmp))
+                RESULTS.append((name, True, ""))
+            except Exception as error:
+                detail = f"{type(error).__name__}: {error}"
+                if not isinstance(error, AssertionError):
+                    detail += "\n" + traceback.format_exc(limit=3)
+                RESULTS.append((name, False, detail))
+        return fn
+    return deco
+
+
+# ------------------------------------------------------------------ 1. PDF: 늦은 바인딩
+@check("1 PDF: gen_py 캐시가 망가져도(Dispatch 실패) dynamic 으로 변환")
+def _(tmp):
+    S.dispatch_broken = True
+    (src,) = make_files(tmp, ["a.hwp"])
+    ok, bad = pdfconv.convert_files([src], tmp / "out")
+    assert ok == ["a.hwp"] and not bad, f"ok={ok} bad={bad}"
+    assert (tmp / "out" / "a.pdf").read_bytes().startswith(b"%PDF")
+    assert S.dispatch_calls == 0, "win32com.client.Dispatch 를 불렀음"
+
+
+@check("1 PDF: 다른 ProgID(HwpFrame.HwpObject)만 등록된 PC 에서도 변환")
+def _(tmp):
+    S.dispatch_broken = True
+    S.progids_ok = {"HwpFrame.HwpObject"}
+    (src,) = make_files(tmp, ["a.hwp"])
+    ok, bad = pdfconv.convert_files([src], tmp / "out")
+    assert ok == ["a.hwp"], f"bad={bad}"
+
+
+# ------------------------------------------------------------------ 2. HWPX: gencache 안 씀
+@check("2 HWPX: gencache.EnsureDispatch/Dispatch 를 쓰지 않고 dynamic 으로 변환(원본 삭제 유지)")
+def _(tmp):
+    S.dispatch_broken = True
+    (src,) = make_files(tmp, ["a.hwp"])
+    batch = hwpx.convert_hwp_files_to_hwpx([src])
+    assert S.ensure_calls == 0, "gencache.EnsureDispatch 를 불렀음(gen_py 캐시 생성)"
+    assert S.dispatch_calls == 0, "win32com.client.Dispatch 를 불렀음"
+    assert S.dynamic_calls, "dynamic.Dispatch 를 쓰지 않음"
+    assert batch.success_count == 1, batch
+    assert (tmp / "a.hwpx").read_bytes().startswith(b"PK")
+    assert not src.exists(), "변환된 원본 hwp 는 지워져야 함(의도된 동작)"
+
+
+@check("2 HWPX: 한글을 띄운 뒤 준비 단계가 실패해도 한글을 끈다")
+def _(tmp):
+    (src,) = make_files(tmp, ["a.hwp"])
+    original = hwpx.try_register_file_path_security_module
+
+    def boom(_hwp):
+        raise RuntimeError("register boom")
+
+    hwpx.try_register_file_path_security_module = boom
+    try:
+        try:
+            hwpx.convert_hwp_files_to_hwpx([src])
+        except RuntimeError:
+            pass
+    finally:
+        hwpx.try_register_file_path_security_module = original
+    assert all_quit(), "남은 한글(Hwp.exe)이 있음"
+    assert balanced(), f"CoInitialize {S.coinit} / CoUninitialize {S.couninit}"
+
+
+# ------------------------------------------------------------------ 3. PDF: Open 실패
+@check("3 PDF: Open 이 False 면 빈 문서를 PDF로 내보내지 않고 실패로 알린다")
+def _(tmp):
+    S.open_result = False
+    (src,) = make_files(tmp, ["a.hwp"])
+    ok, bad = pdfconv.convert_files([src], tmp / "out")
+    assert not ok and [n for n, _ in bad] == ["a.hwp"], f"ok={ok} bad={bad}"
+    assert not (tmp / "out" / "a.pdf").exists(), "빈 문서 PDF 가 만들어짐"
+
+
+@check("3 PDF: Open 이 True 여도 문서가 비어 있으면(Path 빈 값) 실패")
+def _(tmp):
+    S.path_empty = True
+    (src,) = make_files(tmp, ["a.hwp"])
+    ok, bad = pdfconv.convert_files([src], tmp / "out")
+    assert not ok and bad, f"ok={ok} bad={bad}"
+
+
+@check("3 PDF(runner): 일부 실패 시 failed=[{name,error}] 이고 메시지에 실패 수")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp"])
+    calls = {"n": 0}
+
+    def on_open(_name):
+        calls["n"] += 1
+        S.open_result = calls["n"] != 2
+
+    S.on_open = on_open
+    code, result, progress, err = run_runner(
+        "hwp_to_pdf_converter", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out")}
+    )
+    assert code == 0, err
+    assert result["failed"] and result["failed"][0]["name"] == "b.hwp" and result["failed"][0]["error"], result
+    assert "1개는 변환하지 못했습니다" in result["message"], result["message"]
+
+
+# ------------------------------------------------------------------ 4. 취합: InsertFile 실패
+@check("4 취합: InsertFile 이 False 인 파일은 failed 로 알리고 나머지는 계속")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwpx"])
+    S.insert_fail = {"b.hwp"}
+    result = collector.merge_han_files(srcs, tmp / "out.hwpx")
+    assert isinstance(result, dict), f"결과를 돌려주지 않음: {result!r}"
+    assert [f["name"] for f in result["failed"]] == ["b.hwp"], result
+    assert result["inserted"] == ["a.hwp", "c.hwpx"], result
+    assert S.hwps[0].inserted == ["a.hwp", "c.hwpx"]
+    assert S.hwps[0].actions.count("DeleteBack") == 1, "실패한 파일 앞 쪽 나누기를 되돌리지 않음"
+    assert (tmp / "out.hwpx").exists()
+
+
+@check("4 취합(runner): 메시지가 완료라고 하지 않고 빠진 개수를 말한다")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    S.insert_fail = {"b.hwp"}
+    code, result, progress, err = run_runner(
+        "hwp_collector", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out.hwpx")}
+    )
+    assert code == 0, err
+    assert "완료" not in result["message"], result["message"]
+    assert "1개는 넣지 못해 빠졌습니다" in result["message"], result["message"]
+    assert result["failed"] == [{"name": "b.hwp", "error": result["failed"][0]["error"]}] and result["failed"][0]["error"]
+
+
+@check("4 취합: 모두 실패하면 빈 문서를 저장하지 않고 오류")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp"])
+    S.insert_fail = {"a.hwp", "b.hwp"}
+    raised = False
+    try:
+        collector.merge_han_files(srcs, tmp / "out.hwpx")
+    except Exception:
+        raised = True
+    assert raised, "오류 없이 끝남"
+    assert not (tmp / "out.hwpx").exists(), "빈 결과 파일을 저장함"
+    assert all_quit() and balanced()
+
+
+# ------------------------------------------------------------------ 5. 취합: 저장 형식
+@check("5 취합: .hwpx 로 저장하면 HWPX(ZIP) 형식으로 저장")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp"])
+    collector.merge_han_files(srcs, tmp / "out.hwpx")
+    data = (tmp / "out.hwpx").read_bytes()
+    assert data.startswith(b"PK"), f"hwpx 안에 HWP 이진 형식이 들어감: {data[:8]!r} saved={S.hwps[0].saved}"
+    assert all(fmt == "HWPX" for _, fmt in S.hwps[0].saved), S.hwps[0].saved
+
+
+@check("5 취합: .hwp 로 저장하면 HWP 형식")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp"])
+    collector.merge_han_files(srcs, tmp / "out.hwp")
+    assert S.hwps[0].saved and S.hwps[0].saved[0][1] == "HWP", S.hwps[0].saved
+
+
+# ------------------------------------------------------------------ 6. 보안 모듈
+def _security_cases(tmp, tool, payload_extra=None):
+    """(a) FilePathCheckerModule 만 있는 PC: 그것을 등록, 창은 숨김.
+       (b) 보안 모듈이 없는 PC: 창을 보이고 [허용] 안내가 앱까지 간다."""
+    S.reset()
+    S.accepted_modules = {"FilePathCheckerModule"}
+    (tmp / "a").mkdir()
+    srcs = make_files(tmp / "a", ["x.hwp"])
+    payload = {"inputs": [str(p) for p in srcs], **(payload_extra(tmp / "a") if payload_extra else {})}
+    code, result, progress, err = run_runner(tool, payload)
+    assert code == 0, err
+    assert "FilePathCheckerModule" in S.hwps[0].registered, f"등록 시도: {S.hwps[0].registered}"
+    assert True not in S.hwps[0].visible, "보안 모듈이 있는데 창을 보임"
+    assert not any(HINT in line for line in progress), progress
+
+    S.reset()
+    S.accepted_modules = set()
+    (tmp / "b").mkdir()
+    srcs = make_files(tmp / "b", ["y.hwp"])
+    payload = {"inputs": [str(p) for p in srcs], **(payload_extra(tmp / "b") if payload_extra else {})}
+    code, result, progress, err = run_runner(tool, payload)
+    assert code == 0, err
+    assert S.hwps[0].visible and S.hwps[0].visible[-1] is True, f"창을 보이지 않음: {S.hwps[0].visible}"
+    assert any(HINT in line for line in progress), f"[허용] 안내가 앱으로 가지 않음: {progress}"
+
+
+@check("6 취합: 보안 모듈 여러 이름 시도 / 없으면 창 보이기 + 안내")
+def _(tmp):
+    _security_cases(tmp, "hwp_collector", lambda d: {"output": str(d / "out.hwpx")})
+
+
+@check("6 PDF: 보안 모듈 여러 이름 시도 / 없으면 창 보이기 + 안내")
+def _(tmp):
+    _security_cases(tmp, "hwp_to_pdf_converter", lambda d: {"output": str(d / "out")})
+
+
+@check("6 HWPX: 보안 모듈 없으면 창 보이기 + 안내가 앱까지 전달")
+def _(tmp):
+    _security_cases(tmp, "hwp_to_hwpx_converter")
+
+
+# ------------------------------------------------------------------ 7. 중지
+def _cancel_after_first(tmp, hook_name):
+    cancel_file = tmp / "cancel.flag"
+    seen = {"n": 0}
+
+    def hook(_name):
+        seen["n"] += 1
+        if seen["n"] == 1:
+            cancel_file.write_text("1")
+
+    setattr(S, hook_name, hook)
+    return cancel_file
+
+
+@check("7 취합: 중지하면 넣은 것까지만 저장하고 멈춘다")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    cancel_file = _cancel_after_first(tmp, "on_insert")
+    code, result, progress, err = run_runner(
+        "hwp_collector", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out.hwpx")}, cancel_file
+    )
+    assert code == 0, err
+    assert result.get("stopped") is True, result
+    assert S.hwps[0].inserted == ["a.hwp"], S.hwps[0].inserted
+    assert (tmp / "out.hwpx").exists() and "중지" in result["message"], result
+    assert all_quit() and balanced()
+
+
+@check("7 PDF: 중지하면 남은 파일은 건너뛰고 멈춘다")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    cancel_file = _cancel_after_first(tmp, "on_open")
+    code, result, progress, err = run_runner(
+        "hwp_to_pdf_converter", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out")}, cancel_file
+    )
+    assert code == 0, err
+    assert result.get("stopped") is True and "중지" in result["message"], result
+    assert sorted(p.name for p in (tmp / "out").iterdir()) == ["a.pdf"]
+    assert all_quit() and balanced()
+
+
+@check("7 HWPX: 중지하면 남은 파일은 건드리지 않고 멈춘다")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    cancel_file = _cancel_after_first(tmp, "on_open")
+    code, result, progress, err = run_runner(
+        "hwp_to_hwpx_converter", {"inputs": [str(p) for p in srcs]}, cancel_file
+    )
+    assert code == 0, err
+    assert result.get("stopped") is True and "중지" in result["message"], result
+    assert (tmp / "a.hwpx").exists() and (tmp / "b.hwp").exists() and (tmp / "c.hwp").exists()
+    assert not (tmp / "b.hwpx").exists()
+    assert all_quit() and balanced()
+
+
+# ------------------------------------------------------------------ 8. 정리
+@check("8 취합: 저장이 예외로 끝나도 한글을 끄고 CoUninitialize")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp"])
+    S.save_raises = True
+    try:
+        collector.merge_han_files(srcs, tmp / "out.hwpx")
+    except Exception:
+        pass
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("8 PDF: Open 이 예외여도 한글을 끄고 CoUninitialize")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp"])
+    S.open_raises = True
+    ok, bad = pdfconv.convert_files(srcs, tmp / "out")
+    assert len(bad) == 2 and len(S.hwps) == 2
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("8 HWPX: 도중에 예외가 나도 한글을 끄고 CoUninitialize")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp"])
+
+    def log(line):
+        if line.startswith("[2/"):
+            raise RuntimeError("log boom")
+
+    try:
+        hwpx.convert_hwp_files_to_hwpx(srcs, log=log)
+    except RuntimeError:
+        pass
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("8 한글을 부르지 못해도 CoUninitialize (취합/PDF/HWPX)")
+def _(tmp):
+    S.progids_ok = set()
+    srcs = make_files(tmp, ["a.hwp"])
+    for call in (
+        lambda: collector.merge_han_files(srcs, tmp / "o.hwpx"),
+        lambda: pdfconv.convert_files(srcs, tmp / "out"),
+        lambda: hwpx.convert_hwp_files_to_hwpx(srcs),
+    ):
+        try:
+            call()
+        except Exception:
+            pass
+    assert S.coinit == S.couninit == 3, (S.coinit, S.couninit)
+
+
+# ------------------------------------------------------------------ 결과
+failures = 0
+for name, ok, detail in RESULTS:
+    print(("✔ " if ok else "✗ ") + name)
+    if not ok:
+        failures += 1
+        for line in detail.strip().splitlines():
+            print("    " + line)
+print(f"\n{len(RESULTS) - failures}/{len(RESULTS)} 통과")
+sys.exit(1 if failures else 0)

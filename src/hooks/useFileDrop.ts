@@ -23,17 +23,9 @@ export function useFileDrop(onDrop: (paths: string[]) => void, enabled = true) {
     void getCurrentWebview()
       .onDragDropEvent((event) => {
         if (cancelled) return;
-        if (event.payload.type === "over") {
-          setDropping(true);
-          return;
-        }
-        if (event.payload.type === "leave") {
-          setDropping(false);
-          return;
-        }
-        setDropping(false);
-        const paths = event.payload.paths ?? [];
-        if (paths.length) handlerRef.current(paths);
+        const decision = dragDropDecision(event.payload);
+        if (decision.highlight !== undefined) setDropping(decision.highlight);
+        if (decision.paths?.length) handlerRef.current(decision.paths);
       })
       .then((stop) => {
         if (cancelled) {
@@ -52,6 +44,31 @@ export function useFileDrop(onDrop: (paths: string[]) => void, enabled = true) {
   }, [enabled]);
 
   return dropping;
+}
+
+/**
+ * 끌기 이벤트 하나를 어떻게 처리할지.
+ *
+ * Tauri 2 는 enter → over … → drop 또는 leave 순서로 알린다. enter 에도 경로가
+ * 실려 오지만 아직 놓은 것이 아니다. 파일을 받는 것은 drop 하나뿐이다.
+ * 예전에는 enter 가 drop 처럼 처리되어, 창 위로 끌고 지나가기만 해도 파일이 들어가고
+ * 실제로 놓으면 한 번 더 들어갔다.
+ */
+export function dragDropDecision(payload: { type: string; paths?: string[] }): {
+  highlight?: boolean;
+  paths?: string[];
+} {
+  switch (payload.type) {
+    case "enter":
+    case "over":
+      return { highlight: true };
+    case "leave":
+      return { highlight: false };
+    case "drop":
+      return { highlight: false, paths: payload.paths ?? [] };
+    default:
+      return {};
+  }
 }
 
 /** 확장자 목록에 맞는 경로만 남긴다. 목록이 없으면 전부 통과시킨다. */

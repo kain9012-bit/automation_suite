@@ -391,3 +391,27 @@ SUPPORTED_ORGS_TEXT = (
     "※ 위 기관 이수증은 구조를 분석해 최적화해 두었습니다.\n"
     "※ 다른 형식의 이수증은 일부 항목이 비어 '확인필요'로 분류될 수 있습니다."
 )
+
+
+# ==========================================================
+# 오류 문구
+# ==========================================================
+
+def describe_pdf_error(error: BaseException) -> str:
+    """PDF 라이브러리의 영어 오류를 짧은 한국어 사유로 바꾼다. 이미 한국어면 그대로 둔다.
+
+    pdfplumber 는 암호가 걸린 PDF 에서 빈 문구의 오류를 낸다. 그래도 사유가 보이게 한다.
+    """
+    text = str(error).strip()
+    probe = f"{type(error).__name__} {text} {error!r}".lower()
+    if any(key in probe for key in ("decrypt", "encrypt", "password")):
+        return "암호가 걸린 PDF라 읽을 수 없습니다. 암호를 해제한 뒤 다시 시도하세요."
+    if any(key in probe for key in (
+        "failed to open", "eof", "startxref", "xref", "stream has ended",
+        "invalid pdf header", "/root", "trailer", "pdfreaderror", "pdfstreamerror",
+        "pdfsyntaxerror", "pdfminer", "psexception", "not a pdf",
+    )):
+        return "PDF 파일이 손상되었거나 PDF 형식이 아닙니다."
+    if re.search(r"[가-힣]", text):
+        return text
+    return f"처리하지 못했습니다. ({text or type(error).__name__})"

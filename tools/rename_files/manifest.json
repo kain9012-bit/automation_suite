@@ -8,6 +8,6 @@
   "description": "여러 파일명의 문자열을 바꾸거나 앞뒤에 일괄 추가합니다.",
   "order": 10,
   "enabled": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "keywords": []
 }

@@ -1,0 +1,91 @@
+// 프런트엔드 순수 함수 회귀 검사. 실행: node tests/regression/frontend_helpers.test.ts
+// (Node 22.18+ 는 TypeScript 형식 표기를 그대로 벗겨 실행한다. 더 낮으면 --experimental-strip-types)
+import assert from "node:assert/strict";
+import {
+  describeFailure,
+  failureMessage,
+  summarizeFailures,
+} from "../../src/lib/failureSummary.ts";
+import { dragDropDecision, filterByExtension } from "../../src/hooks/useFileDrop.ts";
+import {
+  beginToolRun,
+  getToolRun,
+  openToolRun,
+  updateToolRun,
+} from "../../src/lib/toolRunStore.ts";
+
+let passed = 0;
+const test = (name: string, body: () => void) => {
+  body();
+  passed += 1;
+  console.log(`ok - ${name}`);
+};
+
+// ── 9. 실패 목록 ────────────────────────────────────────────────
+test("새 약속 {name, error}", () => {
+  assert.equal(describeFailure({ name: "a.pdf", error: "암호" }), "a.pdf: 암호");
+});
+test("예전 모양: 문자열, path/reason, message", () => {
+  assert.equal(describeFailure("tool: 모듈 없음"), "tool: 모듈 없음");
+  assert.equal(describeFailure({ path: "C:\\자료\\b.hwp", reason: "잠김" }), "b.hwp: 잠김");
+  assert.equal(describeFailure({ message: "알 수 없음" }), "알 수 없음");
+  assert.equal(describeFailure({ code: 3 }), '{"code":3}');
+  assert.equal(describeFailure(null), "");
+});
+test("실패가 없으면 null", () => {
+  assert.equal(summarizeFailures({ ok: true, failed: [] }), null);
+  assert.equal(summarizeFailures({ ok: true, fail_count: 0 }), null);
+  assert.equal(summarizeFailures({ ok: true }), null);
+});
+test("fail_count 만 있어도 경고 (중첩 result 포함)", () => {
+  const summary = summarizeFailures({ ok: true, result: { fail_count: 2 } });
+  assert.deepEqual(summary, { count: 2, lines: [], hidden: 0 });
+});
+test("10개까지만 보이고 나머지는 개수로", () => {
+  const failed = Array.from({ length: 13 }, (_, i) => ({ name: `f${i}.zip`, error: "손상" }));
+  const summary = summarizeFailures({ failed });
+  assert.ok(summary);
+  assert.equal(summary.count, 13);
+  assert.equal(summary.lines.length, 10);
+  assert.equal(summary.hidden, 3);
+  const text = failureMessage(summary, "압축을 풀었습니다.", "C:\\out");
+  assert.match(text, /처리하지 못한 항목: 13개/);
+  assert.match(text, /· f0\.zip: 손상/);
+  assert.match(text, /… 외 3개/);
+  assert.match(text, /저장 위치: C:\\out/);
+});
+
+// ── 5. 끌어다 놓기 ──────────────────────────────────────────────
+test("enter 는 경로가 있어도 파일을 넣지 않는다", () => {
+  assert.deepEqual(dragDropDecision({ type: "enter", paths: ["C:\\a.pdf"] }), { highlight: true });
+  assert.deepEqual(dragDropDecision({ type: "over" }), { highlight: true });
+  assert.deepEqual(dragDropDecision({ type: "leave" }), { highlight: false });
+  assert.deepEqual(dragDropDecision({ type: "drop", paths: ["C:\\a.pdf"] }), {
+    highlight: false,
+    paths: ["C:\\a.pdf"],
+  });
+});
+test("확장자 거르기는 그대로", () => {
+  assert.deepEqual(filterByExtension(["a.HWP", "b.txt", "폴더"], ["hwp"]), ["a.HWP"]);
+});
+
+// ── 6. 도구 실행 상태 ───────────────────────────────────────────
+test("같은 도구는 겹쳐 돌지 않고, 화면을 다시 열어도 실행 중으로 남는다", () => {
+  openToolRun("t1");
+  assert.equal(beginToolRun("t1", "시작"), true);
+  assert.equal(beginToolRun("t1", "또 시작"), false);
+  openToolRun("t1"); // 다른 화면에 갔다가 돌아옴
+  assert.equal(getToolRun("t1").running, true);
+  assert.deepEqual(getToolRun("t1").log, ["시작"]);
+  updateToolRun("t1", () => ({
+    running: false,
+    popup: { level: "success", title: "끝", message: "" },
+  }));
+  openToolRun("t1"); // 결과 팝업을 아직 안 봤으면 남긴다
+  assert.equal(getToolRun("t1").popup?.title, "끝");
+  updateToolRun("t1", () => ({ popup: null }));
+  openToolRun("t1"); // 다 본 뒤 새로 열면 빈 상태
+  assert.deepEqual(getToolRun("t1").log, []);
+});
+
+console.log(`\n${passed}개 통과`);

@@ -48,11 +48,9 @@ const turn = (value: number, delta: number) => (((value + delta) % 360) + 360) %
 
 export function PdfOrganizerPanel({
   tool,
-  presetPaths,
   onReset,
 }: {
   tool: ToolManifest;
-  presetPaths?: string[];
   onReset?: () => void;
 }) {
   const [docs, setDocs] = useState<PdfDoc[]>([]);
@@ -177,15 +175,6 @@ export function PdfOrganizerPanel({
       setLoading(false);
     }
   };
-
-  // 탐색기 우클릭으로 열었으면 그 PDF 를 바로 불러온다.
-  const presetLoaded = useRef(false);
-  useEffect(() => {
-    if (presetLoaded.current || !presetPaths?.length) return;
-    presetLoaded.current = true;
-    void addFiles(presetPaths);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presetPaths]);
 
   const pickFiles = async () => {
     const chosen = await openDialog({

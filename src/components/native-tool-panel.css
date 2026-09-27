@@ -116,6 +116,12 @@
   color: var(--accent);
 }
 
+.folder-pick-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .ordered-files ol {
   max-height: 260px;
   margin: 0;

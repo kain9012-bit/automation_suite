@@ -109,8 +109,35 @@ def run_hwp_collector(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
     output = _output_path(payload, inputs, f"한글취합_{time_stamp()}.hwpx")
     service = _module("hwp_collector", "hwp_collector_service")
-    service.merge_han_files(inputs, output)
-    return _success("한글 문서 취합을 완료했습니다.", output=output)
+    result = service.merge_han_files(
+        inputs, output, progress=emit_progress, cancel=FileCancel().is_set
+    )
+    failed = result["failed"]
+    stopped = bool(result["stopped"])
+    if not result["saved"]:
+        return _success("중지했습니다. 취합한 파일이 없어 저장하지 않았습니다.", stopped=True, failed=failed)
+    if not failed and not stopped:
+        return _success("한글 문서 취합을 완료했습니다.", output=output, failed=[])
+    count = len(result["inserted"])
+    message = (
+        f"중지했습니다. 그때까지 넣은 한글 문서 {count}개만 취합했습니다."
+        if stopped
+        else f"한글 문서 {count}개를 취합했습니다."
+    )
+    if failed:
+        message += f" {len(failed)}개는 넣지 못해 빠졌습니다."
+    lines = "".join(f"\n· {item['name']}: {item['error']}" for item in failed)
+    return _success(
+        message,
+        output=output,
+        failed=failed,
+        stopped=stopped,
+        popup={
+            "level": "warning",
+            "title": "일부 파일만 취합했습니다",
+            "message": message + f"\n\n저장 위치: {output}" + (f"\n\n빠진 파일{lines}" if lines else ""),
+        },
+    )
 
 
 def run_multi_format_pdf_combiner(payload: dict[str, Any]) -> dict[str, Any]:
@@ -120,22 +147,43 @@ def run_multi_format_pdf_combiner(payload: dict[str, Any]) -> dict[str, Any]:
         "multi_format_pdf_combiner", "multi_format_pdf_combiner_service"
     )
     converted: list[Path] = []
-    conversion_errors: list[tuple[str, str]] = []
+    names: list[str] = []
+    failed: list[dict[str, str]] = []
     with tempfile.TemporaryDirectory(prefix="jbedu_pdf_") as temp_name:
         temp_dir = Path(temp_name)
-        for source in inputs:
-            pdf_path, error = service.ensure_pdf(source, temp_dir)
+        for index, source in enumerate(inputs, start=1):
+            if len(inputs) > 1:
+                emit_progress(f"[{index}/{len(inputs)}] {source.name}")
+            pdf_path, error = service.ensure_pdf(source, temp_dir, progress=emit_progress)
             if pdf_path:
                 converted.append(pdf_path)
+                names.append(source.name)
             else:
-                conversion_errors.append((source.name, error or "변환 실패"))
-        ok_files, merge_errors = service.merge_pdf_ordered(converted, output)
-    errors = [*conversion_errors, *merge_errors]
-    return _success(
-        f"문서 {len(ok_files)}개를 PDF로 통합했습니다.",
-        output=output,
-        failed=errors,
-    )
+                failed.append({"name": source.name, "error": error or "PDF로 바꾸지 못했습니다."})
+                emit_progress(f"{source.name}: 처리하지 못했습니다 ({error or '변환 실패'})")
+        if not converted:
+            raise RuntimeError(
+                "PDF로 합칠 수 있는 파일이 없습니다.\n\n"
+                + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
+            )
+        try:
+            ok_files, merge_errors = service.merge_pdf_ordered(converted, output, names)
+        except RuntimeError as error:
+            # 합칠 쪽이 하나도 없을 때: 앞에서 변환하지 못한 파일도 함께 알린다.
+            lines = [f"· {item['name']}: {item['error']}" for item in failed]
+            raise RuntimeError(str(error) + ("\n" + "\n".join(lines) if lines else "")) from error
+    failed.extend({"name": name, "error": reason} for name, reason in merge_errors)
+    # 넣은 순서대로 실패 목록을 보여 준다.
+    order = {path.name: position for position, path in enumerate(inputs)}
+    failed.sort(key=lambda item: order.get(item["name"], len(order)))
+    if failed:
+        message = (
+            f"문서 {len(inputs)}개 중 {len(ok_files)}개를 PDF로 통합했습니다. "
+            f"{len(failed)}개는 처리하지 못했습니다."
+        )
+    else:
+        message = f"문서 {len(ok_files)}개를 PDF로 통합했습니다."
+    return _success(message, output=output, failed=failed)
 
 
 def run_certificate_pdf_collector(payload: dict[str, Any]) -> dict[str, Any]:
@@ -146,12 +194,27 @@ def run_certificate_pdf_collector(payload: dict[str, Any]) -> dict[str, Any]:
     good, bad, errors = service.process_pdfs(inputs)
     output = _output_path(payload, inputs, "이수증_취합결과.xlsx")
     service.save_result_excel(output, good, bad, errors)
+    failed = [
+        {"name": str(row.get("파일명", "")), "error": str(row.get("에러메시지", ""))}
+        for row in errors.to_dict("records")
+    ]
+    rows = len(good) + len(bad)
+    if failed:
+        message = (
+            f"이수증 PDF {len(inputs)}개 중 {len(inputs) - len(failed)}개에서 이수증 {rows}건을 읽었습니다. "
+            f"{len(failed)}개는 처리하지 못했습니다."
+        )
+    elif rows != len(inputs):
+        message = f"이수증 PDF {len(inputs)}개에서 이수증 {rows}건을 분석했습니다."
+    else:
+        message = f"이수증 {len(inputs)}개를 분석했습니다."
     return _success(
-        f"이수증 {len(inputs)}개를 분석했습니다.",
+        message,
         output=output,
         valid_count=len(good),
         review_count=len(bad),
         error_count=len(errors),
+        failed=failed,
     )
 
 
@@ -159,12 +222,28 @@ def run_hwp_to_pdf(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
     output_dir = _output_path(payload, inputs, "", directory=True)
     service = _module("hwp_to_pdf_converter", "hwp_to_pdf_converter_service")
-    ok_files, bad_files = service.convert_files(inputs, output_dir)
-    return _success(
-        f"{len(ok_files)}개 파일을 PDF로 변환했습니다.",
-        output=output_dir,
-        failed=bad_files,
+    ok_files, bad_files = service.convert_files(
+        inputs, output_dir, progress=emit_progress, cancel=FileCancel().is_set
     )
+    failed = [{"name": name, "error": error} for name, error in bad_files]
+    # 중지하면 남은 파일은 손대지 않으므로 성공+실패 수가 입력 수보다 적다.
+    stopped = len(ok_files) + len(bad_files) < len(inputs)
+    lines = "".join(f"\n· {item['name']}: {item['error']}" for item in failed)
+    if not ok_files and failed and not stopped:
+        raise RuntimeError("PDF로 변환하지 못했습니다.\n" + lines)
+    message = f"{len(ok_files)}개 파일을 PDF로 변환했습니다."
+    if failed:
+        message += f" {len(failed)}개는 변환하지 못했습니다."
+    if stopped:
+        message = "중지했습니다. " + message
+    extra: dict[str, Any] = {}
+    if failed or stopped:
+        extra["popup"] = {
+            "level": "warning",
+            "title": "일부 파일만 변환했습니다",
+            "message": message + f"\n\n저장 위치: {output_dir}" + (f"\n\n변환하지 못한 파일{lines}" if lines else ""),
+        }
+    return _success(message, output=output_dir, failed=failed, stopped=stopped, **extra)
 
 
 def run_hwp_to_hwpx(payload: dict[str, Any]) -> dict[str, Any]:
@@ -175,8 +254,53 @@ def run_hwp_to_hwpx(payload: dict[str, Any]) -> dict[str, Any]:
     result = service.convert_hwp_files_to_hwpx(
         inputs,
         visible=bool(payload.get("visible", False)),
+        log=emit_progress,
+        cancel=FileCancel().is_set,
     )
-    return _success("HWPX 변환 작업을 완료했습니다.", result=result)
+    failed = [
+        {
+            "name": item.source_path.name,
+            "error": (str(item.error).strip().splitlines() or ["변환 실패"])[0][:200],
+        }
+        for item in result.results
+        if not item.success
+    ]
+    if not failed and not result.stopped and not result.delete_fail_count:
+        return _success("HWPX 변환 작업을 완료했습니다.", result=result, failed=[])
+    converted = result.success_count + result.delete_fail_count
+    message = f"{converted}개 파일을 HWPX로 변환했습니다."
+    if failed:
+        message += f" {len(failed)}개는 변환하지 못했습니다(원본 그대로 둠)."
+    if result.delete_fail_count:
+        message += f" {result.delete_fail_count}개는 원본 HWP를 지우지 못했습니다."
+    if result.stopped:
+        message = "중지했습니다. " + message
+    lines = "".join(f"\n· {item['name']}: {item['error']}" for item in failed)
+    return _success(
+        message,
+        result=result,
+        failed=failed,
+        stopped=result.stopped,
+        popup={
+            "level": "warning",
+            "title": "일부 파일만 변환했습니다" if failed or result.stopped else "원본을 지우지 못한 파일이 있습니다",
+            "message": message + (f"\n\n변환하지 못한 파일{lines}" if lines else ""),
+        },
+    )
+
+
+def _whole_number(payload: dict[str, Any], key: str, label: str, default: int) -> int:
+    """숫자 칸 값을 정수로. 비었으면 기본값, 숫자가 아니면 한국어로 알린다."""
+    value = payload.get(key)
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return default
+    try:
+        number = float(str(value).strip())
+    except (TypeError, ValueError):
+        raise ValueError(f"'{label}' 칸에는 숫자를 입력하세요. (입력값: {value})") from None
+    if number != int(number):
+        raise ValueError(f"'{label}' 칸에는 소수점 없는 숫자를 입력하세요. (입력값: {value})")
+    return int(number)
 
 
 def run_pdf_page_number(payload: dict[str, Any]) -> dict[str, Any]:
@@ -184,17 +308,29 @@ def run_pdf_page_number(payload: dict[str, Any]) -> dict[str, Any]:
     if len(inputs) != 1:
         raise ValueError("페이지 번호를 넣을 PDF 파일 하나를 선택하세요.")
     service = _module("pdf_page_number_adder", "pdf_page_number_adder_service")
+    start_page = _whole_number(payload, "start_page", "시작 페이지", 1) or 1
+    start_number = _whole_number(payload, "start_number", "시작 번호", 1)
+    font_size = _whole_number(payload, "font_size", "글자 크기", 10) or 10
+    if start_page < 1:
+        raise ValueError("'시작 페이지'는 1 이상으로 입력하세요.")
+    if font_size < 1:
+        raise ValueError("'글자 크기'는 1 이상으로 입력하세요.")
     output = _output_path(payload, inputs, f"{inputs[0].stem}_페이지번호.pdf")
-    result = service.add_page_numbers(
-        inputs[0],
-        output,
-        str(payload.get("format_type") or "숫자"),
-        int(payload.get("start_page") or 1),
-        int(payload.get("start_number") or 1),
-        str(payload.get("position") or "하단 가운데"),
-        str(payload.get("font_name") or "굴림체"),
-        int(payload.get("font_size") or 10),
-    )
+    try:
+        result = service.add_page_numbers(
+            inputs[0],
+            output,
+            str(payload.get("format_type") or "숫자"),
+            start_page,
+            start_number,
+            str(payload.get("position") or "하단 가운데"),
+            str(payload.get("font_name") or "굴림체"),
+            font_size,
+        )
+    except Exception as error:
+        raise RuntimeError(
+            f"{inputs[0].name}: {service.describe_pdf_error(error)}"
+        ) from error
     return _success("페이지 번호를 추가했습니다.", output=result)
 
 
@@ -212,28 +348,31 @@ def run_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
     output_dir = _output_path(payload, inputs, "", directory=True)
     mode = str(payload.get("mode") or "")
     spec = str(payload.get("spec") or "")
-    if action == "extract":
-        result = service.run_extract(inputs[0], output_dir, mode or "pages", spec)
-    elif action == "delete":
-        result = service.run_delete(inputs[0], output_dir, mode or "pages", spec)
-    elif action == "reorder":
-        result = service.run_reorder(
-            inputs[0],
-            output_dir,
-            mode or "sequence",
-            spec,
-            int(payload.get("source_page") or 1),
-            int(payload.get("target_page") or 1),
-        )
-    else:
-        result = service.run_split(
-            inputs[0],
-            output_dir,
-            mode or "every_n",
-            int(payload.get("number") or 1),
-            spec,
-            bool(payload.get("zip_output", False)),
-        )
+    try:
+        if action == "extract":
+            result = service.run_extract(inputs[0], output_dir, mode or "pages", spec)
+        elif action == "delete":
+            result = service.run_delete(inputs[0], output_dir, mode or "pages", spec)
+        elif action == "reorder":
+            result = service.run_reorder(
+                inputs[0],
+                output_dir,
+                mode or "sequence",
+                spec,
+                _whole_number(payload, "source_page", "옮길 페이지", 1),
+                _whole_number(payload, "target_page", "옮길 위치", 1),
+            )
+        else:
+            result = service.run_split(
+                inputs[0],
+                output_dir,
+                mode or "every_n",
+                _whole_number(payload, "number", "페이지 수", 1),
+                spec,
+                bool(payload.get("zip_output", False)),
+            )
+    except Exception as error:
+        raise RuntimeError(service.pdf_error_message(error, inputs[0].name)) from error
     return _success("PDF 페이지 작업을 완료했습니다.", output=result)
 
 
@@ -247,13 +386,16 @@ def _run_pdf_organizer_sequence(payload: dict[str, Any]) -> dict[str, Any]:
     service = _module("pdf_page_organizer", "pdf_page_organizer_service")
     output_dir = _output_path(payload, [first], "", directory=True)
     save_mode = str(payload.get("save_mode") or "single")
-    outputs = service.save_sequence(
-        sequence,
-        output_dir,
-        save_mode,
-        int(payload.get("number") or 1),
-        bool(payload.get("zip_output", False)),
-    )
+    try:
+        outputs = service.save_sequence(
+            sequence,
+            output_dir,
+            save_mode,
+            _whole_number(payload, "number", "페이지 수", 1),
+            bool(payload.get("zip_output", False)),
+        )
+    except Exception as error:
+        raise RuntimeError(service.pdf_error_message(error, first.name)) from error
     pdfs = [path for path in outputs if path.suffix.lower() == ".pdf"]
     names = "\n".join(f"· {path.name}" for path in outputs[:12])
     if len(outputs) > 12:
@@ -282,7 +424,10 @@ def load_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
 def preview_pdf_organizer(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = _paths(payload)
     service = _module("pdf_page_organizer", "pdf_page_organizer_service")
-    image = service.render_preview(inputs[0], int(payload.get("page") or 0))
+    try:
+        image = service.render_preview(inputs[0], _whole_number(payload, "page", "페이지", 0))
+    except Exception as error:
+        raise RuntimeError(service.pdf_error_message(error, inputs[0].name)) from error
     return _success("", **image)
 
 
@@ -306,27 +451,52 @@ def run_file_inventory(payload: dict[str, Any]) -> dict[str, Any]:
         inventory,
         "Tauri 통합 화면에서 생성",
     )
+    message = f"항목 {len(inventory.rows)}개를 현황표로 저장했습니다."
+    failed = [
+        {"name": Path(str(item.get("path", ""))).name or str(item.get("path", "")), "error": str(item.get("error", ""))}
+        for item in inventory.errors
+    ]
+    if failed:
+        message += f" 읽지 못한 항목 {len(failed)}개는 '오류_기록' 시트에 적었습니다."
     return _success(
-        f"항목 {len(inventory.rows)}개를 현황표로 저장했습니다.",
+        message,
         output=output,
         error_count=len(inventory.errors),
+        failed=failed,
     )
 
 
 def run_folder_unpacker(payload: dict[str, Any]) -> dict[str, Any]:
     if not bool(payload.get("confirmed", False)):
         raise ValueError("파일 이동 작업을 확인한 뒤 다시 실행하세요.")
-    folders = [path for path in _paths(payload) if path.is_dir()]
     service = _module("folder_unpacker", "folder_unpacker_service")
+    # 고른 폴더 자체가 바로가기(정션·링크)면 경로를 풀면서 엉뚱한 곳이 대상이 된다.
+    for raw in payload.get("inputs") or []:
+        if service.is_link_or_junction(str(raw)):
+            raise ValueError(f"바로가기(정션·링크) 폴더는 선택할 수 없습니다. 실제 폴더를 골라 주세요: {raw}")
+    folders = [path for path in _paths(payload) if path.is_dir()]
     result = service.unpack_folders(
         folders,
         recursive=bool(payload.get("recursive", True)),
         prefix_folder=bool(payload.get("prefix_folder", False)),
     )
+    message = f"파일 {result.moved_count}개를 상위 폴더로 이동했습니다."
+    if result.failed:
+        message += f" {len(result.failed)}개는 옮기지 못했습니다."
     return _success(
-        f"파일 {result.moved_count}개를 상위 폴더로 이동했습니다.",
+        message,
         result=result,
+        failed=result.failed,
+        **({"popup": _failed_popup(message, result.failed)} if result.failed else {}),
     )
+
+
+def _failed_popup(message: str, failed: list[dict[str, str]], title: str = "일부 항목을 처리하지 못했습니다") -> dict[str, str]:
+    """일부 실패가 있을 때 띄울 경고 팝업. 실패 항목과 이유를 적는다."""
+    lines = [f"· {item['name']}: {item['error']}" for item in failed[:15]]
+    if len(failed) > 15:
+        lines.append(f"· 외 {len(failed) - 15}개")
+    return {"level": "warning", "title": title, "message": message + "\n\n" + "\n".join(lines)}
 
 
 def run_rename_files(payload: dict[str, Any]) -> dict[str, Any]:
@@ -339,8 +509,11 @@ def run_rename_files(payload: dict[str, Any]) -> dict[str, Any]:
     after = str(payload.get("after") or "")
     if mode == service.MODE_REPLACE and not before:
         raise ValueError("바꿀 문자열을 입력하세요.")
-    changes = service.build_changes(files, before, after, mode)
+    # 새 이름을 쓸 수 없는 파일(/ \\ < > : " | ? *, CON 등)은 그 파일만 빼고 나머지는 계속 바꾼다.
+    invalid: list[dict[str, str]] = []
+    changes = service.build_changes(files, before, after, mode, failed=invalid)
     result = service.apply_changes(changes)
+    failed = [*invalid, *result.failed]
 
     # 이름을 바꾸고 나면 화면이 들고 있는 경로는 더 이상 없는 파일을 가리킨다.
     # 그대로 두면 이어서 한 번 더 바꾸려 할 때 "파일을 찾을 수 없습니다"가 뜬다.
@@ -357,10 +530,15 @@ def run_rename_files(payload: dict[str, Any]) -> dict[str, Any]:
         if candidate is not None and candidate.exists():
             updated.append(str(candidate))
 
+    message = f"파일명 {result.success_count}개를 변경했습니다."
+    if failed:
+        message += f" {len(failed)}개는 바꾸지 못했습니다."
     return _success(
-        f"파일명 {result.success_count}개를 변경했습니다.",
+        message,
         result=result,
         inputs=updated,
+        failed=failed,
+        **({"popup": _failed_popup(message, failed, "일부 파일의 이름을 바꾸지 못했습니다")} if failed else {}),
     )
 
 
@@ -381,10 +559,24 @@ def run_zip_extractor(payload: dict[str, Any]) -> dict[str, Any]:
         output,
         bool(payload.get("exclude_junk", True)),
         str(payload.get("password") or ""),
+        log_func=emit_progress,
     )
+    failed = list(result.failed)
+    if failed and result.success_count == 0:
+        raise RuntimeError(
+            "ZIP을 풀지 못했습니다.\n\n" + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
+        )
+    message = f"ZIP {result.success_count}개를 풀었습니다."
+    partial = len(failed) - result.fail_count
+    if result.fail_count:
+        message += f" {result.fail_count}개는 풀지 못했습니다."
+    if partial:
+        message += f" {partial}개는 일부 파일을 풀지 못했습니다."
     return _success(
-        f"ZIP {result.success_count}개를 풀었습니다.",
+        message,
         result=result,
+        failed=failed,
+        **({"popup": _failed_popup(message, failed, "일부 ZIP을 풀지 못했습니다")} if failed else {}),
     )
 
 
@@ -394,7 +586,14 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("PDF 파일을 선택하세요.")
     service = _module("pdf_compress", "pdf_compress_service")
     cancel = FileCancel()
-    target_mb = float(payload.get("target_mb") or 5)
+    try:
+        target_mb = float(payload.get("target_mb") or 5)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"'목표 용량(MB)' 칸에는 숫자를 입력하세요. (입력값: {payload.get('target_mb')})"
+        ) from None
+    if target_mb <= 0:
+        raise ValueError("'목표 용량(MB)'은 0보다 크게 입력하세요.")
     target_bytes = int(target_mb * 1024 * 1024)
     raw_output = str(payload.get("output") or "").strip()
     folder = Path(raw_output).expanduser().resolve() if raw_output else None
@@ -410,18 +609,27 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
             progress=emit_progress,
             cancel=cancel.is_set,
         )
+        message = (
+            f"PDF {len(group['results'])}개를 합계 {group['final_total'] / 1048576:.2f}MB로 저장했습니다."
+        )
+        if group.get("cancelled"):
+            message = "중지 요청으로 멈췄습니다. 지금까지 줄인 결과로 " + message
         return _success(
-            f"PDF {len(group['results'])}개를 합계 {group['final_total'] / 1048576:.2f}MB로 저장했습니다.",
+            message,
             output=str(group["folder"]),
             outputs=group["results"],
+            failed=group["failed"],
             popup=_pdf_compress_total_popup(group, target_mb),
         )
 
     # 파일마다 방식: 한 파일이 실패해도 나머지는 계속한다.
+    # 중지하면 하던 파일까지(또는 그 전까지) 저장한 결과를 남기고 멈춘다.
     outputs = []
     failed = []
+    cancelled = False
     for index, input_path in enumerate(inputs, start=1):
         if cancel.is_set():
+            cancelled = True
             break
         if len(inputs) > 1:
             emit_progress(f"[{index}/{len(inputs)}] {input_path.name}")
@@ -436,10 +644,12 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
                 cancel=cancel.is_set,
             )
         except service.CompressCancelled:
+            cancelled = True
             break
         except Exception as error:
-            failed.append({"name": input_path.name, "error": str(error) or type(error).__name__})
-            emit_progress(f"{input_path.name}: 압축하지 못했습니다 ({error})")
+            reason = service.describe_pdf_error(error)
+            failed.append({"name": input_path.name, "error": reason})
+            emit_progress(f"{input_path.name}: 압축하지 못했습니다 ({reason})")
             continue
         outputs.append({
             "path": output,
@@ -448,15 +658,26 @@ def run_pdf_compress(payload: dict[str, Any]) -> dict[str, Any]:
             "size_mb": round(size / (1024 * 1024), 2),
             "target_achieved": achieved,
         })
-    if not outputs and failed:
+    if not outputs and failed and not cancelled:
         raise RuntimeError(
             "압축하지 못했습니다.\n\n" + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
         )
+    skipped = len(inputs) - len(outputs) - len(failed) if cancelled else 0
+    if cancelled:
+        message = f"중지 요청으로 멈췄습니다. PDF {len(outputs)}개를 압축했습니다."
+    elif failed:
+        message = (
+            f"PDF {len(inputs)}개 중 {len(outputs)}개를 압축했습니다. "
+            f"{len(failed)}개는 압축하지 못했습니다."
+        )
+    else:
+        message = f"PDF {len(outputs)}개를 압축했습니다."
     return _success(
-        f"PDF {len(outputs)}개를 압축했습니다.",
+        message,
         output=str(folder) if folder else "",
         outputs=outputs,
-        popup=_pdf_compress_popup(outputs, target_mb, failed),
+        failed=failed,
+        popup=_pdf_compress_popup(outputs, target_mb, failed, skipped, cancelled),
     )
 
 
@@ -469,9 +690,13 @@ def _failed_lines(failed: list[dict[str, str]]) -> str:
 
 
 def _pdf_compress_popup(
-    outputs: list[dict[str, Any]], target_mb: float, failed: list[dict[str, str]] | None = None
+    outputs: list[dict[str, Any]],
+    target_mb: float,
+    failed: list[dict[str, str]] | None = None,
+    skipped: int = 0,
+    cancelled: bool = False,
 ) -> dict[str, str]:
-    """파일마다 방식의 결과 팝업. 목표를 못 맞췄거나 실패한 파일이 있으면 경고로 띄운다."""
+    """파일마다 방식의 결과 팝업. 목표를 못 맞췄거나 실패·중지한 파일이 있으면 경고로 띄운다."""
     failed = failed or []
     lines = []
     for item in outputs:
@@ -480,7 +705,20 @@ def _pdf_compress_popup(
             f"· {item['name']}\n   {item['original_mb']:.2f}MB → {item['size_mb']:.2f}MB ({mark})"
         )
     missed = [item for item in outputs if not item["target_achieved"]]
-    if not missed and not failed:
+    if cancelled:
+        head = (
+            f"중지 요청으로 멈췄습니다. PDF {len(outputs)}개를 압축해 저장했습니다."
+            if outputs
+            else "중지 요청으로 멈춰 압축해 저장한 파일이 없습니다."
+        )
+        if skipped:
+            head += f"\n나머지 {skipped}개는 압축하지 않았습니다."
+        return {
+            "level": "warning",
+            "title": "압축을 중지했습니다",
+            "message": head + ("\n\n" + "\n".join(lines) if lines else "") + _failed_lines(failed),
+        }
+    if not missed and not failed and outputs:
         return {
             "level": "success",
             "title": "압축에 성공했습니다",
@@ -509,6 +747,17 @@ def _pdf_compress_total_popup(group: dict[str, Any], target_mb: float) -> dict[s
         for item in group["results"]
     ]
     summary = f"합계 {before:.2f}MB → {after:.2f}MB (목표 {target_mb:g}MB)\n저장 폴더: {group['folder']}"
+    if group.get("cancelled"):
+        return {
+            "level": "warning",
+            "title": "압축을 중지했습니다",
+            "message": (
+                summary
+                + "\n중지 요청으로 멈춰 지금까지 줄인 결과로 저장했습니다. '원본 유지' 파일은 압축하지 않았습니다.\n\n"
+                + "\n".join(lines)
+                + _failed_lines(group["failed"])
+            ),
+        }
     if group["achieved"]:
         return {
             "level": "warning" if group["failed"] else "success",

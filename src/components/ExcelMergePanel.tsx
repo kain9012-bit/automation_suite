@@ -85,14 +85,12 @@ const cellText = (value: Cell | undefined) =>
 
 export function ExcelMergePanel({
   tool,
-  presetPaths,
   onReset,
 }: {
   tool: ToolManifest;
-  presetPaths?: string[];
   onReset?: () => void;
 }) {
-  const [inputs, setInputs] = useState<string[]>(() => filterByExtension(presetPaths ?? [], EXTENSIONS));
+  const [inputs, setInputs] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("files_to_sheets");
   const [addSourceFile, setAddSourceFile] = useState(false);
   const [addSourceSheet, setAddSourceSheet] = useState(false);
@@ -319,7 +317,13 @@ export function ExcelMergePanel({
     return null;
   };
 
+  // 분석이 끝나기 전(방식을 막 바꾼 직후 등)에는 시트 목록이 비어 있어, 뺀 시트가
+  // 실행 요청에서 사라지고 도로 합쳐진다. 분석이 끝날 때까지 실행을 막는다.
+  const analysisPending =
+    analyzing || (excludedList.length > 0 && analysis?.mode !== mode);
+
   const run = async () => {
+    if (analysisPending) return;
     setRunning(true);
     setLog((items) => [...items, `${tool.name} 작업을 시작합니다.`]);
     try {
@@ -797,7 +801,7 @@ export function ExcelMergePanel({
             초기화
           </button>
         )}
-        <button className="primary-button" onClick={() => void run()} disabled={running || !inputs.length || nothingChosen}>
+        <button className="primary-button" onClick={() => void run()} disabled={running || analysisPending || !inputs.length || nothingChosen}>
           {running ? <LoaderCircle className="spin" size={17} /> : <Play size={17} />}
           {running ? "병합 중" : "병합 실행"}
         </button>

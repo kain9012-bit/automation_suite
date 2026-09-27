@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs,
-    io::{Cursor, Read},
+    io::{Read, Seek, SeekFrom},
     path::PathBuf,
     process::Command,
     time::Duration,
@@ -257,8 +257,17 @@ fn fetch_post(url: &str) -> Result<String, String> {
 }
 
 /// 게시글에서 우리 표식을 찾아 새 버전인지 본다.
+///
+/// 게시판 응답을 기다리는 동안 창이 멈추지 않도록 다른 스레드에서 돌린다.
+/// 동기 명령은 Tauri가 메인 스레드에서 돌린다.
 #[tauri::command]
-pub fn check_board_update(app: AppHandle) -> Result<BoardUpdateCheck, String> {
+pub async fn check_board_update(app: AppHandle) -> Result<BoardUpdateCheck, String> {
+    tauri::async_runtime::spawn_blocking(move || check_board_update_blocking(app))
+        .await
+        .map_err(|error| format!("업데이트 확인을 마치지 못했습니다: {error}"))?
+}
+
+fn check_board_update_blocking(app: AppHandle) -> Result<BoardUpdateCheck, String> {
     let current = app.package_info().version.to_string();
     let config = read_config(&app)?;
 
@@ -409,9 +418,9 @@ fn verify_installer(bytes: &[u8], signature: &str, public_key: &str) -> Result<(
 }
 
 /// ZIP에서 설치본 exe 하나를 꺼낸다. ZIP 안의 경로는 쓰지 않는다.
-fn take_installer(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let mut archive = ZipArchive::new(Cursor::new(bytes))
-        .map_err(|error| format!("압축을 열지 못했습니다: {error}"))?;
+fn take_installer<R: Read + Seek>(source: R) -> Result<Vec<u8>, String> {
+    let mut archive =
+        ZipArchive::new(source).map_err(|error| format!("압축을 열지 못했습니다: {error}"))?;
 
     let mut found: Option<usize> = None;
     for index in 0..archive.len() {
@@ -461,15 +470,28 @@ fn download_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// 설치본을 받아 서명을 확인하고 저장한다. 저장한 경로를 돌려준다.
 /// 서명이 어긋나면 아무것도 남기지 않는다.
+///
+/// 수십 MB를 받는 동안 창이 멈추지 않도록 다른 스레드에서 돌린다.
 #[tauri::command]
-pub fn download_board_update(app: AppHandle, update: BoardUpdate) -> Result<String, String> {
+pub async fn download_board_update(app: AppHandle, update: BoardUpdate) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || download_board_update_blocking(app, update))
+        .await
+        .map_err(|error| format!("설치본을 받지 못했습니다: {error}"))?
+}
+
+fn download_board_update_blocking(app: AppHandle, update: BoardUpdate) -> Result<String, String> {
     let config = read_config(&app)?;
     if config.public_key.trim().is_empty() {
         return Err("공개키가 설정되어 있지 않아 설치본을 확인할 수 없습니다.".to_string());
     }
 
+    // 전체 시간에는 제한을 두지 않는다. 느린 학교 망에서 100MB를 받다가 중간에
+    // 끊기면 안 된다. 대신 연결은 30초, 그 뒤로는 응답 머리와 읽기 한 번마다
+    // 90초를 기다린다(reqwest blocking 의 timeout 은 read 호출마다 새로 잰다).
+    // 그래서 데이터가 조금씩이라도 오면 계속 받고, 멈추면 90초 뒤 실패한다.
     let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(600))
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(90))
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) JBEduON")
         .build()
         .map_err(|error| format!("연결을 준비하지 못했습니다: {error}"))?;
@@ -481,15 +503,29 @@ pub fn download_board_update(app: AppHandle, update: BoardUpdate) -> Result<Stri
         return Err(format!("설치본을 받지 못했습니다: {}", response.status()));
     }
 
-    let mut archive = Vec::new();
-    response
-        .read_to_end(&mut archive)
+    // 받은 ZIP은 메모리에 통째로 두지 않고 임시 파일에 바로 쓴다.
+    // 임시 파일은 이 함수가 끝나면(실패해도) 지워진다.
+    let dir = download_dir(&app)?;
+    let mut archive = tempfile::Builder::new()
+        .prefix(".board-update-")
+        .suffix(".zip")
+        .tempfile_in(&dir)
+        .map_err(|error| format!("임시 파일을 만들지 못했습니다: {error}"))?;
+    let received = std::io::copy(&mut response.by_ref().take(MAX_INSTALLER_BYTES + 1), archive.as_file_mut())
+        .map_err(|error| format!("설치본을 읽지 못했습니다: {error}"))?;
+    if received > MAX_INSTALLER_BYTES {
+        return Err("설치본이 너무 큽니다.".to_string());
+    }
+    archive
+        .as_file_mut()
+        .seek(SeekFrom::Start(0))
         .map_err(|error| format!("설치본을 읽지 못했습니다: {error}"))?;
 
-    let installer = take_installer(&archive)?;
+    let installer = take_installer(archive.as_file_mut())?;
+    drop(archive);
     verify_installer(&installer, &update.signature, &config.public_key)?;
 
-    let target = download_dir(&app)?.join(format!("JBEduON-{}-setup.exe", update.version.trim()));
+    let target = dir.join(format!("JBEduON-{}-setup.exe", update.version.trim()));
     fs::write(&target, &installer)
         .map_err(|error| format!("설치본을 저장하지 못했습니다: {error}"))?;
     Ok(target.to_string_lossy().to_string())

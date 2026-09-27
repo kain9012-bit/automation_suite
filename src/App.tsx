@@ -26,17 +26,16 @@ import { Sidebar } from "./components/Sidebar";
 import { ToolGrid } from "./components/ToolGrid";
 import { TutorialOverlay } from "./components/TutorialOverlay";
 import { useTools } from "./hooks/useTools";
+import { useQuickLauncherHotkeys } from "./hooks/useQuickLauncherHotkeys";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useReleaseNotice } from "./hooks/useReleaseNotice";
 import { ReleaseNotesDialog } from "./components/ReleaseNotesDialog";
 import {
-  CONTEXT_OPEN_EVENT,
   DEFAULT_TOGGLE_HOTKEY,
   PREFERENCES_CHANGED,
   getAppPreferences,
-  takeContextRequest,
 } from "./lib/bridge";
-import type { ContextRequest, ToolManifest, View } from "./types";
+import type { ToolManifest, View } from "./types";
 
 function titleFor(view: View) {
   if (view.kind === "home") return "홈";
@@ -55,12 +54,12 @@ export default function App() {
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [view, setView] = useState<View>({ kind: "home" });
   // 도구 화면의 초기화 버튼. 화면을 새로 만들어 넣은 파일·설정·기록을 모두 비운다.
-  // 탐색기 우클릭으로 받아 온 파일도 지운다.
   const [toolResetKey, setToolResetKey] = useState(0);
   const resetTool = () => {
-    setView((current) => (current.kind === "tool" ? { kind: "tool", tool: current.tool } : current));
     setToolResetKey((key) => key + 1);
   };
+  // 빠른 실행 버튼 단축키. 홈 화면을 벗어나도 풀리지 않게 앱 전체에서 등록한다.
+  useQuickLauncherHotkeys();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dark, setDark] = useState(
     () => localStorage.getItem("jbedu-suite:theme") === "dark",
@@ -96,36 +95,6 @@ export default function App() {
       .catch(() => undefined);
     return () => stop?.();
   }, []);
-
-  // 탐색기 우클릭으로 들어온 요청. 도구 목록이 준비된 뒤에 화면을 연다.
-  const [contextRequest, setContextRequest] = useState<ContextRequest | null>(null);
-
-  useEffect(() => {
-    let stop: UnlistenFn | undefined;
-    void listen<ContextRequest>(CONTEXT_OPEN_EVENT, (event) =>
-      setContextRequest(event.payload),
-    )
-      .then((unlisten) => { stop = unlisten; })
-      .catch(() => undefined);
-    // 앱이 꺼져 있다가 우클릭으로 실행된 경우는 이벤트가 아니라 여기로 들어온다.
-    void takeContextRequest()
-      .then((request) => { if (request) setContextRequest(request); })
-      .catch(() => undefined);
-    return () => stop?.();
-  }, []);
-
-  useEffect(() => {
-    // 도구 목록을 아직 못 불러왔으면 그대로 두고 다음 렌더에서 다시 본다.
-    if (!contextRequest || !registry.tools.length) return;
-    const tool = registry.tools.find((item) => item.id === contextRequest.toolId);
-    setContextRequest(null);
-    if (!tool) return;
-    registry.markRecent(tool.id);
-    setCommandOpen(false);
-    // 안내 오버레이가 떠 있으면 도구 화면을 가리므로 닫는다.
-    setTutorialOpen(false);
-    setView({ kind: "tool", tool, presetPaths: contextRequest.paths });
-  }, [contextRequest, registry.tools, registry.markRecent]);
 
   // 창을 보였다 숨겼다 하는 전역 단축키. 설정에서 바꾸면 곧바로 다시 등록한다.
   const [toggleHotkey, setToggleHotkey] = useState(DEFAULT_TOGGLE_HOTKEY);
@@ -234,7 +203,10 @@ export default function App() {
   ]);
 
   const content = () => {
-    if (registry.loading) {
+    // 전체 화면 안내는 처음 불러올 때만 띄운다. 그 뒤의 새로고침(자동 도구 업데이트,
+    // 새로고침 버튼, 설정의 도구 확인)에서 띄우면 열려 있던 도구 화면이 사라지고
+    // 넣어 둔 파일과 진행 상황까지 날아간다.
+    if (registry.loading && !registry.loaded) {
       return (
         <div className="full-message">
           <LoaderCircle className="spin" size={28} />
@@ -242,7 +214,7 @@ export default function App() {
         </div>
       );
     }
-    if (registry.error) {
+    if (registry.error && !registry.tools.length) {
       return (
         <div className="full-message is-error">
           <strong>도구 목록을 불러오지 못했습니다.</strong>
@@ -266,20 +238,19 @@ export default function App() {
       }
       // 엑셀 병합: 시트별 헤더 확인과 결과 미리보기를 보여 주는 전용 화면.
       if (view.tool.id === "excel_merge") {
-        return <ExcelMergePanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
+        return <ExcelMergePanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
       // 문서 개인정보 마스킹: 찾은 곳을 사람이 확인한 뒤 가린 사본을 만드는 전용 화면.
       if (view.tool.id === "document_privacy_masker") {
-        return <DocumentPrivacyMaskerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
+        return <DocumentPrivacyMaskerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
       if (view.tool.id === "pdf_page_organizer") {
-        return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} presetPaths={view.presetPaths} onReset={resetTool} />;
+        return <PdfOrganizerPanel key={`${view.tool.id}-${toolResetKey}`} tool={view.tool} onReset={resetTool} />;
       }
       return (
         <NativeToolPanel
           key={`${view.tool.id}-${toolResetKey}`}
           tool={view.tool}
-          presetPaths={view.presetPaths}
           onReset={resetTool}
         />
       );
@@ -413,7 +384,11 @@ export default function App() {
             <i className="status-dot" />
             {updater.status}
           </span>
-          <span>도구 {registry.tools.length}개</span>
+          <span>
+            {registry.error && registry.tools.length
+              ? `도구 목록을 새로 불러오지 못했습니다: ${registry.error}`
+              : `도구 ${registry.tools.length}개`}
+          </span>
         </footer>
       </div>
 
