@@ -50,7 +50,6 @@ export function ReleaseNotesDialog({
               <h4>
                 {note.version}
                 {note.version === current && <em>지금 버전</em>}
-                {note.date && <small>{note.date}</small>}
               </h4>
               <ul>
                 {note.items.map((item) => (
