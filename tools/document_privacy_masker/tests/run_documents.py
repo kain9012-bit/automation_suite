@@ -69,8 +69,6 @@ def test_hwpx(tmp: Path) -> None:
     for it in a["items"]:
         if it["text"] == "이재민":
             dec[it["id"]] = "keep"
-        if it["text"] == "김민수":
-            dec[it["id"]] = "replace"
     r = svc.apply_file(src, dec, extra_terms=[{"text": "박영수", "kind": "PERSON"}])
     out = Path(r["output"])
     check(sha(src) == before, "원본 파일은 바뀌지 않음")
@@ -91,7 +89,7 @@ def test_hwpx(tmp: Path) -> None:
     for gone in ("김철수", "金哲洙", "780302-1234564", "1234-5678", "302-1234-5678-91", "기린대로", "박영수", "이영희", "김민수",
                  "synthetic-fixture-author"):
         check(gone not in body, f"사본 어디에도 없음(본문·미리보기·문서정보): {gone}")
-    for kept in ("인사발령 통보서", "행정지원과-12345", "주무관", "이재민", "[성명]", "010-****-5678", "김*수(***)"):
+    for kept in ("인사발령 통보서", "행정지원과-12345", "주무관", "이재민", "010-****-5678", "김*수(***)"):
         check(kept in body, f"사본에 남아 있음: {kept}")
 
     print("\n[한글] 한 값이 글자 모양 두 덩어리로 나뉜 문서 (split_runs.hwpx)")

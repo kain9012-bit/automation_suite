@@ -20,7 +20,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from dpm_items import combine_terms, find_items, items_for_terms, leftover_check, plan_edits  # noqa: E402
-from dpm_kinds import ACTION_LABELS, FIXED_CODES, KEEP, KINDS, MASK_ALL, REPLACE  # noqa: E402
+from dpm_kinds import ACTION_LABELS, KINDS, MASK_ALL  # noqa: E402
 from dpm_mask import masked_text  # noqa: E402
 # 한글·PDF 모듈도 여기서 불러 둔다. 설치본을 만들 때 사이드카 자체 점검(--selftest)이
 # 이 파일을 불러 보므로, 빠진 라이브러리가 있으면 배포 전에 드러난다.
@@ -119,13 +119,6 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
         for it, d in zip(items, dicts):
             d["previews"] = _previews(it.kind, it.text, is_pdf)
             d["changes"] = _changes(it.kind, it.text)
-            if is_pdf:
-                # PDF 는 글자를 지운 자리가 검은 칸이 될 뿐 '[성명]' 같은 글을 적지 않는다.
-                # '[종류]로 바꿈'이 '전부 가림'과 똑같아 헷갈리므로 PDF 에서는 고를 수 없게 한다.
-                d["previews"].pop(REPLACE, None)
-                d["changes"].pop(REPLACE, None)
-                if d["action"] == REPLACE:
-                    d["action"] = MASK_ALL
         pages = []
         view = []
         if is_pdf:
@@ -216,8 +209,8 @@ def apply_file(
         raise ValueError(f"{path.name}: 화면에서 확인한 목록과 다시 찾은 목록이 다릅니다. 파일을 다시 읽어 확인해 주세요.")
     is_pdf = work.suffix.lower() == ".pdf"
     for it in items:
-        if is_pdf and (decisions.get(it.id) or KINDS.get(it.kind, KINDS["CUSTOM"]).default_action) == REPLACE:
-            decisions[it.id] = MASK_ALL   # PDF 에는 '[종류]로 바꿈'이 없다(분석 화면과 같게)
+        if decisions.get(it.id) not in (None, *ACTION_LABELS):
+            decisions[it.id] = MASK_ALL   # 세 가지 방식 밖의 값은 전부 가림으로
     edits, masked = plan_edits(items, decisions)
     out = _output_path(path, Path(output_dir).expanduser().resolve() if output_dir else None,
                        suffix=".pdf" if is_pdf else ".hwpx")

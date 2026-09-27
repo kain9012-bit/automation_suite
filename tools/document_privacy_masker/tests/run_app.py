@@ -78,13 +78,12 @@ def main() -> int:
         rrn = next(it for it in a["items"] if it["kind"] == "RRN")
         check("keep" in rrn["previews"] and rrn["fixed"], "법정 7종도 '그대로 둠'을 고를 수 있고 자물쇠 표시가 있음")
         person = next(it for it in a["items"] if it["kind"] == "PERSON")
-        check(set(person["previews"]) == {"mask_all", "mask_part", "replace", "keep"}, "성명은 네 가지 모양을 미리 보여 줌")
+        check(set(person["previews"]) == {"mask_all", "mask_part", "keep"}, "처리 방식은 전부 가림·일부 가림·가리지 않음 세 가지")
         p = svc.app_analyze({"path": str(pdf)})
         check(len(p["pages"]) == 1 and p["pages"][0]["width"] > 0, "PDF 쪽 크기를 돌려줌")
         check(all(it.get("rects") and it.get("page") for it in p["items"]), "PDF 항목마다 쪽·사각형이 있음")
-        check(all("replace" not in it["previews"] and it["action"] != "replace" for it in p["items"]),
-              "PDF 에는 '[종류]로 바꿈'이 없음(검은 칸이라 전부 가림과 같음)")
-        check("replace" in person["previews"] and person["previews"]["replace"] == "[성명]", "한글은 '[성명]으로 바꿈'을 고를 수 있음")
+        check(all(set(it["previews"]) == {"mask_all", "mask_part", "keep"} for it in a["items"] + p["items"]),
+              "한글·PDF 모든 항목이 세 가지 방식만")
         phone = next(it for it in p["items"] if it["kind"] == "MOBILE")
         check("■" in phone["previews"]["mask_part"] and phone["previews"]["mask_part"].startswith("010-"),
               f"PDF 는 지워질 자리를 ■ 로 보여 줌: {phone['previews']['mask_part']}")
@@ -161,16 +160,13 @@ def main() -> int:
         r = svc.app_apply({"confirmed": True, "files": [entry(info, manual_boxes=[box])]})
         check(r["ok"] and not any(ch in pdf_text(Path(r["output"]))[:12] for ch in "록카드"), "그린 영역의 글자가 사라짐")
 
-        print("\n[겹침] '종류로 바꿈' 항목과 직접 추가가 걸쳐도 글자가 되살아나지 않음")
+        print("\n[겹침] 직접 추가가 찾은 값에 걸쳐도 글자가 되살아나지 않음")
         info = svc.app_analyze({"path": str(hwpx), "extra_terms": [{"text": "김민수 외", "kind": "CUSTOM"}]})
         e = entry(info, extra_terms=[{"text": "김민수 외", "kind": "CUSTOM"}])
         check(any(it["text"] == "김민수 외" for it in info["items"]), "걸치는 직접 추가는 따로 항목이 됨")
-        for it in info["items"]:
-            if it["text"] == "김민수":
-                e["decisions"][it["id"]] = "replace"
         r = svc.app_apply({"confirmed": True, "files": [e]})
         body = hwpx_text(Path(r["output"]))
-        check(r["ok"] and "김민수" not in body and "[성명] * 2인" in body, "이름은 통째로 바뀌고 '외'만 가려짐")
+        check(r["ok"] and "김민수" not in body and "*** * 2인" in body, "이름과 '외'가 모두 가려짐")
 
         print("\n[옛 한글 hwp] 한글로 hwpx 임시 사본을 만들어 읽고, 사본은 hwpx 로 저장")
         import dpm_hancom

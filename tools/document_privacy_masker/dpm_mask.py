@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from dpm_kinds import KEEP, KINDS, MASK_ALL, MASK_PART, REPLACE
+from dpm_kinds import KEEP, MASK_PART
 
 STAR = "*"
 _KEEP_CHARS = set(" -.,/()[]:@\n\t")
@@ -116,11 +116,8 @@ _PART = {
 
 def masked_text(kind: str, text: str, action: str) -> str:
     """처리 방식대로 바꾼 글자. '가리지 않음'이면 종류와 상관없이 원래 글자(사람이 확인 화면에서 고른 것)."""
-    kind_info = KINDS.get(kind)
     if action == KEEP:
         return text
-    if action == REPLACE:
-        return f"[{kind_info.label if kind_info else '개인정보'}]"
     if action == MASK_PART:
         fn = _PART.get(kind)
         return fn(text) if fn else _stars(text)

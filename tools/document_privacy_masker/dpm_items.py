@@ -206,7 +206,7 @@ def plan_edits(items: list[Item], decisions: dict[str, str]) -> tuple[list[Edit]
                 if pos is not None and old_ch != new_ch and not _locked(edits.get(pos)):
                     edits[pos] = new_ch
         else:
-            # 글자 수가 달라지는 '종류로 바꿈': 첫 글자 자리에 통째로 넣고 나머지는 지운다.
+            # 글자 수가 달라지는 경우: 첫 글자 자리에 통째로 넣고 나머지는 지운다.
             keys = it.keys
             if not _locked(edits.get(keys[0])):
                 edits[keys[0]] = new
@@ -217,7 +217,7 @@ def plan_edits(items: list[Item], decisions: dict[str, str]) -> tuple[list[Edit]
 
 
 def _locked(value: Optional[str]) -> bool:
-    """이미 '종류로 바꿈'이 차지한 자리(지운 글자·통째로 넣은 글자)는 겹치는 다른 항목이 덮지 않는다."""
+    """이미 지운 글자·통째로 넣은 글자 자리는 겹치는 다른 항목이 덮지 않는다."""
     return value is not None and len(value) != 1
 
 

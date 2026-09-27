@@ -11,13 +11,12 @@ from dataclasses import dataclass
 # 처리 방식
 MASK_ALL = "mask_all"      # 전부 가림:   880101-1234567 → **************
 MASK_PART = "mask_part"    # 일부 가림:   010-1234-5678  → 010-****-5678
-REPLACE = "replace"        # 종류로 바꿈: 홍길동         → [성명]
 KEEP = "keep"              # 가리지 않음
 
+# 확인 화면에서 고르는 방식은 이 세 가지뿐이다.
 ACTION_LABELS = {
     MASK_ALL: "전부 가림",
     MASK_PART: "일부 가림",
-    REPLACE: "종류로 바꿈",
     KEEP: "가리지 않음",
 }
 
@@ -46,7 +45,7 @@ KINDS: dict[str, Kind] = {k.code: k for k in (
     Kind("BIRTH", "생년월일", MASK_ALL),
     Kind("PHONE", "일반전화", MASK_PART),
     Kind("EMAIL", "이메일", MASK_PART),
-    Kind("BIZ", "사업자등록번호", REPLACE),
+    Kind("BIZ", "사업자등록번호", MASK_ALL),
     Kind("VEHICLE", "차량번호", MASK_PART),
     Kind("EMPLOYEE_ID", "사번", MASK_ALL),
     Kind("CUSTOM", "직접 추가", MASK_ALL),

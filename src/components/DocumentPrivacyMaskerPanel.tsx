@@ -36,7 +36,7 @@ import "./document-privacy-masker.css";
  * 바뀌었거나 다시 찾은 목록이 다르면 파이썬 쪽이 사본을 만들지 않고 멈춘다.
  */
 
-type Action = "mask_all" | "mask_part" | "replace" | "keep";
+type Action = "mask_all" | "mask_part" | "keep";
 
 type Item = {
   id: string;
@@ -92,10 +92,9 @@ const LOW_CONFIDENCE = 0.8;
 const ACTION_LABELS: Record<Action, string> = {
   mask_all: "전부 가림",
   mask_part: "일부 가림",
-  replace: "종류로 바꿈",
   keep: "가리지 않음",
 };
-const ACTION_ORDER: Action[] = ["mask_part", "mask_all", "replace", "keep"];
+const ACTION_ORDER: Action[] = ["mask_part", "mask_all", "keep"];
 // 체크한 항목에 한꺼번에 적용하는 방식
 const BULK_ACTIONS: Action[] = ["mask_part", "mask_all", "keep"];
 
@@ -114,17 +113,8 @@ const fileName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? 
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
 const actionsFor = (item: Item) => ACTION_ORDER.filter((action) => item.previews[action] !== undefined);
 
-/** '[성명]으로', '[주소]로' 처럼 받침에 맞는 조사. */
-function roAfter(word: string) {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  if (code < 0 || code > 11171) return "(으)로";
-  const tail = code % 28;
-  return tail === 0 || tail === 8 ? "로" : "으로";
-}
-
-/** 처리 방식 이름. '종류로 바꿈'은 무엇으로 바뀌는지 보이게 '[성명]으로 바꿈'처럼 쓴다. */
-function actionName(item: Item, action: Action) {
-  if (action === "replace") return `[${item.label}]${roAfter(item.label)} 바꿈`;
+/** 처리 방식 이름 */
+function actionName(_item: Item, action: Action) {
   return ACTION_LABELS[action];
 }
 
@@ -778,7 +768,7 @@ export function DocumentPrivacyMaskerPanel({
               <p className="dpm-help">
                 {isPdf
                   ? "미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
-                  : "미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, '[성명]으로 바꿈'을 고르면 값 전체가 '[성명]' 글자로 바뀝니다. 형광펜은 사본에 들어가지 않습니다."}
+                  : "미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, 형광펜은 사본에 들어가지 않습니다."}
               </p>
 
               <div className="dpm-review has-preview">
