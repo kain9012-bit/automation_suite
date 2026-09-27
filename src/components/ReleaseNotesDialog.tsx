@@ -51,11 +51,30 @@ export function ReleaseNotesDialog({
                 {note.version}
                 {note.version === current && <em>지금 버전</em>}
               </h4>
-              <ul>
-                {note.items.map((item) => (
-                  <li key={item}>{item}</li>
+              {(
+                [
+                  ["added", "새로 추가", note.added],
+                  ["changed", "수정", note.changed],
+                ] as const
+              )
+                .filter(([, , entries]) => entries.length)
+                .map(([key, label, entries]) => (
+                  <div key={key} className={`release-group is-${key}`}>
+                    <span className="release-tag">{label}</span>
+                    <ul className="release-tools">
+                      {entries.map((entry) => (
+                        <li key={entry.tool}>
+                          <strong>{entry.tool}</strong>
+                          <ul>
+                            {entry.items.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
             </section>
           ))}
         </div>

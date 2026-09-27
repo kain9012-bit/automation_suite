@@ -68,13 +68,50 @@
   font-weight: 500;
 }
 
-.release-version ul {
-  list-style: disc;
+.release-group {
   margin: 0 0 12px;
+}
+
+.release-tag {
+  display: inline-block;
+  margin: 2px 0 6px;
+  padding: 1px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.release-group.is-added .release-tag {
+  background: color-mix(in srgb, #16a34a 14%, var(--bg-secondary));
+  color: #15803d;
+}
+
+.release-group.is-changed .release-tag {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.release-tools {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 4px;
+  list-style: none;
+}
+
+.release-tools > li > strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.release-tools ul {
+  margin: 2px 0 0;
   padding-left: 18px;
+  list-style: disc;
   color: var(--text-secondary);
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .release-actions {
