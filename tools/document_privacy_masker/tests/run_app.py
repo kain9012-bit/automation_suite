@@ -72,6 +72,25 @@ def main() -> int:
             svc.app_page({"path": str(tmp / "contacts.pdf"), "page": 1})
         check(buf.getvalue() == "", f"표준출력 비어 있음: {buf.getvalue()[:80]!r}")
 
+        print("\n[같은 이름] 확실히 찾은 이름을 문서 전체에서 다시 찾음(띄어 쓴 이름 포함)")
+        from dpm_items import TableGrid, Unit, find_items
+
+        def unit(uid, text):
+            return Unit(uid, text, [(uid, i) for i in range(len(text))], uid)
+
+        found = find_items(
+            [unit("a", "성명: 홍길동"), unit("b", "강 사 명 : 홍 길 동   (서명 또는 인)"),
+             unit("c", "본인(홍길동)은 서약합니다."), unit("d", "홍길동님께. 김홍길동은 다른 사람"),
+             unit("e", "성명: 정수"), unit("f", "정수기 청소, 정수는 참석")],
+            [TableGrid("T", "표 1", [[unit("t", "한글(또는 한자)\n홍길동")]])])
+        spots = {(it.unit_id, it.text) for it in found if it.kind == "PERSON"}
+        for want in (("b", "홍 길 동"), ("c", "홍길동"), ("d", "홍길동"), ("t", "홍길동"), ("f", "정수")):
+            check(want in spots, f"찾음: {want}")
+        d_hits = [it for it in found if it.unit_id == "d" and it.kind == "PERSON"]
+        f_hits = [it for it in found if it.unit_id == "f" and it.kind == "PERSON"]
+        check(len(d_hits) == 1 and d_hits[0].keys[0] == ("d", 0), "낱말 속(김홍길동)은 빼고 찾음")
+        check(len(f_hits) == 1 and f_hits[0].keys[0] == ("f", 8), "두 글자 이름은 '정수기' 속이 아니라 '정수는'만")
+
         print("\n[읽기] app_analyze")
         a = svc.app_analyze({"path": str(hwpx)})
         check(a["ok"] and a["items"] and a["fingerprint"], f"항목 {len(a['items'])}개, 파일 표시 {a['fingerprint']}")

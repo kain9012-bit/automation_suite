@@ -26,6 +26,7 @@ CASES = [
     ("BIRTH", "1978.03.02", "mask_part", "1978.**.**"),
     ("VEHICLE", "12가3456", "mask_part", "12가****"),
     ("PERSON", "홍길동", "keep", "홍길동"),
+    ("PERSON", "박 호 용", "mask_part", "박 * 용"),               # 글자 사이를 띄운 이름
 ]
 
 bad = 0

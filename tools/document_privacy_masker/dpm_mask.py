@@ -26,6 +26,12 @@ def _digits_mask(text: str, keep_head: int = 0, keep_tail: int = 0) -> str:
 
 def _mask_name(text: str) -> str:
     # 김철수(金哲洙) → 김*수(***) / 남궁민수 → 남**수 / 이준 → 이*
+    spaced = re.fullmatch(r"[가-힣](?:[ \t\u3000]+[가-힣]){1,3}", text)
+    if spaced:
+        # 글자 사이를 띄운 이름: 박 호 용 → 박 * 용 (빈칸은 그대로)
+        idx = [i for i, ch in enumerate(text) if "가" <= ch <= "힣"]
+        hide = set(idx[1:-1]) if len(idx) >= 3 else set(idx[1:])
+        return "".join(STAR if i in hide else ch for i, ch in enumerate(text))
     m = re.match(r"([가-힣]+)(.*)$", text, re.S)
     if not m:
         return _stars(text)

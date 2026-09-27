@@ -114,7 +114,51 @@ def find_items(units: list[Unit], tables: list[TableGrid]) -> list[Item]:
             item = _item_from(cell, cf.finding, where)
             if item:
                 raw.append(item)
+    raw += _same_names(raw, units, tables)
     return _merge_items(raw)
+
+
+# 이름 뒤에 붙어도 되는 조사(두 글자 이름이 낱말 속에서 잡히지 않게 할 때 쓴다)
+_PARTICLES = "은는이가을를의에께도만과와랑님씨"
+_GAP = "[ \t\u3000]*"
+
+
+def _same_names(found: list[Item], units: list[Unit], tables: list[TableGrid]) -> list[Item]:
+    """문서 어딘가에서 확실하게 찾은 이름(성명 칸 옆 값 등)을 문서 전체에서 다시 찾는다.
+
+    인사 서류는 한 사람 이름이 서명란·본인(…)·강사명 등 여러 곳에 나오고, '박 호 용'처럼 글자
+    사이를 띄워 쓰기도 한다. 그런 곳은 이름표가 없어 규칙만으로는 놓치므로, 같은 이름을 띄어 쓴
+    모양까지 포함해 찾는다. 앞에 한글이 붙은 경우(낱말 속)는 빼고, 두 글자 이름은 뒤에 조사만 허용한다.
+    """
+    names = set()
+    for it in found:
+        if it.kind != "PERSON" or it.confidence < 0.8:
+            continue
+        core = re.sub(r"\s+", "", it.text.split("(")[0])
+        if re.fullmatch(r"[가-힣]{2,4}", core):
+            names.add(core)
+    if not names:
+        return []
+    targets: list[tuple[Unit, str]] = [(u, u.where) for u in units]
+    for table in tables:
+        for r, row in enumerate(table.cells):
+            for c, cell in enumerate(row):
+                if cell is not None:
+                    targets.append((cell, f"{table.where} ({r + 1}행 {c + 1}열)"))
+    out: list[Item] = []
+    for name in sorted(names):
+        after = "" if len(name) >= 3 else f"(?=[{_PARTICLES}]?(?![가-힣]))"
+        pattern = re.compile(r"(?<![가-힣])" + _GAP.join(map(re.escape, name)) + after)
+        for unit, where in targets:
+            for m in pattern.finditer(unit.text):
+                pos = list(unit.positions[m.start():m.end()])
+                if not any(p is not None for p in pos):
+                    continue
+                out.append(Item(kind="PERSON", positions=pos, text=m.group(0), confidence=0.85,
+                                reasons=["문서의 다른 곳에서 찾은 이름과 같음"], where=where,
+                                context=_context(unit.text, m.start(), m.end()), unit_id=unit.uid,
+                                extra=dict(unit.extra)))
+    return out
 
 
 def _merge_items(items: list[Item]) -> list[Item]:
