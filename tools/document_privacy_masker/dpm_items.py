@@ -104,7 +104,8 @@ def find_items(units: list[Unit], tables: list[TableGrid]) -> list[Item]:
             if item:
                 raw.append(item)
     for table in tables:
-        rows = [[(cell.text if cell else "") for cell in row] for row in table.cells]
+        # 병합으로 가려진 칸은 None 으로 넘긴다(한 줄 전체를 차지한 칸을 알아보는 데 쓴다).
+        rows = [[(cell.text if cell else None) for cell in row] for row in table.cells]
         for cf in detect_table(rows):
             cell = table.cells[cf.row][cf.col]
             if cell is None:

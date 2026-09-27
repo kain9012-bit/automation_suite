@@ -711,13 +711,16 @@ class CellFinding:
         return d
 
 
-def detect_table(rows: list[list[str]]) -> list[CellFinding]:
+def detect_table(rows: list[list[Optional[str]]]) -> list[CellFinding]:
     """표(행 × 칸 글자)에서 개인정보를 찾는다.
 
     - 머리글 줄: '성명·주민등록번호·주소 …' 칸이 있는 줄 아래로 그 열의 값 전체를 해당 종류로 본다.
       값 모양만으로는 판단이 안 되는 명부·대장의 이름·주소를 놓치지 않기 위해서다.
     - 항목-값 짝: 한 줄에 '성명 | 홍길동 | 생년월일 | 1978.3.2' 처럼 항목 칸 바로 옆 칸이 값인 서식.
     - 그 밖의 칸도 글 한 덩어리로 보고 detect_text 로 찾는다.
+    - 칸 값이 None 이면 병합으로 가려진 칸이다. 한 줄을 칸 하나가 통째로 차지한 줄(안내문·소제목)은
+      머리글 열의 값으로 보지 않고, 그 글이 길면(문장) 표의 다른 부분이 시작된 것으로 보고 머리글 열을 끝낸다.
+      서식 한 장에 '대상자·성명' 칸 아래로 '동의자', '유의사항' 같은 글이 이어지는 경우를 이름으로 잡지 않기 위해서다.
     """
     found: dict[tuple[int, int, int, int], CellFinding] = {}
 
@@ -730,6 +733,10 @@ def detect_table(rows: list[list[str]]) -> list[CellFinding]:
     columns: dict[int, tuple[str, str]] = {}   # 열 번호 → (종류, 머리글)
     for r, row in enumerate(rows):
         cells = [str(v or "") for v in row]
+        present = [c for c, v in enumerate(row) if v is not None]
+        full_width = len(row) > 1 and len(present) == 1
+        if full_width and len(cells[present[0]].strip()) >= 20:
+            columns = {}
         kinds = [header_kind(v) for v in cells]
         header_hits = sum(1 for k in kinds if k)
         # 머리글 줄: 항목 칸이 둘 이상이고, 나머지 칸에 값(숫자·@·개인정보로 보이는 글)이 없는 줄.
@@ -753,9 +760,9 @@ def detect_table(rows: list[list[str]]) -> list[CellFinding]:
                 f = Finding(kind, a, b, cells[c + 1][a:b], 0.9, [f"'{cells[c].strip()}' 칸 옆 값"])
                 add(r, c + 1, f)
                 pair_cols.add(c + 1)
-        # 머리글 아래 열 값
+        # 머리글 아래 열 값(한 줄을 통째로 차지한 칸은 열 값이 아니다)
         for c, (k, head) in columns.items():
-            if c in pair_cols or c >= len(cells) or kinds[c]:
+            if full_width or c in pair_cols or c >= len(cells) or kinds[c]:
                 continue
             value = cells[c].strip()
             if value in _EMPTY_CELLS or not _value_fits(k, value):
