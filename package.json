@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fontsource-variable/outfit": "^5.2.8",
+    "@rhwp/core": "0.8.6",
     "@tauri-apps/api": "^2.9.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-global-shortcut": "2.3.2",

@@ -24,6 +24,7 @@ import { ResultDialog, readResultPopup, type ResultPopup } from "./ResultDialog"
 import "./native-tool-panel.css";
 import "./excel-split-panel.css";
 import "./document-privacy-masker.css";
+import { buildHwpLayout, type HwpLayout } from "./dpmHwpLayout";
 
 /**
  * 문서 개인정보 마스킹 전용 화면.
@@ -58,6 +59,8 @@ type Item = {
   char_rects?: (number[] | null)[];
   /** 한글: text 의 글자마다 글 미리보기 안 자리 [블록, 행, 열, 글자] (문단은 행·열 -1) */
   spots?: (number[] | null)[];
+  /** 한글: text 의 글자마다 [문서 순서 문단 번호, 문단 안 글자 번호] (쪽 미리보기에 맞출 때) */
+  pspots?: (number[] | null)[];
 };
 
 type ViewCell = { text: string; rs: number; cs: number } | null;
@@ -73,6 +76,8 @@ type Analysis = {
   warnings: string[];
   pages: { width: number; height: number }[];
   view: ViewBlock[];
+  /** 한글 쪽 미리보기(rhwp)용: 그리는 hwpx 파일(base64)과 문서 순서 문단 글 */
+  hwp_preview?: { data: string; paras: string[] } | null;
   actions: Record<Action, string>;
 };
 
@@ -415,7 +420,51 @@ export function DocumentPrivacyMaskerPanel({
 
   const state = active ? states[active] : undefined;
   const analysis = state?.status === "ready" ? state.analysis : null;
-  const items = analysis?.items ?? [];
+  const rawItems = analysis?.items;
+
+  // 한글 쪽 미리보기(rhwp). 고른 파일 것만 만든다. 실패하면 글 미리보기로 보여 준다.
+  const [hwpLayouts, setHwpLayouts] = useState<Record<string, { key: string; layout?: HwpLayout; error?: string }>>({});
+  const hwpKey = analysis?.hwp_preview ? `${analysis.fingerprint}\u0000${(rawItems ?? []).map((it) => it.id).join(",")}` : "";
+  const hwpEntry = active ? hwpLayouts[active] : undefined;
+  const hwpLayout = hwpEntry && hwpEntry.key === hwpKey ? hwpEntry.layout : undefined;
+  const hwpFailed = !!hwpEntry && hwpEntry.key === hwpKey && !!hwpEntry.error;
+  useEffect(() => {
+    if (!active || !analysis?.hwp_preview || !hwpKey) return;
+    if (hwpLayouts[active]?.key === hwpKey) return;
+    let stale = false;
+    const path = active;
+    setHwpLayouts((current) => ({ ...current, [path]: { key: hwpKey } }));
+    buildHwpLayout(analysis.hwp_preview.data, analysis.hwp_preview.paras, analysis.items)
+      .then((layout) => {
+        if (stale) {
+          layout.close();
+          return;
+        }
+        setHwpLayouts((current) => {
+          current[path]?.layout?.close();
+          return { ...current, [path]: { key: hwpKey, layout } };
+        });
+      })
+      .catch((reason) => {
+        if (!stale) setHwpLayouts((current) => ({ ...current, [path]: { key: hwpKey, error: errorText(reason) } }));
+      });
+    return () => {
+      stale = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, hwpKey]);
+
+  // 한글 쪽 미리보기가 있으면 항목마다 쪽 번호와 글자 사각형을 붙여 PDF 와 같은 방식으로 보여 준다.
+  const items = useMemo(() => {
+    const list = rawItems ?? [];
+    if (!hwpLayout) return list;
+    return list.map((it) => {
+      const g = hwpLayout.geom.get(it.id);
+      if (!g || !g.page) return it;
+      const charRects = g.boxes.map((b) => (b && b.page + 1 === g.page ? b.box : null));
+      return { ...it, page: g.page, char_rects: charRects, rects: mergeRuns(charRects.filter((r): r is number[] => !!r)) };
+    });
+  }, [rawItems, hwpLayout]);
   const myDecisions = useMemo(() => (active && decisions[active]) || {}, [active, decisions]);
   const actionOf = useCallback(
     (item: Item): Action => {
@@ -463,7 +512,10 @@ export function DocumentPrivacyMaskerPanel({
       return next.size === current.size ? current : next;
     });
   }, [items]);
-  useEffect(() => setChecked(new Set()), [active]);
+  useEffect(() => {
+    setChecked(new Set());
+    setDrawMode(false);
+  }, [active]);
 
   const checkedShown = shown.filter((item) => checked.has(item.id));
   const allShownChecked = !!shown.length && checkedShown.length === shown.length;
@@ -479,11 +531,18 @@ export function DocumentPrivacyMaskerPanel({
 
   // ── PDF 미리보기 ──────────────────────────────────────────────
   const isPdf = analysis?.format === "pdf";
-  const pageCount = analysis?.pages.length ?? 0;
+  // 쪽으로 보여 주는지: PDF, 또는 한글 쪽 미리보기가 준비된 한글
+  const paged = isPdf || !!hwpLayout;
+  const hwpPending = !isPdf && !!analysis?.hwp_preview && !hwpLayout && !hwpFailed;
+  const pageCount = isPdf ? analysis?.pages.length ?? 0 : hwpLayout?.pageCount ?? 0;
   const page = Math.min(Math.max(1, (active && pageNo[active]) || 1), Math.max(1, pageCount));
   const pictureKey = `${active}\u0000${analysis?.fingerprint ?? ""}\u0000${page}`;
-  const picture = pictures[pictureKey];
-  const pageSize = analysis?.pages[page - 1];
+  const hwpPicture = useMemo(
+    () => (hwpLayout ? { image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(hwpLayout.svg(page))}`, width: 0, height: 0 } : undefined),
+    [hwpLayout, page],
+  );
+  const picture = isPdf ? pictures[pictureKey] : hwpPicture;
+  const pageSize = isPdf ? analysis?.pages[page - 1] : hwpLayout?.pages[page - 1];
   const myBoxes = (active && boxes[active]) || [];
 
   useEffect(() => {
@@ -513,7 +572,7 @@ export function DocumentPrivacyMaskerPanel({
   const selectItem = (item: Item, fromPicture = false) => {
     setSelectedItem(item.id);
     if (item.page && item.page !== page) goPage(item.page);
-    if (!fromPicture && !isPdf) {
+    if (!fromPicture && !paged) {
       // 한글 글 미리보기에서 그 자리로 옮긴다.
       window.setTimeout(
         () => docRef.current?.querySelector(`[data-item="${item.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }),
@@ -768,7 +827,9 @@ export function DocumentPrivacyMaskerPanel({
               <p className="dpm-help">
                 {isPdf
                   ? "미리보기의 반투명 검은 칸 아래 글자가 지워질 글자입니다. 사본에서는 그 자리가 검은 칸이 되고 복사해도 나오지 않습니다."
-                  : "미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, 형광펜은 사본에 들어가지 않습니다."}
+                  : paged || hwpPending
+                    ? "미리보기의 반투명 검은 칸 아래 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, 검은 칸은 사본에 들어가지 않습니다."
+                    : "미리보기에서 검은 형광펜을 칠한 글자가 가려질 글자입니다. 사본에서는 * 로 바뀌고, 형광펜은 사본에 들어가지 않습니다."}
               </p>
 
               <div className="dpm-review has-preview">
@@ -807,7 +868,7 @@ export function DocumentPrivacyMaskerPanel({
                       <thead>
                         <tr>
                           <th className="dpm-col-check" />
-                          {isPdf && <th className="dpm-col-page">쪽</th>}
+                          {paged && <th className="dpm-col-page">쪽</th>}
                           <th className="dpm-col-kind">종류</th>
                           <th>찾은 내용 → 바뀐 모양</th>
                           <th className="dpm-col-action">처리</th>
@@ -834,7 +895,7 @@ export function DocumentPrivacyMaskerPanel({
                                   aria-label={`${item.text} 선택`}
                                 />
                               </td>
-                              {isPdf && <td className="dpm-page-no">{item.page ?? ""}</td>}
+                              {paged && <td className="dpm-page-no">{item.page ?? "-"}</td>}
                               <td className="dpm-kind">
                                 <span className="dpm-kind-badge">
                                   {item.label}
@@ -879,7 +940,7 @@ export function DocumentPrivacyMaskerPanel({
                 </div>
                 </div>
 
-                {isPdf && (
+                {(paged || hwpPending) && (
                   <div className="dpm-preview">
                     <div className="dpm-preview-bar">
                       <button className="icon-button" onClick={() => goPage(page - 1)} disabled={page <= 1} title="앞 쪽">
@@ -891,14 +952,16 @@ export function DocumentPrivacyMaskerPanel({
                       <button className="icon-button" onClick={() => goPage(page + 1)} disabled={page >= pageCount} title="다음 쪽">
                         <ChevronRight size={16} />
                       </button>
-                      <button
-                        className={`secondary-button dpm-draw ${drawMode ? "is-on" : ""}`}
-                        onClick={() => setDrawMode((on) => !on)}
-                        title="목록에 없는 곳(도장·사진·그림 속 글자 등)을 끌어서 직접 가립니다"
-                      >
-                        <SquareDashedMousePointer size={15} />
-                        {drawMode ? "그리기 끝" : "영역 직접 가리기"}
-                      </button>
+                      {isPdf && (
+                        <button
+                          className={`secondary-button dpm-draw ${drawMode ? "is-on" : ""}`}
+                          onClick={() => setDrawMode((on) => !on)}
+                          title="목록에 없는 곳(도장·사진·그림 속 글자 등)을 끌어서 직접 가립니다"
+                        >
+                          <SquareDashedMousePointer size={15} />
+                          {drawMode ? "그리기 끝" : "영역 직접 가리기"}
+                        </button>
+                      )}
                     </div>
                     <div className="dpm-page">
                       {picture ? (
@@ -973,12 +1036,16 @@ export function DocumentPrivacyMaskerPanel({
                     <p className="dpm-legend">
                       <span className="is-mask" /> 지워질 글자
                       <span className="is-keep" /> 찾았지만 가리지 않을 곳
-                      <span className="is-box" /> 직접 그린 영역{myBoxes.length ? ` ${myBoxes.length}개` : ""}
+                      {isPdf && (
+                        <>
+                          <span className="is-box" /> 직접 그린 영역{myBoxes.length ? ` ${myBoxes.length}개` : ""}
+                        </>
+                      )}
                     </p>
                   </div>
                 )}
 
-                {!isPdf && analysis && (
+                {!paged && !hwpPending && analysis && (
                   <div className="dpm-preview">
                     <div className="dpm-preview-bar">
                       <span>글 미리보기 · 원래 글 위에 가려질 곳을 표시합니다(글자 모양·배치는 실제와 다를 수 있음)</span>

@@ -10,6 +10,16 @@
 - 고치지 않고 그대로 넣었다. 업데이트할 때는 폴더를 통째로 바꾸고 `tests/run_golden.py` 를 다시 돌린다.
 - 외부 라이브러리를 쓰지 않는다(파이썬 표준 라이브러리만). 설치본 사이드카에 따로 넣을 것이 없다.
 
+## 화면에서 쓰는 부품
+
+| 이름 | 쓰는 곳 | 라이선스 | 버전 |
+|---|---|---|---|
+| rhwp (`@rhwp/core`, Edward Kim) | 확인 화면의 한글(hwp·hwpx) 쪽 미리보기 (`src/components/dpmHwpLayout.ts`) | MIT | 0.8.6 |
+
+- 출처: https://github.com/edwardkim/rhwp
+- 화면(WebAssembly)에서 쪽 그림(SVG)과 글자 위치를 받아, 파이썬이 준 문단 글·글자 순번과 맞춰 가릴 곳을 표시한다.
+  맞추지 못하거나 rhwp 가 실패하면 글 미리보기(문단·표를 글로 다시 그린 것)로 보여 준다.
+
 ## 참고한 공개 도구 (제작자 사용 허락, 2026-09)
 
 | 도구 | 출처 | 가져온 것 |
@@ -19,6 +29,7 @@
 | K-PoliShield | gitlab.aigov.go.kr/dltjrwns/k-polishield | 패턴·마스킹 엔진 구성 |
 | Tiny PDF Editor (MIT) | gitlab.aigov.go.kr/soonpyo/tiny-pdf-editor | PDF 글자 실제 삭제(apply_redactions) 방식 |
 | 00MASKING | gitlab.aigov.go.kr/00AI/00 | 미리보기에서 영역을 끌어 보강하는 화면 흐름 |
+| Docufinder | github.com/chrisryugj/Docufinder | 한글 쪽 미리보기를 rhwp 로 그리는 방식(제작자 사용 허락) |
 
 ## 이 도구 파일
 

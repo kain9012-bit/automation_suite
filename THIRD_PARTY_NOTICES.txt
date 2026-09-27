@@ -27,3 +27,11 @@ ko-pii
 이 기능도 PDF 를 다룰 때 위의 PyMuPDF 를 사용합니다.
 
 - 소스코드      : https://github.com/Marker-Inc-Korea/ko-pii
+
+rhwp
+----
+문서 개인정보 마스킹의 한글(hwp·hwpx) 쪽 미리보기는 Edward Kim 의 rhwp(@rhwp/core)를 고치지 않고
+그대로 사용합니다. rhwp 는 MIT License 에 따라 배포됩니다.
+(Copyright (c) 2025-2026 Edward Kim)
+
+- 소스코드      : https://github.com/edwardkim/rhwp

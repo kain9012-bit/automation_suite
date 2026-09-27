@@ -80,6 +80,8 @@ class HwpxDoc:
         self.warnings: list[str] = []
         # 확인 화면의 글 미리보기용: 문서 순서대로 문단·표
         self.blocks: list[dict] = []
+        # 확인 화면의 쪽 미리보기(rhwp)와 맞추는 데 쓰는 문단 목록: XML 에서 문단이 시작되는 순서
+        self._opened: list[tuple[int, Unit]] = []
         self._parse()
 
     # 본문 XML: Contents/ 아래에서 <hp:t> 가 있는 것(section, masterpage 등)
@@ -93,6 +95,7 @@ class HwpxDoc:
 
     def _parse(self) -> None:
         para_no = 0
+        open_no = 0
         table_no = 0
         for part in self.text_parts():
             xml = self.data[part].decode("utf-8")
@@ -116,7 +119,8 @@ class HwpxDoc:
                 closing, local, attrs, selfclose = m.group(1), m.group(3), m.group(4), m.group(5)
                 if local == "p":
                     if not closing and not selfclose:
-                        stack.append({"chars": [], "xml_start": m.start()})
+                        stack.append({"chars": [], "xml_start": m.start(), "open_no": open_no})
+                        open_no += 1
                     elif closing and stack:
                         para = stack.pop()
                         para_no += 1
@@ -136,6 +140,7 @@ class HwpxDoc:
                         )
                         if unit.text.strip():
                             self.units.append(unit)
+                            self._opened.append((para["open_no"], unit))
                             if not in_cell:
                                 self.blocks.append({"type": "p", "unit": unit})
                         if in_cell:
@@ -180,6 +185,17 @@ class HwpxDoc:
                         tstack[-1]["cell"]["span"] = span
             if stack:
                 self.warnings.append(f"{part}: 문단 구조를 끝까지 읽지 못했습니다.")
+
+    def paragraphs(self) -> tuple[list[str], dict]:
+        """문서 순서대로 문단 글(표 칸 안 문단 포함)과, 글자 위치 → [문단 순번, 문단 안 글자 순번] 표."""
+        texts: list[str] = []
+        where: dict = {}
+        for n, (_, unit) in enumerate(sorted(self._opened, key=lambda t: t[0])):
+            texts.append(unit.text)
+            for i, p in enumerate(unit.positions):
+                if p is not None:
+                    where[p] = [n, i]
+        return texts, where
 
     def view(self) -> tuple[list[dict], dict]:
         """확인 화면의 글 미리보기: 문서 순서대로 문단·표 글과, 글자 위치 → [블록, 행, 열, 글자] 표.

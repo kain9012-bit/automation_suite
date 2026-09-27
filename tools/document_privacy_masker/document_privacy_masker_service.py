@@ -121,6 +121,7 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
             d["changes"] = _changes(it.kind, it.text)
         pages = []
         view = []
+        hwp_preview = None
         if is_pdf:
             # PDF: 미리보기에서 칠해 보여 줄 자리(쪽 번호와 사각형)
             from dpm_pdf import _merge_rects
@@ -137,8 +138,14 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
         elif hasattr(doc, "view"):
             # 한글: 문단·표를 글로 다시 그린 미리보기와, 찾은 글자마다 그 안의 자리
             view, spot = doc.view()
+            paras, para_spot = doc.paragraphs()
             for it, d in zip(items, dicts):
                 d["spots"] = [spot.get(p) if p is not None else None for p in it.positions]
+                d["pspots"] = [para_spot.get(p) if p is not None else None for p in it.positions]
+            # 쪽 미리보기: 화면이 한글 문서를 직접 쪽 그림으로 그린다(rhwp). 그리는 파일과 문단 글을 함께 넘긴다.
+            if work.stat().st_size <= 40 * 1024 * 1024:
+                import base64
+                hwp_preview = {"data": base64.b64encode(work.read_bytes()).decode("ascii"), "paras": paras}
         return {
             "file": str(path),
             "name": path.name,
@@ -150,6 +157,7 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
                          if work != path else []) + _warnings(doc),
             "pages": pages,
             "view": view,
+            "hwp_preview": hwp_preview,
             "scanned_pages": list(getattr(doc, "scanned_pages", [])),
             "kinds": {code: {"label": k.label, "fixed": k.fixed, "action": k.default_action} for code, k in KINDS.items()},
             "actions": ACTION_LABELS,
