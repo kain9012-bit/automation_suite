@@ -225,6 +225,94 @@ def main() -> int:
         check(len(r["results"]) == 1 and len(r["failed"]) == 1 and r["popup"]["level"] == "warning",
               f"1개 성공·1개 실패: {r['popup']['title']}")
 
+        print("\n[회전된 PDF 쪽] 미리보기 표시 자리와 직접 그린 영역이 보이는 쪽 기준으로 맞음")
+        import pymupdf
+        rot = tmp / "rotated.pdf"
+        with pymupdf.open() as d:
+            pg = d.new_page()
+            pg.insert_text((60, 80), "연락처 010-2468-1357", fontname="korea", fontsize=12)
+            pg.insert_text((60, 300), "비고 사진", fontname="korea", fontsize=12)
+            pg.set_rotation(90)
+            d.save(rot)
+        info = svc.app_analyze({"path": str(rot)})
+        it = next(i for i in info["items"] if "2468" in i["text"])
+        page_w, page_h = info["pages"][0]["width"], info["pages"][0]["height"]
+        with pymupdf.open(rot) as d:
+            pix = d[0].get_pixmap(alpha=False)   # 보이는(회전된) 쪽 그림, 1pt = 1px
+            x0, y0, x1, y1 = [int(v) for v in it["rects"][0]]
+            dark = sum(1 for x in range(max(0, x0), min(pix.width, x1)) for y in range(max(0, y0), min(pix.height, y1))
+                       if pix.pixel(x, y)[0] < 128)
+        check((page_w, page_h) == (pix.width, pix.height) and dark > 20, f"표시 사각형 안에 글자가 있음(검은 점 {dark}개)")
+        # 보이는 쪽에서 '비고 사진' 줄을 덮는 영역을 그린다 → 회전 전 좌표로 바꿔 지워야 함
+        with pymupdf.open(rot) as d:
+            words = [w for w in d[0].get_text("words") if w[4] == "사진"]
+            shown = pymupdf.Rect(words[0][:4]) * d[0].rotation_matrix
+        box = {"page": 1, "x0": shown.x0 - 2, "y0": shown.y0 - 2, "x1": shown.x1 + 2, "y1": shown.y1 + 2}
+        r = svc.app_apply({"confirmed": True, "files": [entry(info, manual_boxes=[box])]})
+        text = pdf_text(Path(r["output"]))
+        check("사진" not in text and "비고" in text, f"그린 영역의 글자만 지워짐: {text[:40]!r}")
+        check("2468" not in text, "찾은 번호도 지워짐")
+
+        print("\n[직접 그린 영역] 그 안의 그림(사진·도장)도 지움")
+        img = tmp / "photo.pdf"
+        with pymupdf.open() as d:
+            pg = d.new_page()
+            pg.insert_text((60, 80), "성명 홍길동", fontname="korea")
+            pm = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), 0)
+            pm.set_rect(pm.irect, (200, 30, 30))
+            pg.insert_image(pymupdf.Rect(300, 300, 340, 340), pixmap=pm)
+            pg.draw_rect(pymupdf.Rect(305, 305, 335, 335), color=(0, 0, 1))
+            d.save(img)
+        info = svc.app_analyze({"path": str(img)})
+        box = {"page": 1, "x0": 295, "y0": 295, "x1": 345, "y1": 345}
+        r = svc.app_apply({"confirmed": True, "files": [entry(info, manual_boxes=[box])]})
+        with pymupdf.open(r["output"]) as d:
+            reds = 0
+            for xref, *_ in d[0].get_images():
+                pm = pymupdf.Pixmap(d, xref)
+                reds += sum(1 for x in range(pm.width) for y in range(pm.height) if pm.pixel(x, y)[:3] == (200, 30, 30))
+            drawings = [dr for dr in d[0].get_drawings() if dr.get("color") == (0.0, 0.0, 1.0)]
+        check(reds == 0, f"사진 점이 남지 않음(원래 색 {reds}점)")
+        check(not drawings, "영역 안에 다 들어가는 선도 지움")
+
+        print("\n[숨은 값] PDF 링크 주소(mailto)·한글 하이퍼링크 필드에 든 값도 가림")
+        link = tmp / "link.pdf"
+        with pymupdf.open() as d:
+            pg = d.new_page()
+            pg.insert_text((60, 80), "연락처 010-3579-2468", fontname="korea")
+            pg.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(100, 68, 220, 84), "uri": "tel:010-3579-2468"})
+            pg.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(60, 100, 160, 116), "uri": "https://www.jbe.go.kr"})
+            d.save(link)
+        info = svc.app_analyze({"path": str(link)})
+        r = svc.app_apply({"confirmed": True, "files": [entry(info)]})
+        with pymupdf.open(r["output"]) as d:
+            uris = [l.get("uri") for l in d[0].get_links()]
+        check(uris == ["https://www.jbe.go.kr"], f"가린 값이 든 링크만 뺌: {uris}")
+
+        linked = tmp / "linked.hwpx"
+        with zipfile.ZipFile(FIX / "hr_notice.hwpx") as zin, zipfile.ZipFile(linked, "w") as zout:
+            for zi in zin.infolist():
+                data = zin.read(zi.filename)
+                if zi.filename == "Contents/section0.xml":
+                    xml = data.decode("utf-8")
+                    at = xml.index("010-1234-5678")
+                    run = xml.rfind("<hp:run ", 0, at)
+                    run_end = xml.index(">", run) + 1
+                    field = ('<hp:ctrl><hp:fieldBegin id="1" type="HYPERLINK" name="" editable="0" dirty="0">'
+                             '<hp:parameters cnt="1" name=""><hp:stringParam name="Command">'
+                             'tel:010-1234-5678;1;0;0;</hp:stringParam></hp:parameters></hp:fieldBegin></hp:ctrl>')
+                    data = (xml[:run_end] + field + xml[run_end:]).encode("utf-8")
+                zout.writestr(zi, data)
+        info = svc.app_analyze({"path": str(linked)})
+        check(any(i["text"] == "010-1234-5678" for i in info["items"]), "필드를 넣어도 본문 번호를 찾음")
+        r = svc.app_apply({"confirmed": True, "files": [entry(info)]})
+        out_xml = hwpx_text(Path(r["output"]))
+        check("010-1234-5678" not in out_xml and "tel:010-" in out_xml, "링크 주소 속 번호도 가림(링크는 남김)")
+        check(r["results"][0]["verify"]["ok"], "다시 검사 통과")
+        # 링크 주소를 가리지 못했다면 다시 검사가 잡아야 한다(검사 범위 확인)
+        from dpm_hwpx import metadata_text
+        check("tel:010-1234-5678" in metadata_text(linked), "다시 검사가 링크 주소까지 읽음")
+
         print("\n[저장 폴더]")
         out_dir = tmp / "결과"
         info = svc.app_analyze({"path": str(pdf)})

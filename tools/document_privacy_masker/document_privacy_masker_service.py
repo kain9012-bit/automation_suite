@@ -33,8 +33,10 @@ SUPPORTED = (".hwp", ".hwpx", ".pdf")
 
 def _work_path(path: Path) -> Path:
     """실제로 읽을 파일. 옛 한글(hwp) 형식이면 한글로 바꾼 임시 hwpx(확장자가 hwpx 인데 속이 hwp 인 것도)."""
+    from dpm_hancom import cleanup_cache, working_hwpx
+    # 개인정보가 든 임시 hwpx 중 하루 지난 것은 파일 종류와 상관없이 쓸 때마다 지운다.
+    cleanup_cache()
     if path.suffix.lower() in (".hwp", ".hwpx"):
-        from dpm_hancom import working_hwpx
         return working_hwpx(path)
     return path
 
@@ -124,14 +126,17 @@ def analyze_file(path: str | Path, extra_terms: Optional[list[dict]] = None) -> 
         hwp_preview = None
         if is_pdf:
             # PDF: 미리보기에서 칠해 보여 줄 자리(쪽 번호와 사각형)
-            from dpm_pdf import _merge_rects
+            from dpm_pdf import _merge_rects, rotation_matrices, shown_rect
+            mats = rotation_matrices(doc.doc)
             for it, d in zip(items, dicts):
                 rects = [doc.char_rect[k] for k in it.keys if k in doc.char_rect]
-                d["page"] = it.keys[0][0] + 1 if it.keys else None
-                d["rects"] = [[round(v, 1) for v in r] for r in _merge_rects(rects)]
+                pno = it.keys[0][0] if it.keys else None
+                d["page"] = pno + 1 if pno is not None else None
+                # 글자 좌표는 회전 전 쪽 기준이라, 화면에 보이는(회전된) 쪽 좌표로 바꿔 보낸다.
+                d["rects"] = [shown_rect(mats, pno, r) for r in _merge_rects(rects)] if pno is not None else []
                 # 글자마다 사각형(찾은 글과 같은 순서, 줄바꿈 등은 None): 바뀌는 글자만 칠하는 데 쓴다.
                 d["char_rects"] = [
-                    [round(v, 1) for v in doc.char_rect[p]] if p is not None and p in doc.char_rect else None
+                    shown_rect(mats, p[0], doc.char_rect[p]) if p is not None and p in doc.char_rect else None
                     for p in it.positions
                 ]
             pages = [{"width": round(p.rect.width, 1), "height": round(p.rect.height, 1)} for p in doc.doc]
@@ -220,13 +225,20 @@ def apply_file(
         if decisions.get(it.id) not in (None, *ACTION_LABELS):
             decisions[it.id] = MASK_ALL   # 세 가지 방식 밖의 값은 전부 가림으로
     edits, masked = plan_edits(items, decisions)
+    # 가린 원래 값: 본문 밖(링크 주소 등)에 같은 값이 숨어 있으면 그것도 가린다.
+    new_char = {e.position: e.new_char for e in edits}
+    hidden = []
+    for it in masked:
+        after = "".join(new_char.get(p, ch) if p is not None else ch for ch, p in zip(it.text, it.positions))
+        if after != it.text:
+            hidden.append((it.text, after))
     out = _output_path(path, Path(output_dir).expanduser().resolve() if output_dir else None,
                        suffix=".pdf" if is_pdf else ".hwpx")
     say(f"{path.name}: {len(masked)}곳을 가립니다.")
     if is_pdf:
-        report = doc.write(edits, out, manual_boxes=manual_boxes)
+        report = doc.write(edits, out, manual_boxes=manual_boxes, hidden_values=[a for a, _ in hidden])
     else:
-        report = doc.write(edits, out)
+        report = doc.write(edits, out, hidden_pairs=hidden)
     # 만든 사본을 다시 열어 검사한다.
     kept = [it for it in items if it not in masked]
     check = verify_output(out, masked, kept)
@@ -402,6 +414,10 @@ def _popup(results: list[dict], failed: list[dict], stopped: bool, total: int) -
             extra.append(f"메모 {report['annotations_removed']}개 뺌")
         if report.get("attachments_removed"):
             extra.append(f"첨부 파일 {report['attachments_removed']}개 뺌")
+        if report.get("hidden_masked"):
+            extra.append(f"링크 주소 등 숨은 글 {report['hidden_masked']}곳 가림")
+        if report.get("links_removed"):
+            extra.append(f"가린 값이 든 링크 {report['links_removed']}개 뺌")
         if report.get("toc_titles_masked"):
             extra.append(f"책갈피 제목 {report['toc_titles_masked']}개 가림")
         if report.get("preview_text") or report.get("preview_image"):

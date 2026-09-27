@@ -647,6 +647,8 @@ def main() -> int:
     parser.add_argument("--tool")
     parser.add_argument("--payload")
     parser.add_argument("--payload-b64")
+    # 명령줄 한도(윈도 32,767자)를 넘는 입력값은 앱이 임시 파일로 넘긴다(파일은 앱이 지운다).
+    parser.add_argument("--payload-file")
     parser.add_argument("--macro-action-b64")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
@@ -662,7 +664,9 @@ def main() -> int:
             print(json.dumps(run_macro_action(action), ensure_ascii=False))
             return 0
 
-        if args.payload_b64:
+        if args.payload_file:
+            payload_text = Path(args.payload_file).read_text(encoding="utf-8")
+        elif args.payload_b64:
             payload_text = base64.b64decode(args.payload_b64).decode("utf-8")
         else:
             payload_text = args.payload or "{}"

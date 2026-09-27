@@ -14,8 +14,10 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 from typing import Optional
 
 # 앱은 도구가 표준출력에 쓴 글을 결과(JSON)로 읽는다. PyMuPDF 는 표 찾기(find_tables)를 처음 쓸 때
@@ -127,29 +129,56 @@ class PdfDoc:
 
     # ------------------------------------------------------------ 쓰기
 
-    def write(self, edits: list[Edit], out_path: Path, manual_boxes: list[dict] | None = None) -> dict:
-        """바뀌는 글자 자리를 실제로 지운다. manual_boxes: [{page, x0, y0, x1, y1}] 사용자가 직접 그린 영역."""
+    def write(self, edits: list[Edit], out_path: Path, manual_boxes: list[dict] | None = None,
+              hidden_values: list[str] | None = None) -> dict:
+        """바뀌는 글자 자리를 실제로 지운다. manual_boxes: [{page, x0, y0, x1, y1}] 사용자가 직접 그린 영역.
+        hidden_values: 가린 원래 값들. 링크 주소(mailto: 등)에 들어 있으면 그 링크를 뺀다."""
         by_page: dict[int, list[tuple[float, float, float, float]]] = {}
         for e in edits:
             rect = self.char_rect.get(e.position)
             if rect is None:
                 continue
             by_page.setdefault(e.position[0], []).append(rect)
+        # 직접 그린 영역: 화면에 보이는(회전된) 쪽 좌표로 온다. 따로 모아 그림·선까지 지운다.
+        drawn: dict[int, list[tuple[float, float, float, float]]] = {}
         for box in manual_boxes or []:
             try:
                 pno = int(box["page"]) - 1
-                by_page.setdefault(pno, []).append((float(box["x0"]), float(box["y0"]), float(box["x1"]), float(box["y1"])))
+                rect = pymupdf.Rect(float(box["x0"]), float(box["y0"]), float(box["x1"]), float(box["y1"]))
             except (KeyError, TypeError, ValueError):
                 continue
+            if not 0 <= pno < self.doc.page_count:
+                continue
+            page = self.doc[pno]
+            if page.rotation:
+                rect = rect * page.derotation_matrix
+            rect.normalize()
+            drawn.setdefault(pno, []).append((rect.x0, rect.y0, rect.x1, rect.y1))
 
         report = {"redacted": 0, "metadata_cleared": False, "annotations_removed": 0,
-                  "attachments_removed": 0, "toc_titles_masked": 0}
+                  "attachments_removed": 0, "toc_titles_masked": 0, "links_removed": 0}
         for pno, rects in by_page.items():
             page = self.doc[pno]
             for rect in _merge_rects(rects):
                 page.add_redact_annot(pymupdf.Rect(*_shrink(rect)), fill=(0, 0, 0))
                 report["redacted"] += 1
             _apply(page)
+        for pno, rects in drawn.items():
+            page = self.doc[pno]
+            for rect in rects:
+                page.add_redact_annot(pymupdf.Rect(*rect), fill=(0, 0, 0))
+                report["redacted"] += 1
+            _apply(page, drawn=True)
+
+        # 가린 값이 링크 주소에 남아 있으면(mailto:, tel: 등) 그 링크를 뺀다.
+        values = [v for v in {re.sub(r"\s+", "", v) for v in hidden_values or []} if len(v) >= 2]
+        if values:
+            for page in self.doc:
+                for link in list(page.get_links()):
+                    uri = re.sub(r"\s+", "", unquote(str(link.get("uri") or "")))
+                    if uri and any(v in uri for v in values):
+                        page.delete_link(link)
+                        report["links_removed"] += 1
 
         # 메모 주석(스티커 메모·자유 글 등)은 사본에서 뺀다. 링크·입력칸은 둔다.
         for page in self.doc:
@@ -210,17 +239,37 @@ class PdfDoc:
             pass
 
 
-def _apply(page) -> None:
-    """글자만 지우고 그림·선은 둔다. 옛 PyMuPDF 는 graphics 인자가 없어 나눠 부른다."""
-    kwargs = {"images": getattr(pymupdf, "PDF_REDACT_IMAGE_NONE", 0)}
-    line_art_none = getattr(pymupdf, "PDF_REDACT_LINE_ART_NONE", None)
-    if line_art_none is not None:
-        kwargs["graphics"] = line_art_none
+def _apply(page, drawn: bool = False) -> None:
+    """찾은 글자 자리: 글자만 지우고 그림·선은 둔다.
+    직접 그린 영역(drawn): 도장·사진을 가리려고 그리므로 그 안의 그림 점과 영역 안에 다 들어가는 선도 지운다.
+    옛 PyMuPDF 는 graphics 인자가 없어 나눠 부른다."""
+    if drawn:
+        kwargs = {"images": getattr(pymupdf, "PDF_REDACT_IMAGE_PIXELS", 2)}
+        line_art = getattr(pymupdf, "PDF_REDACT_LINE_ART_REMOVE_IF_COVERED", None)
+    else:
+        kwargs = {"images": getattr(pymupdf, "PDF_REDACT_IMAGE_NONE", 0)}
+        line_art = getattr(pymupdf, "PDF_REDACT_LINE_ART_NONE", None)
+    if line_art is not None:
+        kwargs["graphics"] = line_art
     try:
         page.apply_redactions(**kwargs)
     except TypeError:
         kwargs.pop("graphics", None)
         page.apply_redactions(**kwargs)
+
+
+def rotation_matrices(doc) -> dict[int, "pymupdf.Matrix"]:
+    """회전된 쪽만: 쪽 번호(0부터) → 회전 전 좌표를 보이는 좌표로 바꾸는 행렬."""
+    return {page.number: page.rotation_matrix for page in doc if page.rotation}
+
+
+def shown_rect(mats: dict, pno: int, rect) -> list[float]:
+    """회전 전 쪽 좌표의 사각형을 화면에 보이는(회전된) 쪽 좌표로 바꾼다(미리보기 표시용)."""
+    r = pymupdf.Rect(rect)
+    if pno in mats:
+        r = r * mats[pno]
+        r.normalize()
+    return [round(v, 1) for v in (r.x0, r.y0, r.x1, r.y1)]
 
 
 def _merge_rects(rects: list[tuple[float, float, float, float]]) -> list[tuple[float, float, float, float]]:

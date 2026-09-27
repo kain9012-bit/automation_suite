@@ -433,7 +433,12 @@ export function DocumentPrivacyMaskerPanel({
     if (hwpLayouts[active]?.key === hwpKey) return;
     let stale = false;
     const path = active;
-    setHwpLayouts((current) => ({ ...current, [path]: { key: hwpKey } }));
+    const key = hwpKey;
+    setHwpLayouts((current) => {
+      // 같은 파일을 다시 읽어 바뀐 경우: 앞 그림은 더 쓰지 않으므로 닫는다(메모리).
+      current[path]?.layout?.close();
+      return { ...current, [path]: { key } };
+    });
     buildHwpLayout(analysis.hwp_preview.data, analysis.hwp_preview.paras, analysis.items)
       .then((layout) => {
         if (stale) {
@@ -442,17 +447,47 @@ export function DocumentPrivacyMaskerPanel({
         }
         setHwpLayouts((current) => {
           current[path]?.layout?.close();
-          return { ...current, [path]: { key: hwpKey, layout } };
+          return { ...current, [path]: { key, layout } };
         });
       })
       .catch((reason) => {
-        if (!stale) setHwpLayouts((current) => ({ ...current, [path]: { key: hwpKey, error: errorText(reason) } }));
+        if (!stale) setHwpLayouts((current) => ({ ...current, [path]: { key, error: errorText(reason) } }));
       });
     return () => {
       stale = true;
+      // 그리는 도중에 다른 파일로 옮기면 '그리는 중' 표시를 지운다. 남겨 두면 돌아왔을 때 다시 그리지 않고 멈춘다.
+      setHwpLayouts((current) => {
+        const entry = current[path];
+        if (!entry || entry.key !== key || entry.layout || entry.error) return current;
+        const next = { ...current };
+        delete next[path];
+        return next;
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, hwpKey]);
+
+  // 목록에서 뺀 파일의 한글 쪽 그림은 닫는다. 도구 화면을 닫을 때도 모두 닫는다.
+  useEffect(() => {
+    setHwpLayouts((current) => {
+      const gone = Object.keys(current).filter((path) => !inputs.includes(path));
+      if (!gone.length) return current;
+      const next = { ...current };
+      for (const path of gone) {
+        next[path]?.layout?.close();
+        delete next[path];
+      }
+      return next;
+    });
+  }, [inputs]);
+  const hwpLayoutsRef = useRef(hwpLayouts);
+  hwpLayoutsRef.current = hwpLayouts;
+  useEffect(
+    () => () => {
+      for (const entry of Object.values(hwpLayoutsRef.current)) entry.layout?.close();
+    },
+    [],
+  );
 
   // 한글 쪽 미리보기가 있으면 항목마다 쪽 번호와 글자 사각형을 붙여 PDF 와 같은 방식으로 보여 준다.
   const items = useMemo(() => {

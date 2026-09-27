@@ -228,7 +228,10 @@ class HwpxDoc:
 
     # ------------------------------------------------------------ 쓰기
 
-    def write(self, edits: list[Edit], out_path: Path) -> dict:
+    def write(self, edits: list[Edit], out_path: Path,
+              hidden_pairs: Optional[list[tuple[str, str]]] = None) -> dict:
+        """hidden_pairs: [(원래 값, 가린 값)]. 본문 글(<hp:t>) 밖에 같은 값이 있으면(하이퍼링크 주소
+        mailto: 같은 필드 설정 값) 그것도 가린 값으로 바꾼다. 화면에 안 보여도 파일 안에 남기 때문이다."""
         by_piece: dict[int, dict[int, str]] = {}
         for e in edits:
             if not isinstance(e.position, tuple):
@@ -245,16 +248,36 @@ class HwpxDoc:
             new_text = "".join(chars)
             changed_parts.setdefault(piece.part, []).append((piece.xml_start, piece.xml_end, _escape(new_text)))
 
+        # <hp:t> 밖의 글에 들어 있는 원래 값 → 가린 값 (긴 값부터 바꿔 짧은 값이 먼저 끼어들지 않게)
+        pairs = sorted({(_escape(a), _escape(b)) for a, b in hidden_pairs or [] if len(a.strip()) >= 2 and a != b},
+                       key=lambda ab: -len(ab[0]))
+        hidden_count = 0
+
         new_data = dict(self.data)
-        for part, repl in changed_parts.items():
+        for part in sorted(set(changed_parts) | set(self._xml_parts() if pairs else [])):
+            repl = changed_parts.get(part, [])
             xml = self.data[part].decode("utf-8")
             # 바뀐 문단의 줄 배치 정보는 한글이 다시 계산하도록 지운다(글자 수가 바뀐 경우 대비).
-            ops = list(repl) + [(a, b, "") for a, b in _lineseg_spans(xml, [r[0] for r in repl])]
+            lineseg = _lineseg_spans(xml, [r[0] for r in repl]) if repl else []
+            ops = list(repl) + [(a, b, "") for a, b in lineseg]
+            for start, end, raw in _outside_t_texts(xml) if pairs else []:
+                if any(a <= start < b for a, b in lineseg):
+                    continue
+                text = raw
+                for before, after in pairs:
+                    if before in text:
+                        hidden_count += text.count(before)
+                        text = text.replace(before, after)
+                if text != raw:
+                    ops.append((start, end, text))
+            if not ops:
+                continue
             for start, end, text in sorted(ops, reverse=True):
                 xml = xml[:start] + text + xml[end:]
             new_data[part] = xml.encode("utf-8")
 
-        report = {"metadata_cleared": [], "preview_text": False, "preview_image": False}
+        report = {"metadata_cleared": [], "preview_text": False, "preview_image": False,
+                  "hidden_masked": hidden_count}
         # 문서 정보: 작성자·마지막 저장자
         for name in list(new_data):
             if name.endswith("content.hpf"):
@@ -285,6 +308,11 @@ class HwpxDoc:
                 z.writestr(zi, new_data[info.filename])
         tmp.replace(out_path)
         return report
+
+    def _xml_parts(self) -> list[str]:
+        """본문 글 밖의 값(필드 설정 등)까지 볼 XML: Contents/ 아래 전부(글꼴·모양 정의인 header 는 뺀다)."""
+        return [n for n in self.data
+                if n.startswith("Contents/") and n.endswith(".xml") and n != "Contents/header.xml"]
 
     def _preview_text(self, edits: list[Edit]) -> str:
         changes = {e.position: e.new_char for e in edits}
@@ -337,6 +365,22 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _outside_t_texts(xml: str) -> list[tuple[int, int, str]]:
+    """<hp:t> 밖에 있는 글(하이퍼링크 주소 같은 필드 설정 값 등)의 XML 위치와 원문(이스케이프된 그대로)."""
+    out = []
+    in_t = 0
+    pos = 0
+    for m in _TAG_RE.finditer(xml):
+        if not in_t and m.start() > pos:
+            raw = xml[pos:m.start()]
+            if raw.strip():
+                out.append((pos, m.start(), raw))
+        pos = m.end()
+        if m.group(3) == "t" and not m.group(5):
+            in_t = max(0, in_t - 1) if m.group(1) else in_t + 1
+    return out
+
+
 def _lineseg_spans(xml: str, positions: list[int]) -> list[tuple[int, int]]:
     """바뀐 글자가 들어 있는 문단의 <hp:linesegarray>…</hp:linesegarray> 위치(원래 XML 기준)."""
     spans = set()
@@ -372,10 +416,13 @@ def _blank_png_like(data: bytes) -> bytes:
 
 
 def metadata_text(path: Path) -> str:
-    """다시 검사할 때 쓰는 문서 정보·미리보기 글."""
+    """다시 검사할 때 쓰는 문서 정보·미리보기 글, 본문 글(<hp:t>) 밖의 값(링크 주소 등)."""
     out = []
     with zipfile.ZipFile(path) as z:
         for name in z.namelist():
             if name.endswith("content.hpf") or name == "Preview/PrvText.txt":
                 out.append(z.read(name).decode("utf-8", "replace"))
+            elif name.startswith("Contents/") and name.endswith(".xml") and name != "Contents/header.xml":
+                xml = z.read(name).decode("utf-8", "replace")
+                out.extend(html.unescape(raw) for _, _, raw in _outside_t_texts(xml))
     return "\n".join(out)

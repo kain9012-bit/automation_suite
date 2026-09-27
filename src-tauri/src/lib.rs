@@ -650,6 +650,36 @@ async fn run_native_tool(
         .map_err(|error| format!("도구 실행을 마치지 못했습니다: {error}"))?
 }
 
+/// 명령줄로 넘길 입력값(base64)의 최대 길이. 윈도 명령줄 한도(32,767자)에서 경로·다른 인자 몫을 뺐다.
+const PAYLOAD_ARG_LIMIT: usize = 24_000;
+
+/// 명령줄에 다 들어가지 않는 입력값을 담은 임시 파일. 도구 실행이 끝나면(오류로 끝나도) 지운다.
+struct PayloadFile(PathBuf);
+
+impl PayloadFile {
+    fn write(app: &AppHandle, payload_json: &str) -> Result<Self, String> {
+        let dir = app
+            .path()
+            .app_cache_dir()
+            .map_err(|error| format!("임시 폴더를 찾지 못했습니다: {error}"))?
+            .join("payload");
+        fs::create_dir_all(&dir).map_err(|error| format!("임시 폴더를 만들지 못했습니다: {error}"))?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let path = dir.join(format!("{}-{stamp}.json", std::process::id()));
+        fs::write(&path, payload_json).map_err(|error| format!("입력값을 넘기지 못했습니다: {error}"))?;
+        Ok(Self(path))
+    }
+}
+
+impl Drop for PayloadFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
 fn run_native_tool_blocking(
     app: AppHandle,
     tool_id: String,
@@ -666,7 +696,14 @@ fn run_native_tool_blocking(
     let runner = bridge_path(&app).ok();
     let payload_json =
         serde_json::to_string(&payload).map_err(|error| format!("입력값 오류: {error}"))?;
-    let payload_encoded = STANDARD.encode(payload_json);
+    let payload_encoded = STANDARD.encode(&payload_json);
+    // 윈도 명령줄은 32,767자까지만 받는다. 입력값이 길면(문서 개인정보 마스킹의 확인 목록 등)
+    // 임시 파일로 넘기고 끝나면 지운다. 짧은 입력은 지금까지처럼 명령줄로 넘긴다.
+    let payload_file = if payload_encoded.len() > PAYLOAD_ARG_LIMIT {
+        Some(PayloadFile::write(&app, &payload_json)?)
+    } else {
+        None
+    };
 
     let mut sidecar_candidates = Vec::new();
     if let Ok(current_exe) = std::env::current_exe() {
@@ -713,9 +750,12 @@ fn run_native_tool_blocking(
         }
         command
             .arg("--tool")
-            .arg(&tool_id)
-            .arg("--payload-b64")
-            .arg(&payload_encoded)
+            .arg(&tool_id);
+        match &payload_file {
+            Some(file) => command.arg("--payload-file").arg(&file.0),
+            None => command.arg("--payload-b64").arg(&payload_encoded),
+        };
+        command
             .env(
                 "JBEDU_CANCEL_FILE",
                 cancel_flag.as_deref().unwrap_or(Path::new("")),
