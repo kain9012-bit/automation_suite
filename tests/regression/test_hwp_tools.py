@@ -39,6 +39,7 @@ class State:
         self.open_raises = False
         self.path_empty = False
         self.insert_fail: set[str] = set()
+        self.open_fail: set[str] = set()
         self.save_raises = False
         self.on_open = None
         self.on_insert = None
@@ -76,7 +77,7 @@ class FakeParam:
         self.HSet = self
         self.filename = ""
         self.Format = ""
-        self.KeepSection = 1
+        self.KeepSection = None   # 코드가 직접 정하는지 보려고 비워 둔다
         self.Attributes = 0
 
 
@@ -117,6 +118,7 @@ class FakeAction:
             if fname in S.insert_fail:
                 return False
             self._hwp.inserted.append(fname)
+            self._hwp.keep_section.append(hset.KeepSection)
             return True
         if name in ("FileSaveAs", "FileSaveAs_S"):
             if S.save_raises:
@@ -132,6 +134,9 @@ class FakeHwp:
         self.registered: list[str] = []
         self.actions: list[str] = []
         self.inserted: list[str] = []
+        self.opened: list[str] = []
+        self.opened_paths: list[str] = []
+        self.keep_section: list = []
         self.saved: list[tuple] = []
         self.quit_called = False
         self._path = ""
@@ -150,7 +155,12 @@ class FakeHwp:
             raise RuntimeError("open boom")
         if not S.open_result:
             return False
+        source = _source_name(path)
+        if source in S.open_fail:
+            return False
         self._path = "" if S.path_empty else path
+        self.opened.append(source)
+        self.opened_paths.append(path)
         return True
 
     @property
@@ -169,6 +179,16 @@ class FakeHwp:
 
     def Quit(self):
         self.quit_called = True
+
+
+def _source_name(path: str) -> str:
+    """가짜 원본 파일에는 원래 이름을 적어 둔다. 임시 복사본을 열어도 어느 파일인지 안다."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return Path(path).name
+    marker = b" source "
+    return data.split(marker, 1)[1].decode("utf-8") if marker in data else Path(path).name
 
 
 def _new_hwp():
@@ -247,7 +267,7 @@ def make_files(folder: Path, names: list[str]) -> list[Path]:
     paths = []
     for name in names:
         p = folder / name
-        p.write_bytes(b"\xd0\xcf\x11\xe0 source")
+        p.write_bytes(b"\xd0\xcf\x11\xe0 source " + name.encode("utf-8"))
         paths.append(p)
     return paths
 
@@ -404,8 +424,8 @@ def _(tmp):
     assert isinstance(result, dict), f"결과를 돌려주지 않음: {result!r}"
     assert [f["name"] for f in result["failed"]] == ["b.hwp"], result
     assert result["inserted"] == ["a.hwp", "c.hwpx"], result
-    assert S.hwps[0].inserted == ["a.hwp", "c.hwpx"]
-    assert S.hwps[0].actions.count("DeleteBack") == 1, "실패한 파일 앞 쪽 나누기를 되돌리지 않음"
+    assert S.hwps[0].opened == ["a.hwp"] and S.hwps[0].inserted == ["c.hwpx"], (S.hwps[0].opened, S.hwps[0].inserted)
+    assert "BreakPage" not in S.hwps[0].actions, "쪽 나누기를 넣음(구역이 나뉘므로 필요 없음)"
     assert (tmp / "out.hwpx").exists()
 
 
@@ -425,7 +445,7 @@ def _(tmp):
 @check("4 취합: 모두 실패하면 빈 문서를 저장하지 않고 오류")
 def _(tmp):
     srcs = make_files(tmp, ["a.hwp", "b.hwp"])
-    S.insert_fail = {"a.hwp", "b.hwp"}
+    S.open_fail = {"a.hwp", "b.hwp"}
     raised = False
     try:
         collector.merge_han_files(srcs, tmp / "out.hwpx")
@@ -511,13 +531,13 @@ def _cancel_after_first(tmp, hook_name):
 @check("7 취합: 중지하면 넣은 것까지만 저장하고 멈춘다")
 def _(tmp):
     srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
-    cancel_file = _cancel_after_first(tmp, "on_insert")
+    cancel_file = _cancel_after_first(tmp, "on_open")
     code, result, progress, err = run_runner(
         "hwp_collector", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out.hwpx")}, cancel_file
     )
     assert code == 0, err
     assert result.get("stopped") is True, result
-    assert S.hwps[0].inserted == ["a.hwp"], S.hwps[0].inserted
+    assert S.hwps[0].opened == ["a.hwp"] and S.hwps[0].inserted == [], (S.hwps[0].opened, S.hwps[0].inserted)
     assert (tmp / "out.hwpx").exists() and "중지" in result["message"], result
     assert all_quit() and balanced()
 
@@ -548,6 +568,40 @@ def _(tmp):
     assert not (tmp / "b.hwpx").exists()
     assert all_quit() and balanced()
 
+
+# ------------------------------------------------------------------ 9. 취합: 파일마다 쪽 설정(가로·세로) 유지
+@check("9 취합: 첫 파일은 새 문서에 끼워 넣지 않고 임시 복사본을 열어 시작(첫 파일 쪽 설정 유지)")
+def _(tmp):
+    srcs = make_files(tmp, ["세로.hwp", "가로.hwpx", "세로2.hwp"])
+    before = [p.read_bytes() for p in srcs]
+    collector.merge_han_files(srcs, tmp / "out.hwpx")
+    h = S.hwps[0]
+    assert "FileNew" not in h.actions and "New" not in h.actions, f"빈 새 문서에서 시작함: {h.actions}"
+    assert h.opened == ["세로.hwp"], h.opened
+    assert all(Path(op).resolve() != srcs[0].resolve() for op in h.opened_paths), "원본을 직접 엶"
+    assert [p.read_bytes() for p in srcs] == before, "원본 파일이 바뀜"
+    assert not any(Path(op).exists() for op in h.opened_paths), "임시 복사본이 남음"
+
+
+@check("9 취합: 둘째 파일부터 '쪽 모양 유지'(KeepSection=1)로 끼워 넣고 쪽 나누기는 넣지 않음")
+def _(tmp):
+    srcs = make_files(tmp, ["세로.hwp", "가로.hwpx", "세로2.hwp"])
+    collector.merge_han_files(srcs, tmp / "out.hwpx")
+    h = S.hwps[0]
+    assert h.inserted == ["가로.hwpx", "세로2.hwp"], h.inserted
+    assert h.keep_section == [1, 1], f"쪽 모양 유지를 켜지 않음: {h.keep_section}"
+    assert "BreakPage" not in h.actions, h.actions
+
+
+@check("9 취합: 첫 파일을 열지 못하면 실패로 알리고 다음 파일로 시작")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    S.open_fail = {"a.hwp"}
+    result = collector.merge_han_files(srcs, tmp / "out.hwpx")
+    h = S.hwps[0]
+    assert [f["name"] for f in result["failed"]] == ["a.hwp"], result
+    assert h.opened == ["b.hwp"] and h.inserted == ["c.hwp"], (h.opened, h.inserted)
+    assert result["inserted"] == ["b.hwp", "c.hwp"], result
 
 # ------------------------------------------------------------------ 8. 정리
 @check("8 취합: 저장이 예외로 끝나도 한글을 끄고 CoUninitialize")

@@ -8,6 +8,6 @@
   "description": "선택한 HWP/HWPX 파일을 순서대로 하나의 한글 문서로 취합합니다.",
   "order": 30,
   "enabled": true,
-  "version": "2.2.4",
+  "version": "2.2.5",
   "keywords": []
 }

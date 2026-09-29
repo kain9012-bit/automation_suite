@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Callable
 
@@ -115,8 +117,25 @@ def action_move_end(hwp):
         raise RuntimeError(f"문서 끝 이동에 실패했습니다.\n\n{e}")
 
 
-def action_page_break(hwp) -> bool:
-    return run_action(hwp, "BreakPage")
+def action_open_base(hwp, path: str) -> None:
+    """첫 파일을 열어 취합을 시작한다.
+
+    빈 새 문서에 끼워 넣으면 새 문서의 쪽 설정(A4 세로)이 첫 파일의 쪽 설정을 덮는다.
+    파일을 그대로 열면 첫 파일의 용지 방향·여백이 그대로 남고, 맨 앞에 빈 쪽도 생기지 않는다.
+    path 는 원본이 아니라 임시 복사본이다(원본이 열린 채 잠기거나 바뀌지 않게).
+    """
+    errors = []
+    for fmt, option in (("", ""), ("", "forceopen:true")):
+        try:
+            result = hwp.Open(path, fmt, option)
+        except Exception as e:
+            errors.append(str(e))
+            continue
+        if result is not None and not result:
+            errors.append("한글이 이 파일을 열지 못했습니다.")
+            continue
+        return
+    raise RuntimeError(errors[-1] if errors else "한글이 이 파일을 열지 못했습니다.")
 
 
 def _set_param_path(ps, path: str):
@@ -285,6 +304,7 @@ def merge_han_files(
 
     pythoncom.CoInitialize()
     hwp = None
+    work_dir = Path(tempfile.mkdtemp(prefix="jbedu_hwpmerge_"))
 
     try:
         hwp = get_hwp_object()
@@ -292,8 +312,6 @@ def merge_han_files(
         if not register_security_module(hwp):
             show_hwp_window(hwp)
             emit(ALLOW_HINT)
-
-        action_file_new(hwp)
 
         for index, fp in enumerate(ordered, start=1):
             if cancelled():
@@ -303,24 +321,23 @@ def merge_han_files(
             if len(ordered) > 1:
                 emit(f"[{index}/{len(ordered)}] {fp.name}")
 
-            broke_page = False
-            if inserted:
-                action_move_end(hwp)
-                broke_page = action_page_break(hwp)
-                action_move_end(hwp)
-            else:
-                action_move_end(hwp)
-
             try:
-                action_insert_file(hwp, fp_str, keep_section=0)
+                if not inserted:
+                    # 첫 파일: 임시 복사본을 열어 시작한다(첫 파일의 쪽 설정 유지).
+                    base = work_dir / f"base{fp.suffix.lower()}"
+                    shutil.copy2(fp, base)
+                    action_open_base(hwp, str(base))
+                else:
+                    # 둘째 파일부터: '쪽 모양 유지'로 끼워 넣는다. 한글이 끼워 넣는 자리 앞뒤로
+                    # 구역을 나누고 그 파일의 용지 방향·여백을 그대로 둔다. 구역이 나뉘면 새 쪽에서
+                    # 시작하므로 쪽 나누기는 따로 넣지 않는다. 끄면 앞 파일의 쪽 설정(가로 등)이
+                    # 뒤 파일들까지 이어진다.
+                    action_move_end(hwp)
+                    action_insert_file(hwp, fp_str, keep_section=1)
             except Exception as e:
                 reason = str(e).strip().splitlines()[-1] if str(e).strip() else type(e).__name__
                 failed.append({"name": fp.name, "error": reason})
                 emit(f"{fp.name}: 넣지 못했습니다 ({reason})")
-                # 이 파일 앞에 넣은 쪽 나누기를 되돌려 빈 쪽이 남지 않게 한다.
-                if broke_page:
-                    action_move_end(hwp)
-                    run_action(hwp, "DeleteBack")
                 continue
             inserted.append(fp.name)
 
@@ -362,3 +379,5 @@ def merge_han_files(
                 pythoncom.CoUninitialize()
             except Exception:
                 pass
+            # 첫 파일의 임시 복사본을 지운다(한글을 끈 뒤라야 파일이 풀린다).
+            shutil.rmtree(work_dir, ignore_errors=True)

@@ -22,6 +22,19 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.1",
+    added: [],
+    changed: [
+      {
+        tool: "한글 파일 취합",
+        items: [
+          "파일마다 쪽 설정(용지 방향·여백)을 그대로 유지",
+          "중간에 가로 쪽이 있으면 그 뒤 파일이 모두 가로로 바뀌던 문제 해결",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.4.0",
     added: [
       {
