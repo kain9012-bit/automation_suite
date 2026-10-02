@@ -1,0 +1,23 @@
+{
+  "id": "hwp_compress",
+  "name": "한글 용량 압축",
+  "top_tab": "PDF·문서",
+  "type": "internal_python",
+  "entry": "",
+  "icon": "",
+  "description": "한글(hwp·hwpx) 문서 안의 큰 그림을 줄여 용량을 줄인 hwpx 사본을 만듭니다.",
+  "order": 51,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "한글",
+    "hwp",
+    "hwpx",
+    "용량",
+    "압축",
+    "줄이기",
+    "그림",
+    "이미지",
+    "메일"
+  ]
+}

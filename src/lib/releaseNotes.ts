@@ -22,6 +22,21 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.2",
+    added: [
+      {
+        tool: "한글 용량 압축 (PDF·문서 탭)",
+        items: [
+          "한글(hwp·hwpx) 문서 안의 큰 그림을 줄여 용량을 줄인 hwpx 사본 생성 (원본은 그대로)",
+          "압축 방식 선택: 화질 우선 / 용량 우선 / 메일 첨부용(10MB) / 목표 용량",
+          "옛 한글(hwp)은 hwpx로 바꾼 뒤 줄여 hwpx로 저장",
+          "여러 파일 한 번에 처리, 파일별로 줄어든 용량을 결과 창에 표시",
+        ],
+      },
+    ],
+    changed: [],
+  },
+  {
     version: "1.4.1",
     added: [],
     changed: [

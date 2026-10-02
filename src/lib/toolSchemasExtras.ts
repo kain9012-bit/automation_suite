@@ -1,6 +1,33 @@
 import type { ToolUiSchema } from "./toolSchemas";
 
 export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
+  hwp_compress: {
+    inputLabel: "용량을 줄일 한글 파일(hwp·hwpx)을 선택하세요",
+    multiple: true,
+    extensions: ["hwp", "hwpx"],
+    cancellable: true,
+    resultPopup: true,
+    showSizes: true,
+    // 비우면 원본 옆에 '원본이름_용량축소.hwpx'로 저장한다.
+    outputMode: "folder",
+    outputLabel: "저장 폴더",
+    fields: [
+      {
+        key: "mode",
+        label: "압축 방식",
+        type: "select",
+        appearance: "cards",
+        defaultValue: "standard",
+        choices: [
+          { label: "화질 우선", value: "quality", hint: "그림을 더 선명하게 두고 줄입니다 (긴 변 2560px)" },
+          { label: "용량 우선", value: "standard", hint: "화질을 조금 낮추고 용량을 더 줄입니다 (긴 변 1600px)" },
+          { label: "메일 첨부용(10MB)", value: "mail", hint: "10MB 이하가 되도록 단계별로 줄입니다" },
+          { label: "목표 용량", value: "target", hint: "아래 '목표 용량(MB)' 이하가 되도록 단계별로 줄입니다" },
+        ],
+      },
+      { key: "target_mb", label: "목표 용량(MB) · '목표 용량' 방식에서만 씀", type: "number", defaultValue: 10 },
+    ],
+  },
   excel_merge: {
     inputLabel: "병합할 엑셀 파일을 선택하세요",
     multiple: true,

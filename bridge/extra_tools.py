@@ -554,6 +554,100 @@ def page_document_privacy_masker(payload: dict[str, Any]) -> dict[str, Any]:
     return service.app_page(payload)
 
 
+# 한글 용량 압축: hwp·hwpx 안의 큰 그림을 줄여 '원본이름_용량축소.hwpx' 로 저장한다.
+def run_hwp_compress(payload: dict[str, Any]) -> dict[str, Any]:
+    inputs = [path for path in _paths(payload) if path.suffix.lower() in (".hwp", ".hwpx")]
+    if not inputs:
+        raise ValueError("한글(hwp·hwpx) 파일을 선택하세요.")
+    service = _module("hwp_compress", "hwp_compress_service")
+    mode = str(payload.get("mode") or "standard")
+    target_mb = None
+    if mode == "target":
+        try:
+            target_mb = float(payload.get("target_mb") or 0)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"'목표 용량(MB)' 칸에는 숫자를 입력하세요. (입력값: {payload.get('target_mb')})"
+            ) from None
+    preset = service.make_preset(mode, target_mb)
+    raw_output = str(payload.get("output") or "").strip()
+    folder = Path(raw_output).expanduser().resolve() if raw_output else None
+    if folder is not None:
+        folder.mkdir(parents=True, exist_ok=True)
+
+    group = service.compress_files(
+        inputs, preset, folder, progress=emit_progress, cancel=FileCancel().is_set
+    )
+    results, failed = group["results"], group["failed"]
+    if not results and not group["stopped"]:
+        raise ValueError(
+            "용량을 줄인 파일이 없습니다.\n\n"
+            + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
+        )
+    if failed:
+        message = f"한글 파일 {len(inputs)}개 중 {len(results)}개를 줄였습니다. {len(failed)}개는 처리하지 못했습니다."
+    elif group["stopped"]:
+        message = f"중지했습니다. 한글 파일 {len(results)}개를 줄여 저장했습니다."
+    else:
+        message = f"한글 파일 {len(results)}개의 용량을 줄였습니다."
+    return {
+        "ok": True,
+        "message": message,
+        "output": str(folder or (Path(results[0]["output"]).parent if results else inputs[0].parent)),
+        "results": results,
+        "failed": failed,
+        "stopped": group["stopped"],
+        "popup": _hwp_compress_popup(results, failed, group["stopped"], group["skipped"], preset),
+    }
+
+
+def _hwp_compress_popup(results, failed, stopped, skipped, preset) -> dict[str, str]:
+    target = preset.target_mb
+    lines = []
+    for item in results:
+        before, after = item["original_bytes"] / 1048576, item["output_bytes"] / 1048576
+        if item["output_bytes"] < item["original_bytes"]:
+            change = f"{(1 - item['output_bytes'] / max(item['original_bytes'], 1)) * 100:.0f}% 줄임"
+        else:
+            change = "줄지 않음"
+        mark = ""
+        if target:
+            mark = ", 목표 달성" if item["target_reached"] else ", 목표 미달"
+        line = f"· {item['name']}\n   {before:.2f}MB → {after:.2f}MB ({change}{mark})"
+        notes = []
+        if item.get("converted"):
+            notes.append("hwp를 hwpx로 바꿔 저장")
+        if item.get("images_total"):
+            notes.append(f"그림 {item['images_total']}개 중 {item['images_reduced']}개 줄임")
+        if item.get("note"):
+            notes.append(item["note"])
+        if notes:
+            line += "\n   " + " · ".join(notes)
+        lines.append(line)
+    fail_lines = "".join(f"\n· {item['name']}: {item['error']}" for item in failed)
+    missed = [item for item in results if target and not item["target_reached"]]
+    body = "\n".join(lines)
+    if stopped:
+        head = (f"중지 요청으로 멈췄습니다. 한글 파일 {len(results)}개를 줄여 저장했습니다."
+                if results else "중지 요청으로 멈춰 저장한 파일이 없습니다.")
+        if skipped:
+            head += f"\n나머지 {skipped}개는 처리하지 않았습니다."
+        return {"level": "warning", "title": "압축을 중지했습니다",
+                "message": head + ("\n\n" + body if body else "")
+                + ("\n\n처리하지 못한 파일" + fail_lines if failed else "")}
+    if failed or missed:
+        head = []
+        if missed:
+            head.append(f"{len(missed)}개는 설정한 단계까지 줄였지만 목표 용량 {target:g}MB에 닿지 못했습니다.")
+        if failed:
+            head.append(f"{len(failed)}개는 처리하지 못했습니다.")
+        return {"level": "warning", "title": "일부 파일을 확인해 주세요",
+                "message": " ".join(head) + ("\n\n" + body if body else "")
+                + ("\n\n처리하지 못한 파일" + fail_lines if failed else "")}
+    return {"level": "success", "title": "한글 용량을 줄였습니다",
+            "message": body + "\n\n결과 파일을 열어 글·표·그림이 제대로 보이는지 확인해 주세요."}
+
+
 EXTRA_HANDLERS = {
     "certificate_pdf_renamer": run_certificate_renamer,
     "certificate_pdf_splitter": run_certificate_splitter,
@@ -567,4 +661,5 @@ EXTRA_HANDLERS = {
     "excel_split__analyze": analyze_excel_split,
     "homepage_post_collector": run_homepage_collector,
     "homepage_post_collector__probe": probe_homepage_board,
+    "hwp_compress": run_hwp_compress,
 }
