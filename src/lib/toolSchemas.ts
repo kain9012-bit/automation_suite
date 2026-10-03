@@ -29,6 +29,8 @@ export interface ToolField {
    * 돌려받은 `fill`로 다른 칸을 채운다.
    */
   action?: FieldAction;
+  /** 다른 칸(key)의 값이 values 중 하나일 때 이 칸을 비활성화한다. 값은 그대로 두고 입력만 막는다. */
+  disabledWhen?: { key: string; values: string[] };
 }
 
 export interface ToolUiSchema {

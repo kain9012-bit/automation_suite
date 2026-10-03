@@ -554,29 +554,33 @@ def page_document_privacy_masker(payload: dict[str, Any]) -> dict[str, Any]:
     return service.app_page(payload)
 
 
-# 한글 용량 압축: hwp·hwpx 안의 큰 그림을 줄여 '원본이름_용량축소.hwpx' 로 저장한다.
+# 한글 용량 압축: hwp·hwpx 안의 그림을 줄여 hwpx 로 저장한다.
+# 방식: basic(기본 줄이기, 목표 용량 없음) · each(파일마다 목표 용량 이하) · total(전체 합계를 목표 용량 이하)
 def run_hwp_compress(payload: dict[str, Any]) -> dict[str, Any]:
     inputs = [path for path in _paths(payload) if path.suffix.lower() in (".hwp", ".hwpx")]
     if not inputs:
         raise ValueError("한글(hwp·hwpx) 파일을 선택하세요.")
     service = _module("hwp_compress", "hwp_compress_service")
-    mode = str(payload.get("mode") or "standard")
-    target_mb = None
-    if mode == "target":
+    mode = str(payload.get("target_mode") or "basic")
+    if mode not in service.MODES:
+        mode = "basic"
+    target_mb = 0.0
+    if mode != "basic":
         try:
-            target_mb = float(payload.get("target_mb") or 0)
+            target_mb = float(payload.get("target_mb") or 5)
         except (TypeError, ValueError):
             raise ValueError(
                 f"'목표 용량(MB)' 칸에는 숫자를 입력하세요. (입력값: {payload.get('target_mb')})"
             ) from None
-    preset = service.make_preset(mode, target_mb)
+        if target_mb <= 0:
+            raise ValueError("'목표 용량(MB)'은 0보다 크게 입력하세요.")
     raw_output = str(payload.get("output") or "").strip()
     folder = Path(raw_output).expanduser().resolve() if raw_output else None
     if folder is not None:
         folder.mkdir(parents=True, exist_ok=True)
 
     group = service.compress_files(
-        inputs, preset, folder, progress=emit_progress, cancel=FileCancel().is_set
+        inputs, mode, target_mb, folder, progress=emit_progress, cancel=FileCancel().is_set
     )
     results, failed = group["results"], group["failed"]
     if not results and not group["stopped"]:
@@ -584,68 +588,89 @@ def run_hwp_compress(payload: dict[str, Any]) -> dict[str, Any]:
             "용량을 줄인 파일이 없습니다.\n\n"
             + "\n".join(f"· {item['name']}: {item['error']}" for item in failed)
         )
-    if failed:
+    if mode == "total" and results:
+        message = f"한글 파일 {len(results)}개를 합계 {group['final_total'] / 1048576:.2f}MB로 저장했습니다."
+    elif failed:
         message = f"한글 파일 {len(inputs)}개 중 {len(results)}개를 줄였습니다. {len(failed)}개는 처리하지 못했습니다."
-    elif group["stopped"]:
-        message = f"중지했습니다. 한글 파일 {len(results)}개를 줄여 저장했습니다."
     else:
         message = f"한글 파일 {len(results)}개의 용량을 줄였습니다."
+    if group["stopped"]:
+        message = "중지 요청으로 멈췄습니다. " + message
+    output = group.get("folder") or str(
+        folder or (Path(results[0]["output"]).parent if results else inputs[0].parent)
+    )
     return {
         "ok": True,
         "message": message,
-        "output": str(folder or (Path(results[0]["output"]).parent if results else inputs[0].parent)),
+        "output": output,
         "results": results,
         "failed": failed,
         "stopped": group["stopped"],
-        "popup": _hwp_compress_popup(results, failed, group["stopped"], group["skipped"], preset),
+        "popup": _hwp_compress_popup(group),
     }
 
 
-def _hwp_compress_popup(results, failed, stopped, skipped, preset) -> dict[str, str]:
-    target = preset.target_mb
-    lines = []
-    for item in results:
-        before, after = item["original_bytes"] / 1048576, item["output_bytes"] / 1048576
-        if item["output_bytes"] < item["original_bytes"]:
-            change = f"{(1 - item['output_bytes'] / max(item['original_bytes'], 1)) * 100:.0f}% 줄임"
-        else:
-            change = "줄지 않음"
-        mark = ""
-        if target:
-            mark = ", 목표 달성" if item["target_reached"] else ", 목표 미달"
-        line = f"· {item['name']}\n   {before:.2f}MB → {after:.2f}MB ({change}{mark})"
-        notes = []
-        if item.get("converted"):
-            notes.append("hwp를 hwpx로 바꿔 저장")
-        if item.get("images_total"):
-            notes.append(f"그림 {item['images_total']}개 중 {item['images_reduced']}개 줄임")
-        if item.get("note"):
-            notes.append(item["note"])
-        if notes:
-            line += "\n   " + " · ".join(notes)
-        lines.append(line)
+def _hwp_compress_line(item: dict[str, Any], target_mb: float) -> str:
+    before, after = item["original_bytes"] / 1048576, item["output_bytes"] / 1048576
+    if item["output_bytes"] < item["original_bytes"]:
+        change = f"{(1 - item['output_bytes'] / max(item['original_bytes'], 1)) * 100:.0f}% 줄임"
+    else:
+        change = "줄지 않음"
+    if target_mb and item.get("target_reached") is not None:
+        change += ", 달성" if item["target_reached"] else ", 미달"
+    line = f"· {item['name']}\n   {before:.2f}MB → {after:.2f}MB ({change})"
+    notes = []
+    if item.get("converted"):
+        notes.append("hwp를 hwpx로 바꿔 저장")
+    if item.get("images_total"):
+        notes.append(f"그림 {item['images_total']}개 중 {item['images_reduced']}개 줄임")
+    if item.get("note"):
+        notes.append(item["note"])
+    if notes:
+        line += "\n   " + " · ".join(notes)
+    return line
+
+
+def _hwp_compress_popup(group: dict[str, Any]) -> dict[str, str]:
+    results, failed, stopped = group["results"], group["failed"], group["stopped"]
+    mode, target = group["mode"], group.get("target_mb") or 0
+    body = "\n".join(_hwp_compress_line(item, target) for item in results)
     fail_lines = "".join(f"\n· {item['name']}: {item['error']}" for item in failed)
-    missed = [item for item in results if target and not item["target_reached"]]
-    body = "\n".join(lines)
+    tail = ("\n\n" + body if body else "") + ("\n\n처리하지 못한 파일" + fail_lines if failed else "")
+    summary = ""
+    if mode == "total" and results:
+        summary = (
+            f"합계 {group['original_total'] / 1048576:.2f}MB → {group['final_total'] / 1048576:.2f}MB"
+            f" (목표 {target:g}MB)\n저장 폴더: {group['folder']}"
+        )
     if stopped:
-        head = (f"중지 요청으로 멈췄습니다. 한글 파일 {len(results)}개를 줄여 저장했습니다."
+        head = (f"중지 요청으로 멈췄습니다. 지금까지 줄인 결과로 한글 파일 {len(results)}개를 저장했습니다."
                 if results else "중지 요청으로 멈춰 저장한 파일이 없습니다.")
-        if skipped:
-            head += f"\n나머지 {skipped}개는 처리하지 않았습니다."
+        if group.get("skipped"):
+            head += f"\n나머지 {group['skipped']}개는 처리하지 않았습니다."
         return {"level": "warning", "title": "압축을 중지했습니다",
-                "message": head + ("\n\n" + body if body else "")
-                + ("\n\n처리하지 못한 파일" + fail_lines if failed else "")}
+                "message": (summary + "\n" if summary else "") + head + tail}
+    if mode == "total":
+        if group["achieved"]:
+            return {"level": "warning" if failed else "success", "title": "합계 목표 용량으로 줄였습니다",
+                    "message": summary + tail}
+        return {"level": "warning", "title": "합계 목표 용량까지 줄이지 못했습니다",
+                "message": summary + f"\n가장 작게 줄여도 합계 {group['final_total'] / 1048576:.2f}MB입니다."
+                " 그림이 적고 글자·표 위주인 파일은 더 줄지 않습니다." + tail}
+    missed = [item for item in results if item.get("target_reached") is False]
     if failed or missed:
         head = []
         if missed:
-            head.append(f"{len(missed)}개는 설정한 단계까지 줄였지만 목표 용량 {target:g}MB에 닿지 못했습니다.")
+            head.append(f"{len(missed)}개는 가장 작게 줄여도 목표 {target:g}MB보다 큽니다."
+                        " 그림이 적고 글자·표 위주인 파일은 더 줄지 않습니다.")
         if failed:
             head.append(f"{len(failed)}개는 처리하지 못했습니다.")
-        return {"level": "warning", "title": "일부 파일을 확인해 주세요",
-                "message": " ".join(head) + ("\n\n" + body if body else "")
-                + ("\n\n처리하지 못한 파일" + fail_lines if failed else "")}
+        return {"level": "warning",
+                "title": "목표 용량까지 줄이지 못했습니다" if missed else "일부 파일을 처리하지 못했습니다",
+                "message": "\n".join(head) + tail}
+    head = f"파일마다 {target:g}MB 이하로 줄였습니다.\n\n" if mode == "each" else ""
     return {"level": "success", "title": "한글 용량을 줄였습니다",
-            "message": body + "\n\n결과 파일을 열어 글·표·그림이 제대로 보이는지 확인해 주세요."}
+            "message": head + body + "\n\n결과 파일을 열어 글·표·그림이 제대로 보이는지 확인해 주세요."}
 
 
 EXTRA_HANDLERS = {

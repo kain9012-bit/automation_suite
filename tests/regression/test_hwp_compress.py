@@ -2,8 +2,10 @@
 
     python tests/regression/test_hwp_compress.py
 
-가짜 hwpx(그림을 넣은 ZIP)를 그때그때 만들어 앱이 부르는 그대로(bridge/runner.py) 돌린다.
+가짜 hwpx(그림 개체·표 칸 배경 그림을 넣은 ZIP)를 그때그때 만들어 앱이 부르는 그대로(bridge/runner.py) 돌린다.
 옛 한글(hwp)은 가짜 한글(COM) 개체로 hwpx 변환을 흉내 낸다. 개인 자료는 쓰지 않는다.
+
+단위: imgDim·imgClip = 그림 픽셀 × 75, curSz·cellSz = 1/7200 인치. 150dpi 로 1인치 = 150픽셀.
 """
 from __future__ import annotations
 
@@ -12,24 +14,21 @@ import io
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 import traceback
 import types
 import zipfile
 from pathlib import Path
+from xml.etree import ElementTree
 
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 PROGRESS = "@@JBEDU_PROGRESS@@"
 HINT = "한글이 파일 접근을 물으면 [허용]을 눌러 주세요."
-SECTION_XML = ('<?xml version="1.0" encoding="UTF-8"?><hs:sec xmlns:hs="x" xmlns:hp="y">'
-               '<hp:p><hp:run><hp:t>가짜 문서 본문</hp:t></hp:run>'
-               '<hp:pic><hc:img binaryItemIDRef="image1"/></hp:pic></hp:p></hs:sec>').encode("utf-8")
-HPF = ('<?xml version="1.0" encoding="UTF-8"?><opf:package xmlns:opf="z"><opf:manifest>'
-       '<opf:item id="image1" href="BinData/image1.jpg" media-type="image/jpg"/>'
-       '</opf:manifest></opf:package>').encode("utf-8")
+INCH = 7200
 
 
 # ------------------------------------------------------------------ 가짜 그림·문서
@@ -60,28 +59,70 @@ def animated_gif() -> bytes:
     return b.getvalue()
 
 
-def exif_rotated_jpeg() -> bytes:
-    img = noisy((3000, 2000), seed=7)
-    exif = Image.Exif()
-    exif[0x0112] = 6   # 시계 방향 90도로 보여야 하는 사진
-    return img_bytes(img, "JPEG", quality=95, exif=exif.tobytes())
+def pic(ref: str, px: tuple[int, int], show_in: tuple[float, float], clip_px=None, img_first=False) -> str:
+    """그림 개체 하나. px: 그림 픽셀, show_in: 문서에 보이는 크기(인치), clip_px: 보이는 부분(left, right, top, bottom 픽셀)."""
+    w, h = px
+    cl, cr, ct, cb = clip_px or (0, w, 0, h)
+    sw, sh = int(show_in[0] * INCH), int(show_in[1] * INCH)
+    img = f'<hc:img binaryItemIDRef="{ref}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>'
+    return (f'<hp:pic id="1" zOrder="0" numberingType="PICTURE" reverse="0" href="" groupLevel="0" instid="1">'
+            f'<hp:offset x="0" y="0"/><hp:orgSz width="{sw}" height="{sh}"/><hp:curSz width="{sw}" height="{sh}"/>'
+            f'<hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="0" centerY="0" rotateimage="1"/>'
+            f'<hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo>'
+            + (img if img_first else "")
+            + f'<hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="{sw}" y="0"/><hc:pt2 x="{sw}" y="{sh}"/><hc:pt3 x="0" y="{sh}"/></hp:imgRect>'
+            f'<hp:imgClip left="{cl * 75}" right="{cr * 75}" top="{ct * 75}" bottom="{cb * 75}"/>'
+            f'<hp:inMargin left="0" right="0" top="0" bottom="0"/>'
+            f'<hp:imgDim dimwidth="{w * 75}" dimheight="{h * 75}"/>'
+            + ("" if img_first else img)
+            + f'<hp:effects/><hp:sz width="{sw}" widthRelTo="ABSOLUTE" height="{sh}" heightRelTo="ABSOLUTE" protect="0"/>'
+            f'<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" '
+            f'vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+            f'<hp:outMargin left="0" right="0" top="0" bottom="0"/></hp:pic>')
 
 
-def make_hwpx(path: Path, images: dict[str, bytes] | None = None, extra: dict[str, bytes] | None = None,
+def cell(border_fill: str, size_in: tuple[float, float]) -> str:
+    w, h = int(size_in[0] * INCH), int(size_in[1] * INCH)
+    return (f'<hp:tbl rowCnt="1" colCnt="1"><hp:tr><hp:tc name="" header="0" hasMargin="0" protect="0" '
+            f'editable="0" dirty="0" borderFillIDRef="{border_fill}"><hp:subList><hp:p><hp:run><hp:t>칸</hp:t>'
+            f'</hp:run></hp:p></hp:subList><hp:cellAddr colAddr="0" rowAddr="0"/><hp:cellSpan colSpan="1" rowSpan="1"/>'
+            f'<hp:cellSz width="{w}" height="{h}"/></hp:tc></hp:tr></hp:tbl>')
+
+
+def border_fill(bf_id: str, ref: str, mode: str = "TOTAL") -> str:
+    return (f'<hh:borderFill id="{bf_id}" threeD="0" shadow="0"><hc:fillBrush><hc:imgBrush mode="{mode}">'
+            f'<hc:img binaryItemIDRef="{ref}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/>'
+            f'</hc:imgBrush></hc:fillBrush></hh:borderFill>')
+
+
+def make_hwpx(path: Path, images: dict[str, bytes] | None = None, body: str | None = None,
+              fills: str = "", extra: dict[str, bytes] | None = None,
               mimetype: bytes = b"application/hwp+zip") -> Path:
-    images = images if images is not None else {
-        "BinData/image1.jpg": img_bytes(noisy((4000, 3000), seed=1), "JPEG", quality=95),
-        "BinData/image2.png": img_bytes(noisy((300, 200), seed=2), "PNG"),
-        "BinData/image3.png": img_bytes(noisy((3000, 2000), "RGBA", seed=3), "PNG"),
-        "BinData/image4.gif": animated_gif(),
-        "BinData/image5.bmp": img_bytes(noisy((2600, 1800), seed=5), "BMP"),
-    }
+    """images: {'BinData/imageN.ext': 그림}. 항목 id 는 파일 이름(imageN). body 를 주지 않으면 그림마다
+    실제 크기의 1/4(4000px → 보이는 크기 1000px÷150dpi 가 아니라 4인치)로 하나씩 넣는다."""
+    if images is None:
+        images = {"BinData/image1.jpg": img_bytes(noisy((4000, 3000), seed=1), "JPEG", quality=95)}
+    if body is None:
+        body = "".join(pic(Path(n).stem, size_of(d), (4, 4 * size_of(d)[1] / size_of(d)[0])) for n, d in images.items())
+    items = "".join(f'<opf:item id="{Path(n).stem}" href="{n}" media-type="image/{Path(n).suffix[1:]}" isEmbeded="1"/>'
+                    for n in images)
+    hpf = ('<?xml version="1.0" encoding="UTF-8"?><opf:package xmlns:opf="http://www.idpf.org/2007/opf/"><opf:manifest>'
+           '<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
+           '<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
+           f'{items}</opf:manifest></opf:package>')
+    ns = ('xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" '
+          'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"')
+    header = (f'<?xml version="1.0" encoding="UTF-8"?><hh:head {ns}><hh:refList><hh:borderFills>'
+              f'<hh:borderFill id="1" threeD="0" shadow="0"/>{fills}</hh:borderFills></hh:refList></hh:head>')
+    section = (f'<?xml version="1.0" encoding="UTF-8"?><hs:sec {ns}><hp:p><hp:run><hp:t>가짜 문서 본문</hp:t>'
+               f'</hp:run><hp:run>{body}</hp:run></hp:p></hs:sec>')
     with zipfile.ZipFile(path, "w") as z:
         z.writestr(zipfile.ZipInfo("mimetype"), mimetype)  # 압축 안 함(ZIP_STORED)
         z.writestr("version.xml", b'<?xml version="1.0"?><hv:HCFVersion xmlns:hv="v"/>', zipfile.ZIP_DEFLATED)
-        z.writestr("Contents/content.hpf", HPF, zipfile.ZIP_DEFLATED)
-        z.writestr("Contents/section0.xml", SECTION_XML, zipfile.ZIP_DEFLATED)
-        z.writestr("Preview/PrvImage.png", img_bytes(noisy((2000, 2000), seed=9), "PNG"), zipfile.ZIP_DEFLATED)
+        z.writestr("Contents/content.hpf", hpf.encode("utf-8"), zipfile.ZIP_DEFLATED)
+        z.writestr("Contents/header.xml", header.encode("utf-8"), zipfile.ZIP_DEFLATED)
+        z.writestr("Contents/section0.xml", section.encode("utf-8"), zipfile.ZIP_DEFLATED)
+        z.writestr("Preview/PrvImage.png", img_bytes(noisy((200, 280), seed=9), "PNG"), zipfile.ZIP_DEFLATED)
         z.writestr("META-INF/manifest.xml", b'<?xml version="1.0"?><odf:manifest xmlns:odf="m"/>', zipfile.ZIP_DEFLATED)
         for name, data in images.items():
             z.writestr(name, data, zipfile.ZIP_STORED)
@@ -98,6 +139,17 @@ def entries(path: Path) -> dict[str, bytes]:
 def size_of(data: bytes) -> tuple[int, int]:
     with Image.open(io.BytesIO(data)) as im:
         return im.size
+
+
+def tag_attrs(xml: bytes, tag: str) -> list[dict[str, int]]:
+    out = []
+    for m in re.finditer(rb"<hp:" + tag.encode() + rb"\b([^>]*)/>", xml):
+        out.append({k.decode(): int(v) for k, v in re.findall(rb'(\w+)="(-?\d+)"', m.group(1))})
+    return out
+
+
+def near(a: int, b: int, tol: int = 2) -> bool:
+    return abs(a - b) <= tol
 
 
 # ------------------------------------------------------------------ 가짜 한글(COM)
@@ -229,83 +281,229 @@ def check(name):
 
 
 # ------------------------------------------------------------------ 시험
-@check("용량 우선: 큰 그림만 줄이고 본문·다른 항목·원본은 그대로, 결과는 _용량축소.hwpx")
+@check("기본 줄이기: 보이는 크기 기준 150dpi 로 줄이고, imgDim 만 새 픽셀로, 원본·다른 항목은 그대로")
 def _(tmp):
-    src = make_hwpx(tmp / "보고서.hwpx")
+    src = make_hwpx(tmp / "보고서.hwpx")      # 4000×3000 사진을 4×3인치로 → 600×450
     before = src.read_bytes()
-    code, result, progress, err = run({"inputs": [str(src)], "mode": "standard"})
+    code, result, progress, err = run({"inputs": [str(src)]})   # 방식을 안 주면 기본 줄이기
     assert code == 0, err
     out = tmp / "보고서_용량축소.hwpx"
     assert out.exists(), result
     assert src.read_bytes() == before, "원본이 바뀜"
     a, b = entries(src), entries(out)
     assert set(a) == set(b), set(a) ^ set(b)
-    for n in ("version.xml", "Contents/content.hpf", "Contents/section0.xml", "Preview/PrvImage.png",
-              "META-INF/manifest.xml", "BinData/image2.png", "BinData/image4.gif"):
+    for n in ("version.xml", "Contents/content.hpf", "Contents/header.xml", "Preview/PrvImage.png",
+              "META-INF/manifest.xml"):
         assert a[n] == b[n], f"바뀌면 안 되는 항목이 바뀜: {n}"
-    assert max(size_of(b["BinData/image1.jpg"])) == 1600, size_of(b["BinData/image1.jpg"])
-    assert max(size_of(b["BinData/image3.png"])) == 1600
-    assert max(size_of(b["BinData/image5.bmp"])) == 1600
-    with Image.open(io.BytesIO(b["BinData/image3.png"])) as im:
-        assert im.mode == "RGBA", f"투명한 PNG 의 투명도가 사라짐: {im.mode}"
+    assert size_of(b["BinData/image1.jpg"]) == (600, 450), size_of(b["BinData/image1.jpg"])
+    dim = tag_attrs(b["Contents/section0.xml"], "imgDim")[0]
+    clip = tag_attrs(b["Contents/section0.xml"], "imgClip")[0]
+    assert dim == {"dimwidth": 600 * 75, "dimheight": 450 * 75}, dim
+    assert clip == {"left": 0, "right": 600 * 75, "top": 0, "bottom": 450 * 75}, clip
+    # 보이는 크기·위치는 그대로(imgDim·imgClip 말고는 글자 하나 다르지 않음)
+    strip = lambda x: re.sub(rb"<hp:img(Dim|Clip)\b[^>]*/>", b"", x)
+    assert strip(a["Contents/section0.xml"]) == strip(b["Contents/section0.xml"])
+    ElementTree.fromstring(b["Contents/section0.xml"])
     with zipfile.ZipFile(out) as z:
         first = z.infolist()[0]
         assert first.filename == "mimetype" and first.compress_type == zipfile.ZIP_STORED
         assert z.testzip() is None
     assert out.stat().st_size < src.stat().st_size
     assert result["popup"]["level"] == "success", result["popup"]
-    assert "줄임" in result["popup"]["message"], result["popup"]["message"]
+    assert "그림 1개 중 1개 줄임" in result["popup"]["message"], result["popup"]["message"]
 
 
-@check("화질 우선: 긴 변 2560px 까지 둔다")
+@check("기본 줄이기: 목표 용량 칸은 쓰지 않음(글자가 들어 있어도 오류 없이 기본 줄이기)")
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
-    code, result, _, err = run({"inputs": [str(src)], "mode": "quality"})
+    code, result, _, err = run({"inputs": [str(src)], "target_mode": "basic", "target_mb": "abc"})
+    assert code == 0, err
+    assert size_of(entries(tmp / "a_용량축소.hwpx")["BinData/image1.jpg"]) == (600, 450)
+
+
+@check("잘라낸 그림 영역 지우기: 보이는 부분만 남기고, imgClip 은 남은 그림 전체를 가리킴")
+def _(tmp):
+    data = img_bytes(noisy((4000, 3000), seed=2), "JPEG", quality=95)
+    # 가운데 2000×1500 만 보이게 잘라 4×3인치로 → 잘라낸 뒤 600×450
+    body = pic("image1", (4000, 3000), (4, 3), clip_px=(1000, 3000, 750, 2250))
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": data}, body=body)
+    code, result, _, err = run({"inputs": [str(src)]})
     assert code == 0, err
     b = entries(tmp / "a_용량축소.hwpx")
-    assert max(size_of(b["BinData/image1.jpg"])) == 2560
+    assert size_of(b["BinData/image1.jpg"]) == (600, 450), size_of(b["BinData/image1.jpg"])
+    clip = tag_attrs(b["Contents/section0.xml"], "imgClip")[0]
+    dim = tag_attrs(b["Contents/section0.xml"], "imgDim")[0]
+    assert clip == {"left": 0, "right": 600 * 75, "top": 0, "bottom": 450 * 75}, clip
+    assert dim == {"dimwidth": 600 * 75, "dimheight": 450 * 75}, dim
+    # 남은 그림이 원래 보이던 부분과 같은지(가운데 색 비교)
+    with Image.open(io.BytesIO(data)) as o, Image.open(io.BytesIO(b["BinData/image1.jpg"])) as n:
+        want = o.crop((1000, 750, 3000, 2250)).resize((600, 450)).convert("RGB").getpixel((300, 225))
+        got = n.convert("RGB").getpixel((300, 225))
+        assert all(abs(x - y) < 40 for x, y in zip(want, got)), (want, got)
 
 
-@check("사진의 회전 정보(EXIF)대로 돌려 저장(원본 프로그램과 같음)")
+@check("자르기만 하고 보이는 크기가 이미 150dpi 이하인 그림: 잘라낸 부분만 지움")
 def _(tmp):
-    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": exif_rotated_jpeg()})
-    code, result, _, err = run({"inputs": [str(src)], "mode": "standard"})
+    data = img_bytes(noisy((1200, 900), seed=3), "PNG")
+    body = pic("image1", (1200, 900), (4, 3), clip_px=(0, 600, 0, 450))   # 600×450 을 4×3인치 = 150dpi
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.png": data}, body=body)
+    code, result, _, err = run({"inputs": [str(src)]})
     assert code == 0, err
-    w, h = size_of(entries(tmp / "a_용량축소.hwpx")["BinData/image1.jpg"])
-    assert h > w and max(w, h) == 1600, (w, h)
+    b = entries(tmp / "a_용량축소.hwpx")
+    assert size_of(b["BinData/image1.png"]) == (600, 450)
+    assert tag_attrs(b["Contents/section0.xml"], "imgClip")[0]["right"] == 600 * 75
 
 
-@check("목표 용량: 이미 목표 이하면 그림을 줄이지 않고 그대로 저장")
+@check("이미 150dpi 이하로 보이는 그림은 다시 저장하지 않음(화질을 잃지 않게)")
+def _(tmp):
+    data = img_bytes(noisy((600, 450), seed=4), "JPEG", quality=95)
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": data},
+                    body=pic("image1", (600, 450), (4, 3)))
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    assert (tmp / "a_용량축소.hwpx").read_bytes() == src.read_bytes()
+    assert "그대로" in result["popup"]["message"], result["popup"]["message"]
+
+
+@check("한 그림을 여러 곳에 쓰면 가장 크게 보이는 곳 기준, 쓰는 곳마다 imgDim·imgClip 을 고침")
+def _(tmp):
+    data = img_bytes(noisy((4000, 3000), seed=5), "JPEG", quality=95)
+    body = pic("image1", (4000, 3000), (2, 1.5)) + pic("image1", (4000, 3000), (6, 4.5))
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": data}, body=body)
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    b = entries(tmp / "a_용량축소.hwpx")
+    assert size_of(b["BinData/image1.jpg"]) == (900, 675), size_of(b["BinData/image1.jpg"])
+    dims = tag_attrs(b["Contents/section0.xml"], "imgDim")
+    assert dims == [{"dimwidth": 900 * 75, "dimheight": 675 * 75}] * 2, dims
+
+
+@check("hc:img 가 imgRect 앞에 있는 문서(한글 버전 차이)도 찾아 줄임")
+def _(tmp):
+    data = img_bytes(noisy((4000, 3000), seed=6), "JPEG", quality=95)
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": data},
+                    body=pic("image1", (4000, 3000), (4, 3), img_first=True))
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    assert size_of(entries(tmp / "a_용량축소.hwpx")["BinData/image1.jpg"]) == (600, 450)
+
+
+@check("표 칸 배경 그림(크기에 맞추어): 칸 크기 기준 150dpi 로 줄이고 자르지 않음, 바둑판식은 그대로")
+def _(tmp):
+    fill = img_bytes(noisy((3000, 1500), seed=7), "PNG")
+    tile = img_bytes(noisy((2000, 1000), seed=8), "PNG")
+    body = cell("2", (2, 1)) + cell("3", (2, 1))
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.png": fill, "BinData/image2.png": tile}, body=body,
+                    fills=border_fill("2", "image1") + border_fill("3", "image2", mode="TILE"))
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    a, b = entries(src), entries(tmp / "a_용량축소.hwpx")
+    assert size_of(b["BinData/image1.png"]) == (300, 150), size_of(b["BinData/image1.png"])
+    assert b["BinData/image2.png"] == a["BinData/image2.png"], "바둑판식 채우기 그림이 바뀜"
+    assert a["Contents/header.xml"] == b["Contents/header.xml"]
+    assert a["Contents/section0.xml"] == b["Contents/section0.xml"]
+
+
+@check("어디에 쓰이는지 모두 알 수 없는 그림, 회전 정보 등으로 비율이 다른 그림은 건드리지 않음")
+def _(tmp):
+    unknown = img_bytes(noisy((4000, 3000), seed=9), "JPEG", quality=95)
+    rotated = img_bytes(noisy((3000, 4000), seed=10), "JPEG", quality=95)
+    body = (pic("image1", (4000, 3000), (4, 3)) + '<hp:foo><hc:img binaryItemIDRef="image1"/></hp:foo>'
+            + pic("image2", (4000, 3000), (4, 3)))   # 문서에는 4000×3000 으로 적혔는데 실제는 3000×4000
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.jpg": unknown, "BinData/image2.jpg": rotated},
+                    body=body)
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    assert (tmp / "a_용량축소.hwpx").read_bytes() == src.read_bytes()
+
+
+@check("투명 PNG 는 투명도 유지, 움직이는 GIF 는 그대로, BMP 는 BMP 로 줄임(그림 형식·이름 유지)")
+def _(tmp):
+    imgs = {
+        "BinData/image1.png": img_bytes(noisy((3000, 2000), "RGBA", seed=11), "PNG"),
+        "BinData/image2.gif": animated_gif(),
+        "BinData/image3.bmp": img_bytes(noisy((2400, 1800), seed=12), "BMP"),
+    }
+    src = make_hwpx(tmp / "a.hwpx", images=imgs)
+    code, result, _, err = run({"inputs": [str(src)]})
+    assert code == 0, err
+    a, b = entries(src), entries(tmp / "a_용량축소.hwpx")
+    with Image.open(io.BytesIO(b["BinData/image1.png"])) as im:
+        assert im.mode == "RGBA" and im.size == (600, 400), (im.mode, im.size)
+    assert a["BinData/image2.gif"] == b["BinData/image2.gif"]
+    with Image.open(io.BytesIO(b["BinData/image3.bmp"])) as im:
+        assert im.format == "BMP" and im.size == (600, 450), (im.format, im.size)
+
+
+@check("파일마다 목표 용량: 이미 목표 이하면 그림을 줄이지 않고 그대로 저장, 달성으로 알림")
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
-    code, result, _, err = run({"inputs": [str(src)], "mode": "target", "target_mb": 500})
+    code, result, _, err = run({"inputs": [str(src)], "target_mode": "each", "target_mb": 500})
     assert code == 0, err
-    out = tmp / "a_용량축소.hwpx"
-    assert out.read_bytes() == src.read_bytes()
+    assert (tmp / "a_용량축소.hwpx").read_bytes() == src.read_bytes()
     assert result["results"][0]["target_reached"] is True
-    assert "목표 용량 이하" in result["popup"]["message"]
+    assert "500MB 이하로" in result["popup"]["message"] and "달성" in result["popup"]["message"]
 
 
-@check("목표 용량: 단계별로 줄여 목표에 닿으면 멈추고, 못 닿으면 '목표 미달' 경고")
+@check("파일마다 목표 용량: 1단계로 닿으면 멈추고, 못 닿으면 7단계까지 줄여 가장 작은 결과·'미달' 경고")
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
-    code, result, progress, err = run({"inputs": [str(src)], "mode": "target", "target_mb": 0.01})
+    size = src.stat().st_size
+    code, result, progress, err = run({"inputs": [str(src)], "target_mode": "each", "target_mb": size / 1048576 / 2})
+    assert code == 0, err
+    assert result["results"][0]["level"] == 1 and result["results"][0]["target_reached"] is True, result["results"]
+    assert not any("2단계" in p for p in progress), progress
+    code, result, progress, err = run({"inputs": [str(src)], "target_mode": "each", "target_mb": 0.001})
     assert code == 0, err
     r = result["results"][0]
-    assert r["target_reached"] is False and r["output_bytes"] < r["original_bytes"], r
-    assert any("4/4단계" in p for p in progress), progress
-    assert result["popup"]["level"] == "warning" and "목표 미달" in result["popup"]["message"], result["popup"]
-    b = entries(tmp / "a_용량축소.hwpx")
-    assert max(size_of(b["BinData/image1.jpg"])) == 1280, "가장 작은 단계(1280px) 결과를 고르지 않음"
+    assert r["target_reached"] is False and r["level"] == 7, r
+    assert any("7단계" in p for p in progress), progress
+    assert result["popup"]["level"] == "warning" and "미달" in result["popup"]["message"], result["popup"]
+    w, h = size_of(entries(Path(r["output"]))["BinData/image1.jpg"])
+    assert (w, h) == (288, 216), (w, h)    # 4×3인치 × 72dpi
 
 
-@check("목표 용량: 0 이나 글자를 넣으면 알기 쉬운 오류")
+@check("목표 용량: 0 이나 글자를 넣으면 알기 쉬운 오류, 비우면 5MB")
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
-    code, _, _, err = run({"inputs": [str(src)], "mode": "target", "target_mb": 0})
-    assert code == 1 and "0보다 크게" in err, err
-    code, _, _, err = run({"inputs": [str(src)], "mode": "target", "target_mb": "abc"})
-    assert code == 1 and "숫자" in err, err
+    for mode in ("each", "total"):
+        code, _, _, err = run({"inputs": [str(src)], "target_mode": mode, "target_mb": -1})
+        assert code == 1 and "0보다 크게" in err, err
+        code, _, _, err = run({"inputs": [str(src)], "target_mode": mode, "target_mb": "abc"})
+        assert code == 1 and "숫자" in err, err
+    code, result, _, err = run({"inputs": [str(src)], "target_mode": "each", "target_mb": ""})
+    assert code == 0 and "5MB 이하로" in result["popup"]["message"], (err, result and result["popup"])
+
+
+@check("전체 합계: 많이 줄어드는 파일부터 줄여 합계를 목표 이하로, 새 폴더에 원래 이름(.hwpx)으로")
+def _(tmp):
+    big = make_hwpx(tmp / "큰사진.hwpx")
+    small = make_hwpx(tmp / "작은.hwpx", images={"BinData/image1.png": img_bytes(noisy((300, 200), seed=13), "PNG")},
+                      body=pic("image1", (300, 200), (3, 2)))
+    total = big.stat().st_size + small.stat().st_size
+    target = (total - big.stat().st_size / 2) / 1048576
+    out_dir = tmp / "결과"
+    code, result, _, err = run({"inputs": [str(big), str(small)], "target_mode": "total",
+                                "target_mb": round(target, 3), "output": str(out_dir)})
+    assert code == 0, err
+    folder = Path(result["output"])
+    assert folder.parent == out_dir and folder.name.startswith(f"한글압축_합계{round(target, 3):g}MB_"), folder
+    assert sorted(p.name for p in folder.iterdir()) == ["작은.hwpx", "큰사진.hwpx"]
+    assert (folder / "작은.hwpx").read_bytes() == small.read_bytes(), "줄일 필요 없는 파일이 바뀜"
+    assert sum(p.stat().st_size for p in folder.iterdir()) <= target * 1048576
+    assert result["popup"]["level"] == "success" and "합계" in result["popup"]["message"], result["popup"]
+    assert "그대로 저장" in result["popup"]["message"]
+
+
+@check("전체 합계: 끝까지 줄여도 못 닿으면 가장 작게 줄인 결과를 저장하고 경고")
+def _(tmp):
+    a = make_hwpx(tmp / "a.hwpx")
+    b = make_hwpx(tmp / "b.hwpx", images={"BinData/image1.jpg": img_bytes(noisy((3000, 2000), seed=14), "JPEG", quality=95)})
+    code, result, _, err = run({"inputs": [str(a), str(b)], "target_mode": "total", "target_mb": 0.001})
+    assert code == 0, err
+    assert [r["level"] for r in result["results"]] == [7, 7], result["results"]
+    assert result["popup"]["level"] == "warning" and "줄이지 못했습니다" in result["popup"]["title"], result["popup"]
+    assert Path(result["output"]).parent == tmp
 
 
 @check("전자서명·암호가 있는 문서, hwpx 가 아닌 파일은 건드리지 않고 이유를 알림")
@@ -321,7 +519,7 @@ def _(tmp):
     broken = tmp / "깨짐.hwpx"
     broken.write_bytes(b"PK\x03\x04 not a zip")
     good = make_hwpx(tmp / "정상.hwpx")
-    code, result, _, err = run({"inputs": [str(p) for p in (signed, locked, broken, good)], "mode": "standard"})
+    code, result, _, err = run({"inputs": [str(p) for p in (signed, locked, broken, good)]})
     assert code == 0, err
     reasons = {f["name"]: f["error"] for f in result["failed"]}
     assert "전자서명" in reasons.get("서명.hwpx", ""), reasons
@@ -337,12 +535,12 @@ def _(tmp):
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
     (tmp / "a_용량축소.hwpx").write_bytes(b"old")
-    code, result, _, err = run({"inputs": [str(src)], "mode": "standard"})
+    code, result, _, err = run({"inputs": [str(src)]})
     assert code == 0, err
     assert (tmp / "a_용량축소.hwpx").read_bytes() == b"old"
     assert (tmp / "a_용량축소(1).hwpx").exists()
     out_dir = tmp / "결과 폴더"
-    code, result, _, err = run({"inputs": [str(src)], "mode": "standard", "output": str(out_dir)})
+    code, result, _, err = run({"inputs": [str(src)], "output": str(out_dir)})
     assert code == 0, err
     assert (out_dir / "a_용량축소.hwpx").exists()
 
@@ -353,12 +551,12 @@ def _(tmp):
     hwp = tmp / "공문.hwp"
     hwp.write_bytes(b"\xd0\xcf\x11\xe0 fake hwp body")
     before = hwp.read_bytes()
-    code, result, progress, err = run({"inputs": [str(hwp)], "mode": "standard"})
+    code, result, progress, err = run({"inputs": [str(hwp)]})
     assert code == 0, err
     out = tmp / "공문_용량축소.hwpx"
     assert out.exists() and out.read_bytes()[:2] == b"PK"
     assert hwp.read_bytes() == before
-    assert max(size_of(entries(out)["BinData/image1.jpg"])) == 1600
+    assert size_of(entries(out)["BinData/image1.jpg"]) == (600, 450)
     assert len(F.hwps) == 1 and F.hwps[0].quit, "한글을 끄지 않음"
     assert F.coinit == F.couninit == 1
     assert all(Path(p).resolve() != hwp.resolve() for p in F.hwps[0].opened), "원본 hwp 를 직접 엶"
@@ -376,12 +574,25 @@ def _(tmp):
         p = tmp / n
         p.write_bytes(b"\xd0\xcf\x11\xe0 fake")
         files.append(p)
-    code, result, progress, err = run({"inputs": [str(p) for p in files], "mode": "standard"})
+    code, result, progress, err = run({"inputs": [str(p) for p in files]})
     assert code == 0, err
     assert len(F.hwps) == 1, f"한글을 {len(F.hwps)}번 띄움"
     assert F.hwps[0].visible and F.hwps[0].visible[-1] is True
     assert any(HINT in p for p in progress), progress
     assert len(result["results"]) == 2
+
+
+@check("옛 한글(hwp) 전체 합계: 한글로 바꿔 합계를 맞추고 한글은 끔")
+def _(tmp):
+    F.source_for_hwp = make_hwpx(tmp / "_src.hwpx")
+    hwp = tmp / "공문.hwp"
+    hwp.write_bytes(b"\xd0\xcf\x11\xe0 fake")
+    code, result, _, err = run({"inputs": [str(hwp)], "target_mode": "total", "target_mb": 0.2})
+    assert code == 0, err
+    folder = Path(result["output"])
+    assert [p.name for p in folder.iterdir()] == ["공문.hwpx"]
+    assert result["results"][0]["converted"] is True
+    assert F.hwps[0].quit and F.coinit == F.couninit == 1
 
 
 @check("옛 한글(hwp)을 한글이 열지 못하면 그 파일만 실패로 알리고 한글은 끔")
@@ -391,29 +602,32 @@ def _(tmp):
     hwp = tmp / "x.hwp"
     hwp.write_bytes(b"\xd0\xcf\x11\xe0 fake")
     good = make_hwpx(tmp / "y.hwpx")
-    code, result, _, err = run({"inputs": [str(hwp), str(good)], "mode": "standard"})
+    code, result, _, err = run({"inputs": [str(hwp), str(good)]})
     assert code == 0, err
     assert [f["name"] for f in result["failed"]] == ["x.hwp"] and "열지 못했습니다" in result["failed"][0]["error"]
     assert [r["name"] for r in result["results"]] == ["y.hwpx"]
     assert F.hwps[0].quit and F.coinit == F.couninit
 
 
-@check("중지: 중지 신호가 있으면 저장하지 않고 멈춤")
+@check("중지: 중지 신호가 있으면 저장하지 않고 멈춤(세 방식 모두)")
 def _(tmp):
     src = make_hwpx(tmp / "a.hwpx")
     flag = tmp / "stop.flag"
     flag.write_text("1")
-    code, result, _, err = run({"inputs": [str(src)], "mode": "standard"}, cancel_file=flag)
-    assert code == 0, err
-    assert result["stopped"] is True and result["popup"]["level"] == "warning", result
+    for mode in ("basic", "each", "total"):
+        code, result, _, err = run({"inputs": [str(src)], "target_mode": mode, "target_mb": 0.001}, cancel_file=flag)
+        assert code == 0, err
+        assert result["stopped"] is True and result["popup"]["level"] == "warning", (mode, result)
+        assert "중지" in result["popup"]["title"], result["popup"]
     assert not (tmp / "a_용량축소.hwpx").exists()
     assert not list(tmp.glob("*.part"))
 
 
 @check("줄일 그림이 없으면 그대로 저장하고 그렇게 알림")
 def _(tmp):
-    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.png": img_bytes(noisy((200, 100)), "PNG")})
-    code, result, _, err = run({"inputs": [str(src)], "mode": "standard"})
+    src = make_hwpx(tmp / "a.hwpx", images={"BinData/image1.png": img_bytes(noisy((200, 100)), "PNG")},
+                    body=pic("image1", (200, 100), (2, 1)))
+    code, result, _, err = run({"inputs": [str(src)]})
     assert code == 0, err
     assert (tmp / "a_용량축소.hwpx").read_bytes() == src.read_bytes()
     assert "그대로" in result["popup"]["message"], result["popup"]["message"]

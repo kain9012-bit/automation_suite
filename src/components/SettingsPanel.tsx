@@ -46,7 +46,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
       .catch(() => undefined);
   }, []);
 
-  const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: true, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY });
+  const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: false, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY });
   const [desktopBusy, setDesktopBusy] = useState(false);
 
   useEffect(() => {

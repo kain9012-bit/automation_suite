@@ -606,6 +606,10 @@ export function NativeToolPanel({
                   field={field}
                   value={options[field.key]}
                   busy={checking === field.key}
+                  disabled={Boolean(
+                    field.disabledWhen &&
+                      field.disabledWhen.values.includes(String(options[field.disabledWhen.key] ?? "")),
+                  )}
                   onAction={() => void runFieldAction(field)}
                   onChange={(value) => setOption(field.key, value)}
                 />
@@ -713,12 +717,14 @@ function OptionField({
   field,
   value,
   busy,
+  disabled,
   onAction,
   onChange,
 }: {
   field: ToolField;
   value: string | number | boolean;
   busy?: boolean;
+  disabled?: boolean;
   onAction?: () => void;
   onChange: (value: string | number | boolean) => void;
 }) {
@@ -762,12 +768,13 @@ function OptionField({
   }
 
   return (
-    <label className="form-field">
+    <label className={`form-field ${disabled ? "is-disabled" : ""}`}>
       <span>{field.label}</span>
       {field.type === "select" ? (
         <select
           className="text-input"
           value={String(value ?? "")}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         >
           {(field.choices ?? []).map((choice) => (
@@ -806,6 +813,7 @@ function OptionField({
           type={field.type}
           value={String(value ?? "")}
           placeholder={field.placeholder}
+          disabled={disabled}
           onChange={(event) =>
             onChange(
               field.type === "number"

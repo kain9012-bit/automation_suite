@@ -8,24 +8,41 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     cancellable: true,
     resultPopup: true,
     showSizes: true,
-    // 비우면 원본 옆에 '원본이름_용량축소.hwpx'로 저장한다.
+    // 기본·파일마다: 비우면 원본 옆에 '원본이름_용량축소.hwpx'. 전체 합계: 이 폴더 아래 새 폴더에 원래 이름으로.
     outputMode: "folder",
     outputLabel: "저장 폴더",
     fields: [
       {
-        key: "mode",
+        key: "target_mode",
         label: "압축 방식",
         type: "select",
         appearance: "cards",
-        defaultValue: "standard",
+        defaultValue: "basic",
         choices: [
-          { label: "화질 우선", value: "quality", hint: "그림을 더 선명하게 두고 줄입니다 (긴 변 2560px)" },
-          { label: "용량 우선", value: "standard", hint: "화질을 조금 낮추고 용량을 더 줄입니다 (긴 변 1600px)" },
-          { label: "메일 첨부용(10MB)", value: "mail", hint: "10MB 이하가 되도록 단계별로 줄입니다" },
-          { label: "목표 용량", value: "target", hint: "아래 '목표 용량(MB)' 이하가 되도록 단계별로 줄입니다" },
+          {
+            label: "기본 줄이기",
+            value: "basic",
+            hint: "한글의 [그림 줄이기]처럼 잘라낸 영역을 지우고, 삽입한 크기에 맞춰 150dpi로 줄입니다. 결과: 원본이름_용량축소.hwpx",
+          },
+          {
+            label: "파일마다 목표 용량 이하",
+            value: "each",
+            hint: "파일 하나하나를 목표 용량 이하로 줄입니다. 결과: 원본이름_용량축소.hwpx",
+          },
+          {
+            label: "전체 합계를 목표 용량 이하",
+            value: "total",
+            hint: "넣은 파일을 모두 합친 용량을 목표 이하로 맞춥니다. 새 폴더에 원래 이름(.hwpx)으로 저장",
+          },
         ],
       },
-      { key: "target_mb", label: "목표 용량(MB) · '목표 용량' 방식에서만 씀", type: "number", defaultValue: 10 },
+      {
+        key: "target_mb",
+        label: "목표 용량(MB)",
+        type: "number",
+        defaultValue: 5,
+        disabledWhen: { key: "target_mode", values: ["basic"] },
+      },
     ],
   },
   excel_merge: {

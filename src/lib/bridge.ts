@@ -118,7 +118,7 @@ export async function getAppPreferences(): Promise<AppPreferences> {
     return {
       auto_start: true,
       close_to_tray: true,
-      minimize_to_tray: true,
+      minimize_to_tray: false,
       start_minimized: true,
       toggle_hotkey: DEFAULT_TOGGLE_HOTKEY,
     };

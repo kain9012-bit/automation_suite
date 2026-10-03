@@ -12,11 +12,17 @@ const RUN_VALUE: &str = "JBEduAutomationSuite";
 pub struct AppPreferences {
     #[serde(default)] pub auto_start: bool,
     #[serde(default = "enabled")] pub close_to_tray: bool,
-    #[serde(default = "enabled")] pub minimize_to_tray: bool,
+    /// 최소화하면 작업 표시줄에서도 숨긴다. 꺼져 있으면 보통 창처럼 작업 표시줄에 남는다.
+    #[serde(default)] pub minimize_to_tray: bool,
     #[serde(default = "enabled")] pub start_minimized: bool,
     /// 앱 창을 보였다 숨겼다 하는 전역 단축키.
     #[serde(default = "default_toggle_hotkey")] pub toggle_hotkey: String,
+    /// 설정 파일 판. 예전 판에서 기본값이 바뀐 항목을 한 번만 고치려고 쓴다.
+    #[serde(default)] pub prefs_version: u32,
 }
+
+/// 1: '최소화 시 트레이로 숨기기' 기본값을 끔으로 바꿈(최소화하면 작업 표시줄에서 사라져 꺼진 줄 아는 일이 있었다).
+const PREFS_VERSION: u32 = 1;
 
 fn enabled() -> bool { true }
 
@@ -27,9 +33,10 @@ impl Default for AppPreferences {
         Self {
             auto_start: true,
             close_to_tray: true,
-            minimize_to_tray: true,
+            minimize_to_tray: false,
             start_minimized: true,
             toggle_hotkey: default_toggle_hotkey(),
+            prefs_version: PREFS_VERSION,
         }
     }
 }
@@ -53,6 +60,15 @@ fn preferences_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 
 fn load_preferences(app: &AppHandle) -> AppPreferences {
     preferences_path(app).ok().and_then(|path| fs::read_to_string(path).ok()).and_then(|raw| serde_json::from_str(&raw).ok()).unwrap_or_default()
+}
+
+/// 예전 판 설정 파일을 지금 판으로 고친다. 고쳤으면 true(저장해야 함).
+fn migrate_preferences(preferences: &mut AppPreferences) -> bool {
+    if preferences.prefs_version >= PREFS_VERSION { return false; }
+    // 판 0 은 '최소화 시 트레이로 숨기기'가 기본으로 켜져 저장돼 있다. 한 번만 끈다.
+    preferences.minimize_to_tray = false;
+    preferences.prefs_version = PREFS_VERSION;
+    true
 }
 
 fn save_preferences(app: &AppHandle, preferences: &AppPreferences) -> Result<(), String> {
@@ -90,7 +106,9 @@ pub fn get_app_preferences(state: State<'_, RuntimeState>) -> Result<AppPreferen
 }
 
 #[tauri::command]
-pub fn set_app_preferences(app: AppHandle, state: State<'_, RuntimeState>, preferences: AppPreferences) -> Result<AppPreferences, String> {
+pub fn set_app_preferences(app: AppHandle, state: State<'_, RuntimeState>, mut preferences: AppPreferences) -> Result<AppPreferences, String> {
+    // 화면에서 보낸 값이 판을 모르더라도 지금 판으로 저장한다(다음 실행 때 다시 고치지 않게).
+    preferences.prefs_version = PREFS_VERSION;
     set_auto_start(preferences.auto_start)?;
     save_preferences(&app, &preferences)?;
     *state.preferences.lock().map_err(|_| "설정 잠금을 열지 못했습니다.".to_string())? = preferences.clone();
@@ -111,7 +129,10 @@ pub fn focus_main_window(app: &AppHandle) {
 pub fn setup_desktop(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // 설정 파일이 아직 없으면 이 컴퓨터에서 처음 실행하는 것이다.
     let first_run = preferences_path(app.handle()).map(|path| !path.is_file()).unwrap_or(false);
-    let preferences = load_preferences(app.handle());
+    let mut preferences = load_preferences(app.handle());
+    if !first_run && migrate_preferences(&mut preferences) {
+        let _ = save_preferences(app.handle(), &preferences);
+    }
 
     // 자동 시작은 설정값이 아니라 레지스트리가 실제 상태다. 처음 실행일 때만
     // 기본값대로 등록해 둔다. 꺼 두신 분의 설정을 다시 켜지 않기 위해서다.

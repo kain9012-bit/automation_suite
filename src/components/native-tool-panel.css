@@ -14,6 +14,15 @@
   font-weight: 650;
 }
 
+/* 다른 칸의 선택에 따라 쓰지 않는 칸: 흐리게 보이고 입력할 수 없다. */
+.form-field.is-disabled {
+  opacity: 0.45;
+}
+
+.form-field.is-disabled .text-input {
+  cursor: not-allowed;
+}
+
 .form-field select {
   appearance: none;
   background-image:
