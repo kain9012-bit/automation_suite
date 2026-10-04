@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
+  AppWindow,
   ChevronDown,
   ChevronUp,
   Clock3,
   Edit3,
+  FileText,
+  Folder,
   FolderOpen,
+  Globe,
+  Keyboard,
   Layers3,
   Plus,
-  Play,
   RotateCcw,
   Search,
+  SquareTerminal,
+  Timer,
   Trash2,
+  Type,
+  Workflow,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   listenDeckRuns,
@@ -38,6 +47,19 @@ const ACTION_LABELS: Record<ActionType, string> = {
   text: "텍스트",
   wait: "대기",
   macro: "매크로",
+};
+
+/** 카드 왼쪽 아이콘. 유형마다 달리 보여 어떤 버튼인지 한눈에 구분한다. */
+const ACTION_ICONS: Record<ActionType, LucideIcon> = {
+  site: Globe,
+  folder: Folder,
+  file: FileText,
+  program: AppWindow,
+  command: SquareTerminal,
+  hotkey: Keyboard,
+  text: Type,
+  wait: Timer,
+  macro: Workflow,
 };
 
 const TYPES = Object.keys(ACTION_LABELS) as ActionType[];
@@ -264,7 +286,7 @@ export function QuickLauncher() {
           <article key={action.id} className={`launcher-card color-${action.color} size-${action.size}`}>
             <button className="launcher-run" onClick={() => void run(action)}>
               <span className="launcher-play">
-                <Play size={15} />
+                <ActionIcon type={action.type} />
               </span>
               <span className="launcher-copy">
                 <strong>{action.name}</strong>
@@ -488,4 +510,9 @@ export function QuickLauncher() {
       )}
     </section>
   );
+}
+
+function ActionIcon({ type }: { type: ActionType }) {
+  const Icon = ACTION_ICONS[type] ?? Globe;
+  return <Icon size={15} />;
 }

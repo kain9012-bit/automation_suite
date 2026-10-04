@@ -384,7 +384,8 @@ kbd {
 
 .home-view,
 .category-view {
-  width: min(1180px, 100%);
+  /* 창을 넓히면 그만큼 도구 카드·빠른 실행 칸이 늘어나도록 폭을 제한하지 않는다. */
+  width: 100%;
   margin: 0 auto;
   padding: 40px 34px 64px;
 }

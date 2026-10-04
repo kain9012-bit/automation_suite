@@ -32,7 +32,16 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         ],
       },
     ],
-    changed: [],
+    changed: [
+      {
+        tool: "공통",
+        items: ["홈·분류 화면이 창 너비에 맞춰 넓어져, 창을 키우면 한 줄에 도구 카드가 더 많이 보임"],
+      },
+      {
+        tool: "빠른 실행",
+        items: ["버튼 너비를 넓혀 이름이 덜 잘림", "사이트·폴더·파일·프로그램 등 유형마다 다른 아이콘 표시"],
+      },
+    ],
   },
   {
     version: "1.4.2",
