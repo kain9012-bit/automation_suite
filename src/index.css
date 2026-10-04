@@ -549,6 +549,24 @@ kbd {
   background: color-mix(in srgb, var(--accent-ai) 13%, transparent);
 }
 
+/* 도구 카드 아이콘 색은 탭으로 정한다(lib/toolIcons.ts 의 tone). */
+.tool-icon.tone-doc { --tool-tone: #c8473d; }
+.tool-icon.tone-data { --tool-tone: #1f8a4c; }
+.tool-icon.tone-collect { --tool-tone: #c2700a; }
+.tool-icon.tone-auto { --tool-tone: #6366f1; }
+.tool-icon.tone-simple { --tool-tone: #2d7dd2; }
+
+:root.dark .tool-icon.tone-doc { --tool-tone: #f08a80; }
+:root.dark .tool-icon.tone-data { --tool-tone: #5cc98a; }
+:root.dark .tool-icon.tone-collect { --tool-tone: #f0a845; }
+:root.dark .tool-icon.tone-auto { --tool-tone: #9497f7; }
+:root.dark .tool-icon.tone-simple { --tool-tone: #6aa8e5; }
+
+.tool-icon[class*="tone-"]:not(.tone-default) {
+  color: var(--tool-tone);
+  background: color-mix(in srgb, var(--tool-tone) 13%, transparent);
+}
+
 .favorite-button {
   position: absolute;
   top: 13px;

@@ -13,6 +13,8 @@ import {
   openToolRun,
   updateToolRun,
 } from "../../src/lib/toolRunStore.ts";
+import { readFileSync, readdirSync } from "node:fs";
+import { TAB_STYLES, TOOL_ICONS, toolIcon, toolTone } from "../../src/lib/toolIcons.ts";
 
 let passed = 0;
 const test = (name: string, body: () => void) => {
@@ -86,6 +88,32 @@ test("같은 도구는 겹쳐 돌지 않고, 화면을 다시 열어도 실행 �
   updateToolRun("t1", () => ({ popup: null }));
   openToolRun("t1"); // 다 본 뒤 새로 열면 빈 상태
   assert.deepEqual(getToolRun("t1").log, []);
+});
+
+// ── 7. 도구 카드 아이콘 ─────────────────────────────────────────
+test("tools 폴더의 모든 도구에 기능 아이콘과 탭 색이 정해져 있다", () => {
+  const root = new URL("../../tools/", import.meta.url);
+  const missingIcon: string[] = [];
+  const unknownTab: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    let text: string;
+    try {
+      text = readFileSync(new URL(`${entry.name}/manifest.json`, root), "utf-8");
+    } catch {
+      continue;
+    }
+    const manifest = JSON.parse(text.replace(/^\uFEFF/, ""));
+    if (!TOOL_ICONS[manifest.id]) missingIcon.push(manifest.id);
+    if (!TAB_STYLES[manifest.top_tab]) unknownTab.push(`${manifest.id}(${manifest.top_tab})`);
+  }
+  assert.deepEqual(missingIcon, [], "src/lib/toolIcons.ts 의 TOOL_ICONS 에 추가하세요");
+  assert.deepEqual(unknownTab, [], "src/lib/toolIcons.ts 의 TAB_STYLES 와 index.css tone-* 에 추가하세요");
+});
+test("아이콘을 정하지 않은 도구는 탭 아이콘, 모르는 탭은 기본 색", () => {
+  assert.equal(toolIcon({ id: "새_도구", top_tab: "PDF·문서" }), TAB_STYLES["PDF·문서"].icon);
+  assert.equal(toolTone({ top_tab: "새 탭" }), "default");
+  assert.equal(toolTone({ top_tab: "엑셀·데이터" }), "data");
 });
 
 console.log(`\n${passed}개 통과`);

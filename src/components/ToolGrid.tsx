@@ -1,10 +1,5 @@
-import {
-  Code2,
-  FileSpreadsheet,
-  FileText,
-  Globe2,
-  Star,
-} from "lucide-react";
+import { Globe2, Star } from "lucide-react";
+import { toolIcon, toolTone } from "../lib/toolIcons";
 import type { ToolManifest } from "../types";
 
 interface ToolGridProps {
@@ -17,11 +12,10 @@ interface ToolGridProps {
   onToggleFavorite: (id: string) => void;
 }
 
+/** 기능 아이콘(도구별)과 탭 색. 정하는 곳은 lib/toolIcons.ts */
 function ToolGlyph({ tool }: { tool: ToolManifest }) {
-  if (tool.type === "html") return <Globe2 size={21} />;
-  if (tool.top_tab === "엑셀·데이터") return <FileSpreadsheet size={21} />;
-  if (tool.top_tab === "PDF·문서") return <FileText size={21} />;
-  return <Code2 size={21} />;
+  const Icon = toolIcon(tool);
+  return <Icon size={21} />;
 }
 
 export function ToolGrid({
@@ -79,7 +73,7 @@ export function ToolGrid({
                   }
                 }}
               >
-                <div className={`tool-icon type-${tool.type}`}>
+                <div className={`tool-icon tone-${toolTone(tool)}`}>
                   <ToolGlyph tool={tool} />
                 </div>
                 <button

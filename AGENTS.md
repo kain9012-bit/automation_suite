@@ -73,6 +73,14 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 `bridge/requirements.txt`와 **`bridge/runner.spec`의 `hiddenimports` 양쪽에** 추가한다.
 `hiddenimports`를 빠뜨리면 빌드는 성공하는데 실행할 때 `ModuleNotFoundError`가 난다.
 
+## 도구 카드 아이콘
+
+- 아이콘은 `src/lib/toolIcons.ts`의 `TOOL_ICONS`에서 도구 ID로 정한다. 기능을 나타내는 lucide 아이콘만 쓴다.
+- 색은 도구마다 정하지 않는다. 탭(`top_tab`)으로 정해진다(`TAB_STYLES`, `index.css`의 `tone-*`).
+- **새 도구를 넣으면 `TOOL_ICONS`에 한 줄 추가한다.** 빠뜨리면 `tests/regression/frontend_helpers.test.ts`가 실패한다.
+  (빠뜨린 채 배포돼도 탭 아이콘이 나오므로 화면이 깨지지는 않는다.)
+- 새 탭을 만들면 `TAB_STYLES`와 `index.css`의 `tone-*` 색(밝은·어두운 화면 둘 다)을 함께 추가한다.
+
 ## 빠른 실행(런처) 규칙
 
 홈 화면의 `QuickLauncher`가 사이트·폴더·파일·프로그램 네 가지를 다룬다.

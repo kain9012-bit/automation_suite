@@ -1,18 +1,14 @@
 import {
   BarChart3,
   Clock3,
-  FileSpreadsheet,
-  FileText,
-  FolderSearch,
   Home,
   Settings,
-  Sparkles,
   Star,
-  Workflow,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
+import { TAB_STYLES } from "../lib/toolIcons";
 import type { View } from "../types";
 
 interface SidebarProps {
@@ -22,13 +18,10 @@ interface SidebarProps {
   onNavigate: (view: View) => void;
 }
 
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
-  "엑셀·데이터": FileSpreadsheet,
-  "PDF·문서": FileText,
-  "수집·추출": FolderSearch,
-  "업무 자동화": Workflow,
-  "간단 도구": Sparkles,
-};
+// 탭 아이콘은 도구 카드의 기본 아이콘과 같은 것을 쓴다(lib/toolIcons.ts).
+const CATEGORY_ICONS: Record<string, LucideIcon> = Object.fromEntries(
+  Object.entries(TAB_STYLES).map(([tab, style]) => [tab, style.icon]),
+);
 
 function isActive(view: View, target: View) {
   if (view.kind !== target.kind) return false;
