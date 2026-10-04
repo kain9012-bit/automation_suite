@@ -13,7 +13,7 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 | `src/` | React 화면. 사이드바, 도구 그리드, 홈 빠른 실행, 설정 |
 | `src-tauri/src/` | Rust 백엔드. `lib.rs`(도구 레지스트리·HTML 로더), `desktop.rs`(트레이·설정), `macro_deck.rs`(빠른 실행), `updates.rs`(도구 카탈로그) |
 | `tools/<도구ID>/` | 도구 한 개당 폴더 하나. `manifest.json`으로 등록 |
-| `bridge/` | 공용 Python sidecar. `runner.py`, `extra_tools.py`, `macro_actions.py` |
+| `bridge/` | 공용 Python sidecar. `runner.py`, `extra_tools.py` |
 | `scripts/` | 빌드·배포·버전 스크립트 |
 | `.github/workflows/` | 태그 푸시 시 설치본 빌드·서명·발행 |
 
@@ -75,11 +75,11 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 
 ## 빠른 실행(런처) 규칙
 
-홈 화면의 `QuickLauncher`가 사이트·폴더·파일·프로그램·명령·단축키·텍스트·대기·매크로를 다룬다.
+홈 화면의 `QuickLauncher`가 사이트·폴더·파일·프로그램 네 가지를 다룬다.
+(명령·단축키·텍스트·대기·매크로는 제대로 동작하지 않아 1.4.3에서 뺐다. 저장값에 남은 것은 `quickDeck.ts`의 `readStoredDeck`이 지운다.)
 
-- **사이트·폴더·파일·프로그램·명령·대기는 Rust에서 직접 실행한다**(`macro_deck.rs`의 `run_native`).
-  링크 하나 여는 데 Python sidecar를 띄우면 몇 초씩 걸리므로 이 경로를 유지한다.
-- 키 입력이 필요한 **단축키·텍스트**만 sidecar(`bridge/macro_actions.py`)로 넘긴다.
+- **모두 Rust에서 직접 실행한다**(`macro_deck.rs`의 `run_native`). Python sidecar를 쓰지 않는다.
+  링크 하나 여는 데 sidecar를 띄우면 몇 초씩 걸리므로 이 경로를 유지한다.
 - 전역 단축키 등록에 성공한 조합은 창 `keydown` 폴백에서 제외해 이중 실행을 막는다.
 
 ## 버전과 배포

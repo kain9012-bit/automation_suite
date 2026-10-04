@@ -1,8 +1,6 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{path::PathBuf, process::Command};
-use tauri::{AppHandle, Manager};
+use std::process::Command;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -17,37 +15,6 @@ pub struct MacroAction {
     #[serde(default)] pub hotkey: String,
     #[serde(default)] pub color: String,
     #[serde(default)] pub size: String,
-    #[serde(default)] pub steps: Vec<MacroAction>,
-}
-
-fn command_for_runner(app: &AppHandle) -> Result<Command, String> {
-    // 개발 중에는 bridge/runner.py를 먼저 쓴다. 미리 빌드해 둔 sidecar exe는
-    // 파이썬 코드를 고쳐도 갱신되지 않는다. 설치본에는 runner.py가 없다.
-    // 소스 경로는 빌드할 때 문자열로 박히므로 설치본에서는 보지 않는다(lib.rs bridge_path 와 같다).
-    let runner = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap_or_else(|| std::path::Path::new(".")).join("bridge").join("runner.py");
-    let mut command = if cfg!(debug_assertions) && runner.is_file() {
-        let mut command = Command::new("python");
-        command.arg(runner);
-        command
-    } else {
-        let mut candidates = Vec::new();
-        if let Ok(current_exe) = std::env::current_exe() { if let Some(parent) = current_exe.parent() { candidates.push(parent.join("bridge-runner.exe")); } }
-        if let Ok(resource_dir) = app.path().resource_dir() { candidates.push(resource_dir.join("bridge-runner.exe")); candidates.push(resource_dir.join("binaries").join("bridge-runner.exe")); }
-        let sidecar = candidates.into_iter().find(|path| path.is_file()).ok_or_else(|| "빠른 실행 모듈을 찾지 못했습니다.".to_string())?;
-        Command::new(sidecar)
-    };
-    command.env("PYTHONUTF8", "1").env("PYTHONIOENCODING", "utf-8");
-    Ok(command)
-}
-
-/// 키 입력을 흉내 내야 하는 동작만 Python sidecar가 필요하다.
-/// 나머지는 Rust에서 바로 실행해야 링크 하나 여는 데 인터프리터가 뜨는 일이 없다.
-fn needs_sidecar(action: &MacroAction) -> bool {
-    match action.action_type.as_str() {
-        "hotkey" | "text" => true,
-        "macro" => action.steps.iter().any(needs_sidecar),
-        _ => false,
-    }
 }
 
 fn spawn_detached(mut command: Command) -> Result<(), String> {
@@ -138,15 +105,6 @@ fn expand(value: &str) -> String {
 fn run_native(action: &MacroAction) -> Result<String, String> {
     let target = action.target.trim();
     match action.action_type.as_str() {
-        "macro" => {
-            if action.steps.is_empty() {
-                return Err("매크로 단계를 하나 이상 추가해 주세요.".to_string());
-            }
-            for step in &action.steps {
-                run_native(step)?;
-            }
-            Ok(format!("{}단계 매크로를 실행했습니다.", action.steps.len()))
-        }
         "site" => {
             if target.is_empty() {
                 return Err("주소를 입력해 주세요.".to_string());
@@ -192,60 +150,21 @@ fn run_native(action: &MacroAction) -> Result<String, String> {
             }
             Ok(format!("{}을(를) 실행했습니다.", action.name))
         }
-        "command" => {
-            if target.is_empty() {
-                return Err("실행할 명령을 입력해 주세요.".to_string());
-            }
-            let mut command = Command::new("cmd");
-            // cmd.exe 는 C 런타임식 \" 이스케이프를 모른다. args()로 넘기면 따옴표로
-            // 묶은 경로("C:\Program Files\...")가 깨지므로, 적은 그대로 붙여 넘긴다.
-            // /S 와 바깥 따옴표 한 겹: cmd 는 이 바깥 따옴표만 벗기고 안쪽은 그대로 둔다.
-            // 이렇게 하지 않으면 따옴표로 시작하는 명령에서 cmd 가 첫·끝 따옴표를 떼어 버린다.
-            #[cfg(windows)]
-            {
-                command.raw_arg("/S /C").raw_arg(format!("\"{target}\""));
-            }
-            #[cfg(not(windows))]
-            command.args(["/C", target]);
-            spawn_detached(command)?;
-            Ok(format!("{} 명령을 실행했습니다.", action.name))
-        }
-        "wait" => {
-            let seconds: f64 = target.parse().map_err(|_| "대기 시간은 숫자로 입력해 주세요.".to_string())?;
-            if !(0.0..=3600.0).contains(&seconds) {
-                return Err("대기 시간은 0초에서 3600초 사이로 입력해 주세요.".to_string());
-            }
-            std::thread::sleep(std::time::Duration::from_secs_f64(seconds));
-            Ok("대기를 마쳤습니다.".to_string())
-        }
+        // 1.4.3 에서 명령·단축키·텍스트·대기·매크로를 뺐다. 화면에서 지우지만 혹시 남은 것이 오면 여기서 막는다.
         other => Err(format!("지원하지 않는 빠른 실행 동작입니다: {other}")),
     }
 }
 
-/// 대기 단계나 키 입력 흉내는 오래 걸릴 수 있다. 동기 명령은 메인 스레드에서 돌아
+/// 탐색기·기본 프로그램을 띄우는 데 시간이 걸릴 수 있다. 동기 명령은 메인 스레드에서 돌아
 /// 그동안 창이 멈추므로 다른 스레드로 넘긴다.
 #[tauri::command]
-pub async fn run_macro_action(app: AppHandle, action: MacroAction) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || run_macro_action_blocking(app, action))
-        .await
-        .map_err(|error| format!("빠른 실행을 마치지 못했습니다: {error}"))?
-}
-
-fn run_macro_action_blocking(app: AppHandle, action: MacroAction) -> Result<Value, String> {
-    if !needs_sidecar(&action) {
+pub async fn run_macro_action(action: MacroAction) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
         let message = run_native(&action)?;
-        return Ok(serde_json::json!({ "ok": true, "message": message }));
-    }
-    let encoded = STANDARD.encode(serde_json::to_vec(&action).map_err(|error| format!("빠른 실행 입력 오류: {error}"))?);
-    let mut command = command_for_runner(&app)?;
-    command.arg("--macro-action-b64").arg(encoded);
-    #[cfg(windows)] command.creation_flags(0x08000000);
-    let output = command.output().map_err(|error| format!("빠른 실행을 시작하지 못했습니다: {error}"))?;
-    if !output.status.success() {
-        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if message.is_empty() { "빠른 실행 중 오류가 발생했습니다.".to_string() } else { message });
-    }
-    serde_json::from_slice(&output.stdout).map_err(|error| format!("빠른 실행 결과를 읽지 못했습니다: {error}"))
+        Ok(serde_json::json!({ "ok": true, "message": message }))
+    })
+    .await
+    .map_err(|error| format!("빠른 실행을 마치지 못했습니다: {error}"))?
 }
 
 #[cfg(test)]

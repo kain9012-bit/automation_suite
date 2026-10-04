@@ -8,16 +8,14 @@ import { runMacroAction, type MacroActionPayload } from "./bridge";
  * 두 쪽이 이 모듈을 통해 같은 저장값과 실행 결과를 나눠 쓴다.
  */
 
-export type ActionType =
-  | "site"
-  | "folder"
-  | "file"
-  | "program"
-  | "command"
-  | "hotkey"
-  | "text"
-  | "wait"
-  | "macro";
+export type ActionType = "site" | "folder" | "file" | "program";
+
+/** 지금 실행할 수 있는 유형. 1.4.3 에서 명령·단축키·텍스트·대기·매크로를 뺐다. */
+export const ACTION_TYPES: readonly ActionType[] = ["site", "folder", "file", "program"];
+
+function isSupported(action: { type?: unknown } | null | undefined): action is DeckAction {
+  return ACTION_TYPES.includes(action?.type as ActionType);
+}
 
 export interface DeckAction extends MacroActionPayload {
   id: string;
@@ -28,7 +26,6 @@ export interface DeckAction extends MacroActionPayload {
   hotkey: string;
   color: string;
   size: string;
-  steps: DeckAction[];
 }
 
 export interface DeckPage {
@@ -57,10 +54,33 @@ export const DECK_CHANGED = "jbedu:macro-deck-changed";
 export function readStoredDeck(): DeckState | null {
   try {
     const saved = JSON.parse(localStorage.getItem(DECK_STORAGE_KEY) || "null") as DeckState | null;
-    return saved?.pages?.length ? saved : null;
+    if (!saved?.pages?.length) return null;
+    return removeUnsupportedActions(saved);
   } catch {
     return null;
   }
+}
+
+/**
+ * 이전 버전에서 만든 명령·단축키·텍스트·대기·매크로 버튼을 지운다.
+ * 지운 것이 있으면 저장값도 바로 고쳐, 그 버튼의 단축키가 다시 등록되지 않게 한다.
+ * (읽는 도중이라 DECK_CHANGED 는 보내지 않는다. 읽은 쪽은 이미 정리된 값을 쓴다.)
+ */
+function removeUnsupportedActions(deck: DeckState): DeckState {
+  let removed = false;
+  const pages = deck.pages.map((page) => {
+    const actions = (page.actions ?? []).filter(isSupported);
+    if (actions.length !== (page.actions ?? []).length) removed = true;
+    return actions.length === page.actions?.length ? page : { ...page, actions };
+  });
+  if (!removed) return deck;
+  const cleaned = { ...deck, pages };
+  try {
+    localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(cleaned));
+  } catch {
+    // 저장이 막혀도 이번 실행에서는 정리된 값을 쓴다.
+  }
+  return cleaned;
 }
 
 export function writeStoredDeck(deck: DeckState) {

@@ -38,7 +38,7 @@ export function useQuickLauncherHotkeys() {
 
   // 단축키에 영향을 주는 값이 바뀔 때만 다시 등록한다. 최근 기록만 바뀐 경우는 그대로 둔다.
   const signature = JSON.stringify(
-    actions.map((action) => [action.id, action.hotkey, action.type, action.target, action.arguments, action.steps]),
+    actions.map((action) => [action.id, action.hotkey, action.type, action.target, action.arguments]),
   );
   const current = useMemo(() => actions, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 

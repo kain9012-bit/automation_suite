@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 from extra_tools import EXTRA_HANDLERS, FileCancel, emit_progress, time_stamp, unique_path
-from macro_actions import run_action as run_macro_action
 
 # Windows 기본 코드페이지로 나가면 한글 메시지가 앱에서 깨진다.
 for _stream in (sys.stdout, sys.stderr):
@@ -898,7 +897,6 @@ def main() -> int:
     parser.add_argument("--payload-b64")
     # 명령줄 한도(윈도 32,767자)를 넘는 입력값은 앱이 임시 파일로 넘긴다(파일은 앱이 지운다).
     parser.add_argument("--payload-file")
-    parser.add_argument("--macro-action-b64")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -908,11 +906,6 @@ def main() -> int:
         return 0 if report["ok"] else 1
 
     try:
-        if args.macro_action_b64:
-            action = json.loads(base64.b64decode(args.macro_action_b64).decode("utf-8"))
-            print(json.dumps(run_macro_action(action), ensure_ascii=False))
-            return 0
-
         if args.payload_file:
             payload_text = Path(args.payload_file).read_text(encoding="utf-8")
         elif args.payload_b64:

@@ -10,20 +10,16 @@ import {
   Folder,
   FolderOpen,
   Globe,
-  Keyboard,
   Layers3,
   Plus,
   RotateCcw,
   Search,
-  SquareTerminal,
-  Timer,
   Trash2,
-  Type,
-  Workflow,
   X,
   type LucideIcon,
 } from "lucide-react";
 import {
+  ACTION_TYPES,
   listenDeckRuns,
   readStoredDeck,
   runDeckAction,
@@ -42,11 +38,6 @@ const ACTION_LABELS: Record<ActionType, string> = {
   folder: "폴더",
   file: "파일",
   program: "프로그램",
-  command: "명령",
-  hotkey: "단축키",
-  text: "텍스트",
-  wait: "대기",
-  macro: "매크로",
 };
 
 /** 카드 왼쪽 아이콘. 유형마다 달리 보여 어떤 버튼인지 한눈에 구분한다. */
@@ -55,14 +46,8 @@ const ACTION_ICONS: Record<ActionType, LucideIcon> = {
   folder: Folder,
   file: FileText,
   program: AppWindow,
-  command: SquareTerminal,
-  hotkey: Keyboard,
-  text: Type,
-  wait: Timer,
-  macro: Workflow,
 };
 
-const TYPES = Object.keys(ACTION_LABELS) as ActionType[];
 const PROGRAM_EXTENSIONS = ["exe", "lnk", "bat", "cmd", "ps1", "msi"];
 
 function uid() {
@@ -70,7 +55,7 @@ function uid() {
 }
 
 function emptyAction(type: ActionType = "site"): DeckAction {
-  return { id: uid(), name: "", type, target: "", arguments: "", hotkey: "", color: "navy", size: "normal", steps: [] };
+  return { id: uid(), name: "", type, target: "", arguments: "", hotkey: "", color: "navy", size: "normal" };
 }
 
 function initialState(): DeckState {
@@ -179,12 +164,8 @@ export function QuickLauncher() {
       setStatus("버튼 이름을 입력해 주세요.");
       return;
     }
-    if (editor.type !== "macro" && !editor.target.trim()) {
+    if (!editor.target.trim()) {
       setStatus("실행할 주소나 경로를 입력해 주세요.");
-      return;
-    }
-    if (editor.type === "macro" && !editor.steps.length) {
-      setStatus("매크로 단계를 하나 이상 추가해 주세요.");
       return;
     }
     const exists = activePage.actions.some((item) => item.id === editor.id);
@@ -240,7 +221,7 @@ export function QuickLauncher() {
       <header className="launcher-head">
         <div>
           <h2>빠른 실행</h2>
-          <p>자주 쓰는 사이트·폴더·프로그램과 반복 작업을 등록해 두고 클릭이나 단축키로 실행합니다.</p>
+          <p>자주 쓰는 사이트·폴더·파일·프로그램을 등록해 두고 클릭이나 단축키로 실행합니다.</p>
         </div>
         <div className="launcher-tools">
           <div className="launcher-pages">
@@ -278,7 +259,7 @@ export function QuickLauncher() {
             <Layers3 size={30} />
             <strong>아직 등록한 버튼이 없습니다.</strong>
             <span>
-              <b>새 버튼</b>을 눌러 사이트·폴더·프로그램과 매크로를 등록하세요.
+              <b>새 버튼</b>을 눌러 사이트·폴더·파일·프로그램을 등록하세요.
             </span>
           </div>
         )}
@@ -368,9 +349,9 @@ export function QuickLauncher() {
                 <span>동작 종류</span>
                 <select
                   value={editor.type}
-                  onChange={(event) => setEditor({ ...editor, type: event.target.value as ActionType, target: "", steps: [] })}
+                  onChange={(event) => setEditor({ ...editor, type: event.target.value as ActionType, target: "" })}
                 >
-                  {TYPES.map((type) => (
+                  {ACTION_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {ACTION_LABELS[type]}
                     </option>
@@ -378,34 +359,22 @@ export function QuickLauncher() {
                 </select>
               </label>
 
-              {editor.type !== "macro" && (
-                <label>
-                  <span>
-                    {editor.type === "wait"
-                      ? "대기 시간(초)"
-                      : editor.type === "hotkey"
-                        ? "실행할 단축키"
-                        : editor.type === "text"
-                          ? "입력할 텍스트"
-                          : "주소 또는 경로"}
-                  </span>
-                  <div className="target-row">
-                    <input
-                      value={editor.target}
-                      onChange={(event) => setEditor({ ...editor, target: event.target.value })}
-                      placeholder={
-                        editor.type === "site" ? "https://..." : editor.type === "hotkey" ? "ctrl+shift+s" : "경로 또는 실행 내용"
-                      }
-                    />
-                    {["folder", "file", "program"].includes(editor.type) && (
-                      <button className="secondary-button" onClick={() => void pickTarget()}>
-                        <FolderOpen size={14} />
-                        찾기
-                      </button>
-                    )}
-                  </div>
-                </label>
-              )}
+              <label>
+                <span>주소 또는 경로</span>
+                <div className="target-row">
+                  <input
+                    value={editor.target}
+                    onChange={(event) => setEditor({ ...editor, target: event.target.value })}
+                    placeholder={editor.type === "site" ? "https://..." : "경로"}
+                  />
+                  {editor.type !== "site" && (
+                    <button className="secondary-button" onClick={() => void pickTarget()}>
+                      <FolderOpen size={14} />
+                      찾기
+                    </button>
+                  )}
+                </div>
+              </label>
 
               {editor.type === "program" && (
                 <label>
@@ -415,58 +384,6 @@ export function QuickLauncher() {
                     onChange={(event) => setEditor({ ...editor, arguments: event.target.value })}
                   />
                 </label>
-              )}
-
-              {editor.type === "macro" && (
-                <div className="macro-steps">
-                  <div>
-                    <span>매크로 단계</span>
-                    <button
-                      className="secondary-button"
-                      onClick={() => setEditor({ ...editor, steps: [...editor.steps, emptyAction("site")] })}
-                    >
-                      <Plus size={14} />
-                      단계 추가
-                    </button>
-                  </div>
-                  {editor.steps.map((step, index) => (
-                    <div className="macro-step" key={step.id}>
-                      <b>{index + 1}</b>
-                      <select
-                        value={step.type}
-                        onChange={(event) =>
-                          setEditor({
-                            ...editor,
-                            steps: editor.steps.map((item) =>
-                              item.id === step.id ? { ...item, type: event.target.value as ActionType } : item,
-                            ),
-                          })
-                        }
-                      >
-                        {TYPES.filter((type) => type !== "macro").map((type) => (
-                          <option key={type} value={type}>
-                            {ACTION_LABELS[type]}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={step.target}
-                        onChange={(event) =>
-                          setEditor({
-                            ...editor,
-                            steps: editor.steps.map((item) =>
-                              item.id === step.id ? { ...item, target: event.target.value } : item,
-                            ),
-                          })
-                        }
-                        placeholder="주소·경로·텍스트·초"
-                      />
-                      <button onClick={() => setEditor({ ...editor, steps: editor.steps.filter((item) => item.id !== step.id) })}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
               )}
 
               <div className="launcher-form-row">

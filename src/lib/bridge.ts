@@ -141,7 +141,6 @@ export interface MacroActionPayload {
   hotkey?: string;
   color?: string;
   size?: string;
-  steps?: MacroActionPayload[];
 }
 
 export async function getAppPreferences(): Promise<AppPreferences> {
