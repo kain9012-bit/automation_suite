@@ -75,10 +75,39 @@ export async function runNativeTool(
   if (!isTauri()) {
     throw new Error("네이티브 도구는 Tauri 앱에서 실행할 수 있습니다.");
   }
-  return invoke<Record<string, unknown>>("run_native_tool", {
-    toolId,
-    payload,
-  });
+  // 미리보기·분석처럼 중간 단계(이름에 "__")는 알리지 않고, 실제 [작업 실행]이 끝났을 때만 알린다.
+  const isJob = !toolId.includes("__");
+  try {
+    const result = await invoke<Record<string, unknown>>("run_native_tool", {
+      toolId,
+      payload,
+    });
+    if (isJob) notifyToolFinished(toolId, jobStatus(result), jobMessage(result));
+    return result;
+  } catch (error) {
+    if (isJob) notifyToolFinished(toolId, "failed", error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+/** 결과 팝업이 성공이 아니거나(일부 실패·중지·목표 미달) 실패 목록이 있으면 "확인 필요". */
+function jobStatus(result: Record<string, unknown>): "done" | "check" {
+  const popup = result.popup as { level?: unknown } | undefined;
+  if (popup && typeof popup.level === "string" && popup.level !== "success") return "check";
+  if (Array.isArray(result.failed) && result.failed.length > 0) return "check";
+  if (result.ok === false) return "check";
+  return "done";
+}
+
+function jobMessage(result: Record<string, unknown>): string {
+  if (typeof result.message === "string" && result.message.trim()) return result.message;
+  const popup = result.popup as { title?: unknown } | undefined;
+  return typeof popup?.title === "string" ? popup.title : "";
+}
+
+/** 창이 가려져 있을 때만 Rust 쪽에서 윈도우 알림을 띄운다. 알림 실패는 작업 결과에 영향을 주지 않는다. */
+function notifyToolFinished(toolId: string, status: "done" | "check" | "failed", message: string) {
+  void invoke<boolean>("notify_tool_finished", { toolId, status, message }).catch(() => undefined);
 }
 
 /** 실행 중인 도구에 그만두라고 알린다. */
@@ -94,6 +123,8 @@ export interface AppPreferences {
   start_minimized: boolean;
   /** 앱 창을 보였다 숨겼다 하는 전역 단축키 */
   toggle_hotkey: string;
+  /** 작업이 끝났을 때 창이 가려져 있으면 윈도우 알림 */
+  notify_on_finish: boolean;
 }
 
 export const DEFAULT_TOGGLE_HOTKEY = "Ctrl+Alt+J";
@@ -121,6 +152,7 @@ export async function getAppPreferences(): Promise<AppPreferences> {
       minimize_to_tray: false,
       start_minimized: true,
       toggle_hotkey: DEFAULT_TOGGLE_HOTKEY,
+      notify_on_finish: true,
     };
   }
   return invoke<AppPreferences>("get_app_preferences");

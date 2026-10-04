@@ -22,6 +22,19 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.3",
+    added: [
+      {
+        tool: "공통",
+        items: [
+          "작업이 끝났을 때 JB업무ON 창이 숨겨졌거나 다른 창 뒤에 있으면 윈도우 알림으로 알림",
+          "설정 탭 '작업 완료 알림'에서 켜고 끌 수 있음 (기본 켜짐)",
+        ],
+      },
+    ],
+    changed: [],
+  },
+  {
     version: "1.4.2",
     added: [
       {

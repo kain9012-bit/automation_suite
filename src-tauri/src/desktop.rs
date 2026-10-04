@@ -17,6 +17,8 @@ pub struct AppPreferences {
     #[serde(default = "enabled")] pub start_minimized: bool,
     /// 앱 창을 보였다 숨겼다 하는 전역 단축키.
     #[serde(default = "default_toggle_hotkey")] pub toggle_hotkey: String,
+    /// 작업이 끝났을 때 창이 가려져 있으면 윈도우 알림을 띄운다.
+    #[serde(default = "enabled")] pub notify_on_finish: bool,
     /// 설정 파일 판. 예전 판에서 기본값이 바뀐 항목을 한 번만 고치려고 쓴다.
     #[serde(default)] pub prefs_version: u32,
 }
@@ -36,6 +38,7 @@ impl Default for AppPreferences {
             minimize_to_tray: false,
             start_minimized: true,
             toggle_hotkey: default_toggle_hotkey(),
+            notify_on_finish: true,
             prefs_version: PREFS_VERSION,
         }
     }
@@ -183,5 +186,28 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
         WindowEvent::CloseRequested { api, .. } if !state.quitting.load(Ordering::SeqCst) && preferences.close_to_tray => { api.prevent_close(); let _ = window.hide(); }
         WindowEvent::Resized(_) if preferences.minimize_to_tray => { if window.is_minimized().unwrap_or(false) { let _ = window.hide(); } }
         _ => {}
+    }
+}
+
+/// 작업 완료 알림을 띄워야 하는지. 설정이 켜져 있고, 앱 창이 숨겨졌거나 최소화됐거나
+/// 다른 창이 앞에 있을 때만 띄운다. 창을 보고 있으면 결과 팝업으로 충분하다.
+pub fn should_notify_finish(app: &AppHandle) -> bool {
+    let enabled = app
+        .state::<RuntimeState>()
+        .preferences
+        .lock()
+        .map(|preferences| preferences.notify_on_finish)
+        .unwrap_or(true);
+    if !enabled {
+        return false;
+    }
+    match app.get_webview_window("main") {
+        Some(window) => {
+            let visible = window.is_visible().unwrap_or(false);
+            let minimized = window.is_minimized().unwrap_or(false);
+            let focused = window.is_focused().unwrap_or(false);
+            !visible || minimized || !focused
+        }
+        None => true,
     }
 }

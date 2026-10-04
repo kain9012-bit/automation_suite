@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Bell,
   Download,
   FolderCog,
   History,
@@ -46,7 +47,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
       .catch(() => undefined);
   }, []);
 
-  const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: false, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY });
+  const [desktop, setDesktop] = useState<AppPreferences>({ auto_start: false, close_to_tray: true, minimize_to_tray: false, start_minimized: true, toggle_hotkey: DEFAULT_TOGGLE_HOTKEY, notify_on_finish: true });
   const [desktopBusy, setDesktopBusy] = useState(false);
 
   useEffect(() => {
@@ -157,6 +158,17 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
             {!!hotkeyError && (
               <p className="setting-warning">{hotkeyError}</p>
             )}
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-card settings-card-stack">
+        <div className="setting-icon"><Bell size={20} /></div>
+        <div>
+          <strong>작업 완료 알림</strong>
+          <p>오래 걸리는 작업을 실행해 두고 다른 일을 할 때, 끝나면 윈도우 알림으로 알려 줍니다.</p>
+          <div className="setting-toggles">
+            <label><span><b>작업이 끝나면 알림</b><small>JB업무ON 창이 숨겨졌거나 다른 창 뒤에 있을 때만 알립니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.notify_on_finish} disabled={desktopBusy} onChange={(event) => void changeDesktop("notify_on_finish", event.target.checked)} /><i /></span></label>
           </div>
         </div>
       </section>

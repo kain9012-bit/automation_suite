@@ -204,6 +204,32 @@ fn checked_child(root: &Path, relative: &Path) -> Result<PathBuf, String> {
     Ok(candidate)
 }
 
+/// 도구 실행이 끝났을 때 부른다. 설정이 켜져 있고 앱 창이 가려져 있을 때만 윈도우 알림을 띄운다.
+/// status: "done"(완료) · "check"(확인 필요: 일부 실패·중지·목표 미달 등) · "failed"(실패)
+#[tauri::command]
+fn notify_tool_finished(app: AppHandle, tool_id: String, status: String, message: String) -> bool {
+    use tauri_plugin_notification::NotificationExt;
+    if !desktop::should_notify_finish(&app) {
+        return false;
+    }
+    let name = find_tool(&app, &tool_id).map(|record| record.manifest.name).unwrap_or(tool_id);
+    let title = match status.as_str() {
+        "done" => format!("{name} 완료"),
+        "failed" => format!("{name} - 작업을 마치지 못했습니다"),
+        _ => format!("{name} - 결과를 확인해 주세요"),
+    };
+    // 알림에는 첫 줄만, 너무 길면 줄인다.
+    let first = message.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or("");
+    let mut body: String = first.chars().take(150).collect();
+    if first.chars().count() > 150 {
+        body.push('…');
+    }
+    if body.is_empty() {
+        body = "JB업무ON 을 열어 결과를 확인해 주세요.".to_string();
+    }
+    app.notification().builder().title(title).body(body).show().is_ok()
+}
+
 #[tauri::command]
 fn list_tools(app: AppHandle) -> Result<Vec<ToolManifest>, String> {
     Ok(read_tool_records(&app)?
@@ -710,6 +736,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // 예전 버전이 남긴 탐색기 우클릭 메뉴를 치운다. reg 조회가 느려
             // 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
@@ -736,7 +763,8 @@ pub fn run() {
             install_tool_updates,
             get_app_preferences,
             set_app_preferences,
-            run_macro_action
+            run_macro_action,
+            notify_tool_finished
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 애플리케이션 실행 실패");
