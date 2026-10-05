@@ -81,6 +81,20 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
   (빠뜨린 채 배포돼도 탭 아이콘이 나오므로 화면이 깨지지는 않는다.)
 - 새 탭을 만들면 `TAB_STYLES`와 `index.css`의 `tone-*` 색(밝은·어두운 화면 둘 다)을 함께 추가한다.
 
+## 문서 검색(1.4.4~)
+
+사이드바 '문서 검색'. Rust `src-tauri/src/docsearch/`, 화면 `src/components/DocSearchView.tsx`.
+계획서는 Project 문서 `claude/1.4.4_문서검색_계획.md`.
+
+- 색인은 SQLite(FTS5) 한 파일: `%LOCALAPPDATA%\kr.go.jbe.automation-suite\docsearch\index.db`.
+- 한국어 낱말 나누기는 Lindera(mecab-ko-dic). **사전 압축 파일은 `src-tauri/vendor/lindera/2.3.4/`에 있고**,
+  `src-tauri/.cargo/config.toml`의 `LINDERA_DICTIONARIES_PATH`로 빌드 때 인터넷 없이 쓴다.
+  폴더 이름이 lindera 버전이라 `Cargo.toml`에서 `lindera = "=2.3.4"`로 못박았다. 올리면 폴더도 함께 바꾼다.
+- 폴더를 계속 감시하지 않는다. 대조 시점은 ① 프로그램 켜지고 90초 뒤(문서 검색을 연 적 있는 PC만)
+  ② 문서 검색 화면을 열 때(마지막 대조 10분 경과) ③ [지금 다시 읽기]. 수정 날짜·크기만 비교한다.
+- hwp·hwpx·docx·xlsx·pptx·txt 는 Rust 에서, PDF 는 사이드카 `runner.py --pdf-text-list`(PyMuPDF)로 읽는다.
+- 배포용·암호 문서, 100MB 초과, 원드라이브 온라인 전용 파일은 이름으로만 찾는다.
+
 ## 빠른 실행(런처) 규칙
 
 홈 화면의 `QuickLauncher`가 사이트·폴더·파일·프로그램 네 가지를 다룬다.

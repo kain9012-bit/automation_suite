@@ -16,3 +16,7 @@ __pycache__/
 exe버전/
 _incoming/
 _to_delete/
+# 문서 검색: Lindera 사전은 압축 파일(vendor/lindera/2.3.4/*.tar.gz)만 저장소에 두고, 빌드 때 풀고 만든 것은 넣지 않는다.
+src-tauri/vendor/lindera/*/mecab-ko-dic-*/
+src-tauri/vendor/lindera/*/lindera-ko-dic/
+src-tauri/vendor/lindera/*/tmp-*/

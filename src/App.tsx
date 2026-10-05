@@ -20,6 +20,7 @@ import { ExcelSplitPanel } from "./components/ExcelSplitPanel";
 import { PdfOrganizerPanel } from "./components/PdfOrganizerPanel";
 import { ExcelMergePanel } from "./components/ExcelMergePanel";
 import { DocumentPrivacyMaskerPanel } from "./components/DocumentPrivacyMaskerPanel";
+import { DocSearchView } from "./components/DocSearchView";
 import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
@@ -42,6 +43,7 @@ function titleFor(view: View) {
   if (view.kind === "favorites") return "즐겨찾기";
   if (view.kind === "recent") return "최근 사용";
   if (view.kind === "settings") return "설정";
+  if (view.kind === "docsearch") return "문서 검색";
   if (view.kind === "category") return view.category;
   return view.tool.name;
 }
@@ -224,6 +226,9 @@ export default function App() {
           </button>
         </div>
       );
+    }
+    if (view.kind === "docsearch") {
+      return <DocSearchView />;
     }
     if (view.kind === "settings") {
       return <SettingsPanel onRefresh={registry.refresh} hotkeyError={hotkeyError} onStartTutorial={() => { setView({ kind: "home" }); setTutorialOpen(true); }} />;

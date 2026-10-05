@@ -1,0 +1,425 @@
+/* 문서 검색(1.4.4) 화면. 이름은 모두 ds- 로 시작한다. */
+
+.ds-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  padding: 30px 34px 0;
+}
+
+.ds-head h2 {
+  margin: 0;
+  font-family: "Outfit Variable", Pretendard, sans-serif;
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+}
+
+.ds-head p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-search {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.ds-clear {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.ds-clear:hover {
+  background: var(--bg-tertiary);
+}
+
+.ds-spin {
+  animation: ds-spin 0.9s linear infinite;
+}
+
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ds-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.ds-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.ds-chips button {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ds-chips button:hover {
+  border-color: var(--border-hover);
+}
+
+.ds-chips button.is-active {
+  border-color: var(--accent);
+  color: white;
+  background: var(--accent);
+}
+
+.ds-selects {
+  display: flex;
+  gap: 6px;
+}
+
+.ds-selects select {
+  height: 32px;
+  max-width: 220px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  font-size: 12px;
+}
+
+.ds-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  border-radius: 9px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-secondary));
+  font-size: 12px;
+}
+
+.ds-message button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.ds-results {
+  flex: 1;
+  margin-top: 16px;
+  padding-bottom: 16px;
+}
+
+.ds-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.ds-empty strong {
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.ds-empty b {
+  color: var(--text-secondary);
+}
+
+.ds-count {
+  margin: 0 2px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.ds-item:hover {
+  border-color: var(--border-hover);
+}
+
+.ds-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 종류마다 아이콘 색: 도구 카드의 탭 색과 같은 계열 */
+.ds-icon.ext-hwp,
+.ds-icon.ext-hwpx {
+  color: #2d7dd2;
+  background: color-mix(in srgb, #2d7dd2 13%, transparent);
+}
+.ds-icon.ext-pdf {
+  color: #c8473d;
+  background: color-mix(in srgb, #c8473d 13%, transparent);
+}
+.ds-icon.ext-xlsx,
+.ds-icon.ext-xls,
+.ds-icon.ext-csv {
+  color: #1f8a4c;
+  background: color-mix(in srgb, #1f8a4c 13%, transparent);
+}
+.ds-icon.ext-pptx,
+.ds-icon.ext-ppt {
+  color: #c2700a;
+  background: color-mix(in srgb, #c2700a 13%, transparent);
+}
+
+.ds-body {
+  min-width: 0;
+}
+
+.ds-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ds-title strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ds-path {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-snippet {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.ds-view mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  color: inherit;
+  background: color-mix(in srgb, #f5c542 55%, transparent);
+}
+
+.ds-note {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ds-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.ds-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 -34px;
+  padding: 10px 34px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.ds-foot > div {
+  display: flex;
+  gap: 6px;
+}
+
+.ds-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-foot .secondary-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 검색 폴더 관리 */
+.ds-modal-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 28, 46, 0.45);
+}
+
+.ds-modal {
+  display: grid;
+  width: min(560px, 100%);
+  max-height: 88vh;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 26px 70px rgba(0, 32, 64, 0.32);
+  overflow: hidden;
+}
+
+.ds-modal > header,
+.ds-modal > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.ds-modal > header {
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.ds-modal > header button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.ds-modal > footer {
+  border-top: 1px solid var(--border);
+}
+
+.ds-modal > footer > div {
+  display: flex;
+  gap: 6px;
+}
+
+.ds-modal-help {
+  margin: 12px 16px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-folder-list {
+  display: grid;
+  gap: 6px;
+  margin: 12px 16px 16px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ds-folder-list li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.ds-folder-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-folder-list li em {
+  color: var(--warning);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.ds-folder-list li button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.ds-folder-list li.is-empty {
+  display: block;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .ds-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .ds-actions {
+    grid-column: 2;
+  }
+}

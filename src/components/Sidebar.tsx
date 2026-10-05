@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Clock3,
+  FileSearch,
   Home,
   Settings,
   Star,
@@ -104,6 +105,13 @@ export function Sidebar({
             collapsed={collapsed}
             active={isActive(activeView, { kind: "recent" })}
             onClick={() => onNavigate({ kind: "recent" })}
+          />
+          <NavigationButton
+            icon={FileSearch}
+            label="문서 검색"
+            collapsed={collapsed}
+            active={isActive(activeView, { kind: "docsearch" })}
+            onClick={() => onNavigate({ kind: "docsearch" })}
           />
         </div>
 

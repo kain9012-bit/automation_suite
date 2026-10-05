@@ -1,5 +1,6 @@
 mod board_update;
 mod desktop;
+mod docsearch;
 mod macro_deck;
 mod updates;
 
@@ -742,6 +743,8 @@ pub fn run() {
             // 창 띄우는 것을 붙잡지 않도록 따로 돌린다.
             let handle = app.handle().clone();
             std::thread::spawn(move || remove_legacy_context_menus(&handle));
+            // 문서 검색: 켜지고 잠시 뒤 바뀐 파일만 대조한다(문서 검색을 연 적 있는 PC만).
+            docsearch::schedule_startup_check(app.handle());
 
             setup_desktop(app)
         })
@@ -764,7 +767,14 @@ pub fn run() {
             get_app_preferences,
             set_app_preferences,
             run_macro_action,
-            notify_tool_finished
+            notify_tool_finished,
+            docsearch::docsearch_open_screen,
+            docsearch::docsearch_status,
+            docsearch::docsearch_refresh,
+            docsearch::docsearch_set_folders,
+            docsearch::docsearch_search,
+            docsearch::docsearch_open_file,
+            docsearch::docsearch_reveal_file
         ])
         .run(tauri::generate_context!())
         .expect("Tauri 애플리케이션 실행 실패");

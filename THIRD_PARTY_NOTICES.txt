@@ -43,3 +43,15 @@ HWPX 용량 줄이기 도우미
 (Copyright (c) 2026)
 
 - 소스코드      : https://gitlab.aigov.go.kr/kimosed/hwpx-size-reduction-assistant
+
+문서 검색: Lindera · mecab-ko-dic · SQLite
+-----------------------------------------
+문서 검색의 한국어 낱말 나누기는 Lindera 와 한국어 사전 mecab-ko-dic 을 고치지 않고
+그대로 사용합니다.
+
+- Lindera       : MIT License, https://github.com/lindera/lindera
+- mecab-ko-dic  : Apache License 2.0 (Copyright Yongwoon Lee, Yungho Yu)
+                  mecab-ko-dic-2.1.1-20180720
+                  https://bitbucket.org/eunjeon/mecab-ko-dic
+                  라이선스 전문 : http://www.apache.org/licenses/LICENSE-2.0
+- SQLite        : 퍼블릭 도메인(rusqlite, MIT License 를 통해 사용)

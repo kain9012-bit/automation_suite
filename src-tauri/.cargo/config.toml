@@ -1,0 +1,4 @@
+# 문서 검색의 한국어 사전(mecab-ko-dic)을 인터넷에서 받지 않고 이 폴더의 파일로 만든다.
+# vendor/lindera/2.3.4/mecab-ko-dic-2.1.1-20180720.tar.gz 를 쓰고, 만든 사전은 같은 폴더에 둔다(저장소에는 압축 파일만 넣음).
+[env]
+LINDERA_DICTIONARIES_PATH = { value = "vendor/lindera", relative = true }

@@ -1,6 +1,6 @@
 [package]
 name = "jbedu-automation-suite"
-version = "1.4.3"
+version = "1.4.4"
 description = "반복 업무를 간단하게 만드는 전북교육 업무도구 모음"
 authors = ["전북특별자치도교육청"]
 edition = "2021"
@@ -30,4 +30,13 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tempfile = "3"
 zip = { version = "4", default-features = false, features = ["deflate"] }
+# 문서 검색(1.4.4): 색인 저장(SQLite FTS5)과 한국어 낱말 나누기(Lindera, mecab-ko-dic).
+# lindera 는 사전 위치가 버전 번호 폴더(vendor/lindera/2.3.4)라서 버전을 못박는다.
+rusqlite = { version = "0.37", features = ["bundled"] }
+lindera = { version = "=2.3.4", default-features = false, features = ["embed-ko-dic"] }
+walkdir = "2.5"
+cfb = "0.7"
+flate2 = "1"
+quick-xml = "0.41"
+encoding_rs = "0.8"
 

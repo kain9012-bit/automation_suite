@@ -890,6 +890,42 @@ def run_selftest() -> dict[str, Any]:
     }
 
 
+def pdf_text_list(list_path: str) -> int:
+    """문서 검색(1.4.4): PDF 들의 글자를 꺼내 한 파일에 한 줄(JSON)씩 내보낸다.
+
+    앱이 PDF 목록을 임시 파일(JSON 배열)로 넘긴다. 파일마다 따로 띄우면 실행기를
+    푸는 데 매번 몇 초씩 걸리므로 한 번 띄워 여러 개를 처리한다.
+    한 줄: {"path": ..., "status": "ok"|"no_text"|"encrypted"|"error", "text": ..., "error": ...}
+    """
+    import pymupdf
+
+    try:
+        pymupdf.TOOLS.mupdf_display_errors(False)
+        pymupdf.TOOLS.mupdf_display_warnings(False)
+    except Exception:
+        pass
+    paths = json.loads(Path(list_path).read_text(encoding="utf-8"))
+    for path in paths:
+        out: dict[str, Any] = {"path": path}
+        try:
+            doc = pymupdf.open(path)
+            try:
+                if doc.needs_pass:
+                    out["status"] = "encrypted"
+                else:
+                    text = "\n".join(page.get_text() for page in doc)
+                    out["status"] = "ok" if text.strip() else "no_text"
+                    out["text"] = text
+            finally:
+                doc.close()
+        except Exception as error:  # 손상된 PDF 하나 때문에 나머지를 멈추지 않는다.
+            out["status"] = "error"
+            out["error"] = f"{type(error).__name__}: {error}"[:300]
+        sys.stdout.write(json.dumps(out, ensure_ascii=False) + "\n")
+        sys.stdout.flush()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tool")
@@ -898,7 +934,12 @@ def main() -> int:
     # 명령줄 한도(윈도 32,767자)를 넘는 입력값은 앱이 임시 파일로 넘긴다(파일은 앱이 지운다).
     parser.add_argument("--payload-file")
     parser.add_argument("--selftest", action="store_true")
+    # 문서 검색(1.4.4): PDF 글자 꺼내기. 값은 PDF 경로 목록(JSON 배열)이 든 파일.
+    parser.add_argument("--pdf-text-list")
     args = parser.parse_args()
+
+    if args.pdf_text_list:
+        return pdf_text_list(args.pdf_text_list)
 
     if args.selftest:
         report = run_selftest()
