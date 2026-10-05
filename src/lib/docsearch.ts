@@ -11,6 +11,8 @@ export interface DocSearchProgress {
 }
 
 export interface DocSearchStatus {
+  /** 사용자가 검색 폴더를 골라 시작했는지. 아니면 먼저 고르게 한다. */
+  confirmed: boolean;
   folders: { path: string; exists: boolean }[];
   files: number;
   documents: number;
@@ -46,7 +48,20 @@ export interface DocSearchResult {
   highlights: string[];
 }
 
+export interface FolderChoice {
+  label: string;
+  path: string;
+}
+
+export interface FolderChoices {
+  /** 바탕화면 · 문서 · 다운로드 */
+  common: FolderChoice[];
+  /** 드라이브 전체(C:\ D:\ …) */
+  drives: FolderChoice[];
+}
+
 export const docSearch = {
+  folderChoices: () => invoke<FolderChoices>("docsearch_folder_choices"),
   openScreen: () => invoke<DocSearchStatus>("docsearch_open_screen"),
   status: () => invoke<DocSearchStatus>("docsearch_status"),
   refresh: () => invoke<DocSearchStatus>("docsearch_refresh"),
@@ -56,6 +71,22 @@ export const docSearch = {
   openFile: (path: string) => invoke<void>("docsearch_open_file", { path }),
   revealFile: (path: string) => invoke<void>("docsearch_reveal_file", { path }),
 };
+
+const samePath = (a: string, b: string) =>
+  a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
+
+/** 검색 폴더를 짧게 부르는 이름: 바탕화면 · 문서 · 다운로드 · C: 드라이브 전체 · 폴더 이름 */
+export function folderName(path: string, choices: FolderChoices | null): string {
+  const known = [...(choices?.common ?? []), ...(choices?.drives ?? [])].find((c) => samePath(c.path, path));
+  if (known) return known.label;
+  if (/^[a-zA-Z]:[\\/]?$/.test(path)) return `${path.slice(0, 2).toUpperCase()} 드라이브 전체`;
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+export function hasPath(list: string[], path: string) {
+  return list.some((p) => samePath(p, path));
+}
 
 /** 내용 검색이 안 되는 까닭(결과에 표시). 문서가 아닌 파일(name)과 정상(ok)은 표시하지 않는다. */
 export function statusNote(status: string): string {

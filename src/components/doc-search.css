@@ -22,9 +22,229 @@
   font-size: 12px;
 }
 
-.ds-search {
+/* 홈의 .hero-search(폭 620px 제한)를 빌려 쓰므로, 빌드 순서와 상관없이 이기도록 선택자를 겹쳐 쓴다. */
+.ds-view .hero-search.ds-search {
   width: 100%;
+  margin-top: 0;
+}
+
+.ds-loading {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding-top: 60px;
+  text-align: center;
+}
+
+.ds-searchbox {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+.ds-scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ds-scope-label {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ds-scope-chips {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ds-scope-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-scope-chips button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ds-scope-chips button.is-missing {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.ds-scope-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--accent);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ds-scope-edit:hover {
+  background: var(--accent-soft);
+}
+
+/* 처음: 검색 폴더 고르기 */
+.ds-setup {
+  width: min(860px, 100%);
+  margin: 10px auto 40px;
+  padding: 26px 28px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-premium);
+}
+
+.ds-setup h2 {
+  margin: 0;
+  font-family: "Outfit Variable", Pretendard, sans-serif;
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+}
+
+.ds-setup > p {
+  margin: 8px 0 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ds-picker h3 {
+  margin: 16px 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ds-picker h3:first-child {
+  margin-top: 0;
+}
+
+.ds-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.ds-pick {
+  display: grid;
+  grid-template-columns: 18px 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  text-align: left;
+}
+
+.ds-pick:hover {
+  border-color: var(--border-hover);
+}
+
+.ds-pick.is-on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ds-check {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-hover);
+  border-radius: 5px;
+  color: white;
+}
+
+.ds-pick.is-on .ds-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.ds-pick-text {
+  display: grid;
+  min-width: 0;
+}
+
+.ds-pick-text strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.ds-pick-text small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-pick-note {
+  margin: 8px 2px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ds-add-row {
+  display: block !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.ds-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-picker-foot > div {
+  display: flex;
+  gap: 6px;
+}
+
+.ds-modal-body {
+  padding: 16px;
+  overflow: auto;
 }
 
 .ds-clear {
@@ -58,7 +278,6 @@
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 14px;
 }
 
 .ds-chips {
@@ -87,12 +306,7 @@
   background: var(--accent);
 }
 
-.ds-selects {
-  display: flex;
-  gap: 6px;
-}
-
-.ds-selects select {
+.ds-filters select {
   height: 32px;
   max-width: 220px;
   padding: 0 8px;
@@ -291,11 +505,6 @@
   backdrop-filter: blur(6px);
 }
 
-.ds-foot > div {
-  display: flex;
-  gap: 6px;
-}
-
 .ds-state {
   display: inline-flex;
   align-items: center;
@@ -322,7 +531,7 @@
 
 .ds-modal {
   display: grid;
-  width: min(560px, 100%);
+  width: min(780px, 100%);
   max-height: 88vh;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -371,7 +580,7 @@
 .ds-folder-list {
   display: grid;
   gap: 6px;
-  margin: 12px 16px 16px;
+  margin: 0;
   padding: 0;
   overflow: auto;
   list-style: none;
@@ -422,4 +631,10 @@
   .ds-actions {
     grid-column: 2;
   }
+}
+
+.ds-folder-list li.ds-add-row button {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }

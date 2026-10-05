@@ -19,6 +19,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 
+/// 사용자가 검색 폴더를 직접 골라 시작했다는 표시. 이것이 있어야 색인을 만든다.
+/// (1.4.4 첫 시험판은 바탕화면·문서·다운로드를 알아서 넣고 'initialized' 를 썼다. 그 PC 도 한 번은 고르게 한다.)
+const CONFIRMED_KEY: &str = "folders_confirmed";
+
 /// 화면을 열 때 이만큼 지났으면 바뀐 파일을 대조한다.
 const SCREEN_RECHECK_SECS: i64 = 10 * 60;
 /// 프로그램이 켜지고 이만큼 뒤에 대조한다(켜진 직후 PC가 바쁠 때를 피함).
@@ -34,6 +38,8 @@ pub struct FolderInfo {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
+    /// 사용자가 검색 폴더를 골라 '시작'을 눌렀는지. 아니면 화면이 먼저 폴더를 고르게 한다.
+    confirmed: bool,
     folders: Vec<FolderInfo>,
     /// 목록에 있는 파일 수
     files: i64,
@@ -63,6 +69,7 @@ fn status(app: &AppHandle) -> Result<Status, String> {
         .map(|m| m.len())
         .sum();
     Ok(Status {
+        confirmed: db::get_meta(&conn, CONFIRMED_KEY).is_some(),
         folders,
         files: count("SELECT count(*) FROM files"),
         documents: count("SELECT count(*) FROM files WHERE status='ok'"),
@@ -72,17 +79,6 @@ fn status(app: &AppHandle) -> Result<Status, String> {
         progress: index::progress(),
         index_bytes,
     })
-}
-
-/// 기본 검색 폴더: 바탕화면 · 문서 · 다운로드
-fn default_folders(app: &AppHandle) -> Vec<String> {
-    let path = app.path();
-    [path.desktop_dir(), path.document_dir(), path.download_dir()]
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|p| p.is_dir())
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect()
 }
 
 fn normalize_folder(path: &str) -> String {
@@ -104,29 +100,58 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("문서 검색 작업을 마치지 못했습니다: {e}"))?
 }
 
-/// 문서 검색 화면을 열 때. 처음이면 기본 폴더를 넣고, 마지막 대조 후 10분이 지났으면 뒤에서 대조한다.
-/// 검색은 기존 색인으로 바로 된다(대조를 기다리지 않음).
+/// 문서 검색 화면을 열 때. 검색 폴더를 고르기 전이면 아무것도 읽지 않는다(화면이 먼저 고르게 함).
+/// 골라 둔 뒤라면 마지막 대조 후 10분이 지났을 때 뒤에서 대조한다. 검색은 기존 색인으로 바로 된다.
 #[tauri::command]
 pub async fn docsearch_open_screen(app: AppHandle) -> Result<Status, String> {
     blocking(move || {
         let conn = db::open(&app)?;
-        if db::get_meta(&conn, "initialized").is_none() {
-            for folder in default_folders(&app) {
-                conn.execute(
-                    "INSERT OR IGNORE INTO folders(path, added_at) VALUES(?1, ?2)",
-                    rusqlite::params![folder, db::now_secs()],
-                )
-                .map_err(|e| e.to_string())?;
+        if db::get_meta(&conn, CONFIRMED_KEY).is_some() {
+            let last: i64 = db::get_meta(&conn, "last_check").and_then(|v| v.parse().ok()).unwrap_or(0);
+            if db::now_secs() - last >= SCREEN_RECHECK_SECS {
+                index::start(&app);
             }
-            db::set_meta(&conn, "initialized", "1")?;
-        }
-        let last: i64 = db::get_meta(&conn, "last_check").and_then(|v| v.parse().ok()).unwrap_or(0);
-        if db::now_secs() - last >= SCREEN_RECHECK_SECS {
-            index::start(&app);
         }
         status(&app)
     })
     .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderChoice {
+    label: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderChoices {
+    /// 바탕화면 · 문서 · 다운로드
+    common: Vec<FolderChoice>,
+    /// C:\ D:\ … 드라이브 전체
+    drives: Vec<FolderChoice>,
+}
+
+/// 검색 폴더를 고를 때 보여 줄 후보
+#[tauri::command]
+pub fn docsearch_folder_choices(app: AppHandle) -> FolderChoices {
+    let path = app.path();
+    let common = [("바탕화면", path.desktop_dir()), ("문서", path.document_dir()), ("다운로드", path.download_dir())]
+        .into_iter()
+        .filter_map(|(label, dir)| dir.ok().filter(|d| d.is_dir()).map(|d| (label, d)))
+        .map(|(label, dir)| FolderChoice { label: label.to_string(), path: dir.to_string_lossy().into_owned() })
+        .collect();
+    let drives = if cfg!(windows) {
+        (b'C'..=b'Z')
+            .map(|letter| format!("{}:\\", letter as char))
+            .filter(|root| PathBuf::from(root).is_dir())
+            .map(|root| FolderChoice { label: format!("{} 드라이브 전체", &root[..2]), path: root })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    FolderChoices { common, drives }
 }
 
 #[tauri::command]
@@ -171,7 +196,7 @@ pub async fn docsearch_set_folders(app: AppHandle, folders: Vec<String>) -> Resu
             )
             .map_err(|e| e.to_string())?;
         }
-        db::set_meta(&tx, "initialized", "1")?;
+        db::set_meta(&tx, CONFIRMED_KEY, "1")?;
         tx.commit().map_err(|e| e.to_string())?;
         drop(conn);
         index::start(&app);
@@ -242,7 +267,7 @@ pub fn schedule_startup_check(app: &AppHandle) {
             .unwrap_or(false);
         let initialized = exists
             && db::open(&app)
-                .map(|conn| db::get_meta(&conn, "initialized").is_some())
+                .map(|conn| db::get_meta(&conn, CONFIRMED_KEY).is_some())
                 .unwrap_or(false);
         if initialized {
             index::start(&app);

@@ -98,76 +98,14 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut last_emit = Instant::now() - Duration::from_secs(1);
 
     // ① 목록 대조
-    let folders = db::folders(&conn)?;
-    let mut seen: HashMap<String, Seen> = HashMap::new();
-    let mut scanned_folders: HashSet<i64> = HashSet::new();
-    for (folder_id, folder) in &folders {
-        let root = PathBuf::from(folder);
-        if !root.is_dir() {
-            continue; // 연결이 끊긴 드라이브 등: 기존 목록을 지우지 않고 둔다
-        }
-        scanned_folders.insert(*folder_id);
-        walk(&root, *folder_id, &mut seen, |count, name| {
-            set_progress(
-                app,
-                Some(Progress { phase: "scan".into(), done: count, total: 0, current: name.to_string() }),
-                &mut last_emit,
-                false,
-            );
-        });
-    }
-
-    let known: HashMap<String, Known> = {
-        let mut stmt = conn
-            .prepare("SELECT id, path, folder_id, size, mtime FROM files")
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |r| {
-                Ok((
-                    r.get::<_, String>(1)?,
-                    Known { id: r.get(0)?, folder_id: r.get(2)?, size: r.get(3)?, mtime: r.get(4)? },
-                ))
-            })
-            .map_err(|e| e.to_string())?
-            .filter_map(Result::ok)
-            .collect();
-        rows
-    };
-
-    {
-        let tx = conn.transaction().map_err(|e| e.to_string())?;
-        for (path, item) in &seen {
-            let status = initial_status(item);
-            match known.get(path) {
-                None => {
-                    tx.execute(
-                        "INSERT INTO files(path, folder_id, name, ext, size, mtime, status) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![path, item.folder_id, item.name, item.ext, item.size, item.mtime, status],
-                    )
-                    .map_err(|e| e.to_string())?;
-                }
-                Some(old) if old.size != item.size || old.mtime != item.mtime => {
-                    db::clear_content(&tx, old.id)?;
-                    tx.execute(
-                        "UPDATE files SET size=?2, mtime=?3, status=?4, detail='' WHERE id=?1",
-                        params![old.id, item.size, item.mtime, status],
-                    )
-                    .map_err(|e| e.to_string())?;
-                }
-                Some(_) => {}
-            }
-        }
-        // 대조한 폴더에서 사라진 파일은 색인에서 뺀다. 검색 폴더에서 뺀 폴더의 파일도 함께.
-        let folder_ids: HashSet<i64> = folders.iter().map(|(id, _)| *id).collect();
-        for (path, old) in &known {
-            let gone = !folder_ids.contains(&old.folder_id)
-                || (scanned_folders.contains(&old.folder_id) && !seen.contains_key(path));
-            if gone {
-                db::delete_file(&tx, old.id)?;
-            }
-        }
-        tx.commit().map_err(|e| e.to_string())?;
-    }
+    sync_list(&mut conn, |count, name| {
+        set_progress(
+            app,
+            Some(Progress { phase: "scan".into(), done: count, total: 0, current: name.to_string() }),
+            &mut last_emit,
+            false,
+        );
+    })?;
 
     // ② 바뀐 문서 읽기 (최근 것부터)
     let pending: Vec<(i64, String, String)> = {
@@ -241,6 +179,78 @@ fn run(app: &AppHandle) -> Result<(), String> {
     set_progress(app, None, &mut last_emit, true);
     db::set_meta(&conn, "last_done", &db::now_secs().to_string())?;
     Ok(())
+}
+
+/// 검색 폴더를 훑어 파일 목록을 색인과 맞춘다. 파일은 열지 않고 수정 날짜·크기만 본다.
+/// 새 파일은 넣고, 날짜나 크기가 바뀐 파일은 글을 지우고 '읽을 차례'로 돌리고, 사라진 파일은 뺀다.
+pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str)) -> Result<(), String> {
+    let folders = db::folders(conn)?;
+    let mut seen: HashMap<String, Seen> = HashMap::new();
+    let mut scanned_folders: HashSet<i64> = HashSet::new();
+    for (folder_id, folder) in &folders {
+        let root = PathBuf::from(folder);
+        if !root.is_dir() {
+            continue; // 연결이 끊긴 드라이브 등: 기존 목록을 지우지 않고 둔다
+        }
+        scanned_folders.insert(*folder_id);
+        walk(&root, *folder_id, &mut seen, &mut on_file);
+    }
+
+    let known: HashMap<String, Known> = {
+        let mut stmt = conn
+            .prepare("SELECT id, path, folder_id, size, mtime FROM files")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(1)?,
+                    Known { id: r.get(0)?, folder_id: r.get(2)?, size: r.get(3)?, mtime: r.get(4)? },
+                ))
+            })
+            .map_err(|e| e.to_string())?
+            .filter_map(Result::ok)
+            .collect();
+        rows
+    };
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for (path, item) in &seen {
+        let status = initial_status(item);
+        match known.get(path) {
+            None => {
+                tx.execute(
+                    "INSERT INTO files(path, folder_id, name, ext, size, mtime, status) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                    params![path, item.folder_id, item.name, item.ext, item.size, item.mtime, status],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            Some(old) if old.size != item.size || old.mtime != item.mtime => {
+                db::clear_content(&tx, old.id)?;
+                tx.execute(
+                    "UPDATE files SET folder_id=?2, size=?3, mtime=?4, status=?5, detail='' WHERE id=?1",
+                    params![old.id, item.folder_id, item.size, item.mtime, status],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            Some(old) if old.folder_id != item.folder_id => {
+                // 검색 폴더를 바꿔 다른 폴더 아래로 들어간 파일(예: 바탕화면 → C 드라이브 전체)
+                tx.execute("UPDATE files SET folder_id=?2 WHERE id=?1", params![old.id, item.folder_id])
+                    .map_err(|e| e.to_string())?;
+            }
+            Some(_) => {}
+        }
+    }
+    // 대조한 폴더에서 사라진 파일, 검색 폴더에서 뺀 폴더의 파일은 색인에서 뺀다.
+    let folder_ids: HashSet<i64> = folders.iter().map(|(id, _)| *id).collect();
+    for (path, old) in &known {
+        if seen.contains_key(path) {
+            continue;
+        }
+        if !folder_ids.contains(&old.folder_id) || scanned_folders.contains(&old.folder_id) {
+            db::delete_file(&tx, old.id)?;
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())
 }
 
 fn file_name(path: &str) -> String {
@@ -446,6 +456,58 @@ mod tests {
         assert!(pieces.iter().all(|p| p.chars().count() <= 1200 + 10));
         let joined: String = pieces.concat();
         assert_eq!(joined.matches('마').count(), 1300);
+    }
+
+    /// 읽을 차례인 문서(PDF 제외)를 읽어 색인에 넣는다(시험용).
+    fn read_pending(conn: &mut Connection) {
+        let pending: Vec<(i64, String, String)> = conn
+            .prepare("SELECT id, path, ext FROM files WHERE status='pending'")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .unwrap()
+            .flatten()
+            .collect();
+        for (id, path, ext) in pending {
+            let kind = extract::content_kind(&ext).unwrap();
+            save_result(conn, id, extract::extract(Path::new(&path), kind)).unwrap();
+        }
+    }
+
+    #[test]
+    fn edited_document_is_reread_and_deleted_one_removed() {
+        use crate::docsearch::search::{search, Filters};
+        let dir = std::env::temp_dir().join(format!("ds-sync-{}", std::process::id()));
+        let docs = dir.join("문서");
+        std::fs::create_dir_all(&docs).unwrap();
+        let mut conn = db::open_at(&dir.join("i.db")).unwrap();
+        conn.execute("INSERT INTO folders(path) VALUES(?1)", [docs.to_string_lossy()]).unwrap();
+        let a = docs.join("회의록.txt");
+        let b = docs.join("지울문서.txt");
+        std::fs::write(&a, "바나나 예산 회의").unwrap();
+        std::fs::write(&b, "사과 계획").unwrap();
+        sync_list(&mut conn, |_, _| {}).unwrap();
+        read_pending(&mut conn);
+        let f = Filters::default();
+        assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 1);
+
+        // 내용을 고치고(수정 시각도 바뀜) 하나는 지운 뒤 다시 대조
+        std::fs::write(&a, "수박 예산 회의 내용 변경").unwrap();
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
+        std::fs::File::options().write(true).open(&a).unwrap().set_modified(later).unwrap();
+        std::fs::remove_file(&b).unwrap();
+        sync_list(&mut conn, |_, _| {}).unwrap();
+        read_pending(&mut conn);
+        assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 0, "예전 내용은 빠져야 함");
+        assert_eq!(search(&conn, "수박", &f).unwrap().hits.len(), 1, "바뀐 내용으로 찾혀야 함");
+        assert_eq!(search(&conn, "사과", &f).unwrap().hits.len(), 0, "지운 파일은 빠져야 함");
+
+        // 검색 폴더를 상위 폴더로 바꿔도 파일이 사라지지 않음
+        conn.execute("DELETE FROM folders", []).unwrap();
+        conn.execute("INSERT INTO folders(path) VALUES(?1)", [dir.to_string_lossy()]).unwrap();
+        sync_list(&mut conn, |_, _| {}).unwrap();
+        assert_eq!(search(&conn, "수박", &f).unwrap().hits.len(), 1, "상위 폴더로 바꿔도 남아야 함");
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

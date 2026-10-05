@@ -90,10 +90,12 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 - 한국어 낱말 나누기는 Lindera(mecab-ko-dic). **사전 압축 파일은 `src-tauri/vendor/lindera/2.3.4/`에 있고**,
   `src-tauri/.cargo/config.toml`의 `LINDERA_DICTIONARIES_PATH`로 빌드 때 인터넷 없이 쓴다.
   폴더 이름이 lindera 버전이라 `Cargo.toml`에서 `lindera = "=2.3.4"`로 못박았다. 올리면 폴더도 함께 바꾼다.
-- 폴더를 계속 감시하지 않는다. 대조 시점은 ① 프로그램 켜지고 90초 뒤(문서 검색을 연 적 있는 PC만)
+- 폴더를 계속 감시하지 않는다. 대조 시점은 ① 프로그램 켜지고 90초 뒤(검색 폴더를 골라 시작한 PC만)
   ② 문서 검색 화면을 열 때(마지막 대조 10분 경과) ③ [지금 다시 읽기]. 수정 날짜·크기만 비교한다.
 - hwp·hwpx·docx·xlsx·pptx·txt 는 Rust 에서, PDF 는 사이드카 `runner.py --pdf-text-list`(PyMuPDF)로 읽는다.
 - 배포용·암호 문서, 100MB 초과, 원드라이브 온라인 전용 파일은 이름으로만 찾는다.
+- 처음 열면 검색 폴더를 고르게 하고(meta `folders_confirmed`), 고르기 전에는 아무 파일도 읽지 않는다.
+  고른 폴더는 검색창 아래 '검색 범위'에 늘 보인다.
 
 ## 빠른 실행(런처) 규칙
 
