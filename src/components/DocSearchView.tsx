@@ -56,6 +56,9 @@ const PERIODS: { id: string; label: string; days: number }[] = [
   { id: "year", label: "최근 1년", days: 366 },
 ];
 
+/** 탐색기 아이콘: 확장자 → PNG data URL(받지 못했으면 null). 화면을 다시 열어도 다시 묻지 않는다. */
+const systemIcons = new Map<string, string | null>();
+
 function iconFor(ext: string): LucideIcon {
   if (["xlsx", "xls", "csv"].includes(ext)) return FileSpreadsheet;
   if (["pptx", "ppt"].includes(ext)) return Presentation;
@@ -132,6 +135,7 @@ export function DocSearchView() {
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
   const [recent, setRecent] = useState<string[]>(readRecent);
+  const [, setIconsLoaded] = useState(0);
   const searchSeq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -203,6 +207,20 @@ export function DocSearchView() {
       stops.forEach((stop) => stop());
     };
   }, []);
+
+  // 결과에 처음 나온 확장자는 탐색기 아이콘을 받아 온다. 못 받으면 원래 아이콘을 쓴다.
+  useEffect(() => {
+    const missing = [...new Set((result?.hits ?? []).map((hit) => hit.ext).filter((ext) => ext && !systemIcons.has(ext)))];
+    if (!missing.length) return;
+    missing.forEach((ext) => systemIcons.set(ext, null));
+    void docSearch
+      .fileIcons(missing)
+      .then((icons) => {
+        Object.entries(icons).forEach(([ext, url]) => systemIcons.set(ext, url));
+        setIconsLoaded((n) => n + 1);
+      })
+      .catch(() => undefined);
+  }, [result]);
 
   // 입력이 멈추면 찾는다
   useEffect(() => {
@@ -485,6 +503,7 @@ export function DocSearchView() {
               <ul className="ds-list">
                 {result.hits.map((hit: DocSearchHit) => {
                   const Icon = iconFor(hit.ext);
+                  const systemIcon = systemIcons.get(hit.ext);
                   const note = statusNote(hit.status);
                   return (
                     <li
@@ -492,9 +511,15 @@ export function DocSearchView() {
                       className="ds-item"
                       onDoubleClick={() => void act(() => docSearch.openFile(hit.path))}
                     >
-                      <span className={`ds-icon ext-${hit.ext}`}>
-                        <Icon size={18} />
-                      </span>
+                      {systemIcon ? (
+                        <span className="ds-icon is-system">
+                          <img src={systemIcon} alt="" draggable={false} />
+                        </span>
+                      ) : (
+                        <span className={`ds-icon ext-${hit.ext}`}>
+                          <Icon size={18} />
+                        </span>
+                      )}
                       <div className="ds-body">
                         <div className="ds-title">
                           <strong>

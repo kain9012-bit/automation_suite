@@ -6,6 +6,7 @@
 
 mod db;
 mod extract;
+mod icons;
 mod index;
 mod pdf;
 mod search;
@@ -176,6 +177,12 @@ pub async fn docsearch_status(app: AppHandle) -> Result<Status, String> {
 #[tauri::command]
 pub fn docsearch_cancel() {
     index::cancel();
+}
+
+/// 결과 목록에 보일 파일 아이콘(그 PC 탐색기의 아이콘). 확장자 → PNG data URL. 못 받은 것은 빠진다.
+#[tauri::command]
+pub async fn docsearch_file_icons(exts: Vec<String>) -> Result<std::collections::HashMap<String, String>, String> {
+    blocking(move || Ok(icons::file_icons(&exts))).await
 }
 
 /// [지금 다시 읽기]

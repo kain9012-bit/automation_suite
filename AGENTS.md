@@ -97,6 +97,11 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 - 처음 열면 검색 폴더를 고르게 하고(meta `folders_confirmed`), 고르기 전에는 아무 파일도 읽지 않는다.
   고른 폴더는 화면 왼쪽 '검색 폴더'에 문서 수와 함께 늘 보인다. 읽는 중에는 아래쪽에 진행률과 [취소]
   (`docsearch_cancel`, 못 읽은 문서는 `pending`으로 남아 다음 대조 때 이어 읽음).
+- 결과의 파일 아이콘은 그 PC 탐색기의 아이콘을 확장자별로 받아 쓴다(`docsearch/icons.rs`, 48px PNG).
+  한컴·마이크로소프트 아이콘 그림을 프로그램에 넣어 배포하지 않는다. 못 받으면 원래 아이콘.
+- 설치 제거 때 `docsearch` 색인 폴더를 지운다(`installer-hooks.nsh`의 `NSIS_HOOK_POSTUNINSTALL`).
+  **업데이트 때는 절대 지우지 않는다**: `/UPDATE`(앱 자동 업데이트)와, 새 설치 파일이 이전 제거 프로그램을
+  `_?=설치폴더`로 부를 때($EXEDIR = $INSTDIR)는 건너뛴다. 이 조건을 바꾸면 Wine 등으로 네 가지 경우를 다시 확인한다.
 
 ## 빠른 실행(런처) 규칙
 

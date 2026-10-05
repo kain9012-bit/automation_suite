@@ -71,6 +71,8 @@ export const docSearch = {
     invoke<DocSearchResult>("docsearch_search", { query, filters }),
   openFile: (path: string) => invoke<void>("docsearch_open_file", { path }),
   revealFile: (path: string) => invoke<void>("docsearch_reveal_file", { path }),
+  /** 확장자 → 그 PC 탐색기의 아이콘(PNG data URL). 받지 못한 확장자는 빠진다. */
+  fileIcons: (exts: string[]) => invoke<Record<string, string>>("docsearch_file_icons", { exts }),
 };
 
 const samePath = (a: string, b: string) =>

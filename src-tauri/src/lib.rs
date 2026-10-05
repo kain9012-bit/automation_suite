@@ -774,6 +774,7 @@ pub fn run() {
             docsearch::docsearch_set_folders,
             docsearch::docsearch_folder_choices,
             docsearch::docsearch_cancel,
+            docsearch::docsearch_file_icons,
             docsearch::docsearch_search,
             docsearch::docsearch_open_file,
             docsearch::docsearch_reveal_file

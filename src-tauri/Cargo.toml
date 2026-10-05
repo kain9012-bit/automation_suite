@@ -39,4 +39,10 @@ cfb = "0.7"
 flate2 = "1"
 quick-xml = "0.41"
 encoding_rs = "0.8"
+# 문서 검색 결과의 파일 아이콘: 윈도우가 준 아이콘을 PNG 로 바꿔 화면에 넘긴다.
+png = "0.18"
+
+[target.'cfg(windows)'.dependencies]
+# 문서 검색 결과의 파일 아이콘을 탐색기에서 받아 온다(SHGetFileInfo·SHGetImageList).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Storage_FileSystem"] }
 

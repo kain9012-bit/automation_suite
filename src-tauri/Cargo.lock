@@ -2232,6 +2232,7 @@ dependencies = [
  "flate2",
  "lindera",
  "minisign-verify",
+ "png 0.18.1",
  "quick-xml",
  "reqwest",
  "rusqlite",
@@ -2249,6 +2250,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "walkdir",
+ "windows-sys 0.61.2",
  "zip",
 ]
 

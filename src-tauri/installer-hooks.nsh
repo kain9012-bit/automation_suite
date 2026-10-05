@@ -61,3 +61,36 @@
     Goto jbedu_ext_loop
   jbedu_ext_done:
 !macroend
+
+; 문서 검색(1.4.4~) 색인 지우기
+;
+; 색인은 %LOCALAPPDATA%\kr.go.jbe.automation-suite\docsearch 에 있고 수백 MB 가 될 수 있다.
+; 설치 제거 화면의 '애플리케이션 데이터 삭제하기'를 누르지 않아도 이 폴더만은 지운다.
+; (설정·따로 받은 도구는 그 칸을 눌렀을 때만 지워진다. 그대로 둔다.)
+;
+; 업데이트 때는 절대 지우지 않는다. 그래서 두 가지를 모두 확인한다.
+;   1) 앱의 자동 업데이트는 설치 파일을 /UPDATE 로 실행한다(board_update.rs).
+;      이때 $UpdateMode = 1 이다.
+;   2) 사용자가 새 설치 파일을 직접 실행해 '이전 버전 제거 후 설치'를 고르면, 설치 파일이
+;      이전 제거 프로그램을 "uninstall.exe _?=설치폴더" 로 실행한다(/UPDATE 없음).
+;      _?= 로 실행된 제거 프로그램은 임시 폴더로 복사되지 않고 설치 폴더에서 그대로 돈다
+;      (NSIS 설명서 3.2.2). 즉 $EXEDIR = $INSTDIR 이다.
+;      제어판·설정에서 제거하면 임시 폴더로 복사된 뒤 돌므로 $EXEDIR 가 $INSTDIR 와 다르다.
+; 그래서 '/UPDATE 가 아니고, 임시 폴더로 복사되어 도는 제거'일 때만 지운다.
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  ${If} $UpdateMode <> 1
+    ; $INSTDIR 끝에 \ 가 붙어 있어도 같게 비교한다(대소문자는 가리지 않음).
+    StrCpy $R5 $INSTDIR 1 -1
+    ${If} $R5 == "\"
+      StrCpy $R5 $INSTDIR -1
+    ${Else}
+      StrCpy $R5 $INSTDIR
+    ${EndIf}
+    ${If} $EXEDIR != $R5
+      SetShellVarContext current
+      DetailPrint "문서 검색 색인을 지우는 중..."
+      RMDir /r "$LOCALAPPDATA\kr.go.jbe.automation-suite\docsearch"
+    ${EndIf}
+  ${EndIf}
+!macroend

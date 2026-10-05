@@ -426,6 +426,17 @@
   background: color-mix(in srgb, #c2700a 13%, transparent);
 }
 
+/* 그 PC 탐색기의 아이콘을 받아 왔을 때: 바탕 없이 그림만 */
+.ds-icon.is-system {
+  background: transparent;
+}
+.ds-icon.is-system img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
 .ds-body {
   min-width: 0;
 }
