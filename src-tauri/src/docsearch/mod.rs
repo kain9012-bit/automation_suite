@@ -33,6 +33,8 @@ const STARTUP_DELAY_SECS: u64 = 90;
 pub struct FolderInfo {
     path: String,
     exists: bool,
+    /// 이 폴더 안의 문서 수(겹치는 폴더는 각각 센다)
+    documents: i64,
 }
 
 #[derive(Serialize)]
@@ -60,7 +62,18 @@ fn status(app: &AppHandle) -> Result<Status, String> {
     let count = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap_or(0);
     let folders = db::folders(&conn)?
         .into_iter()
-        .map(|(_, path)| FolderInfo { exists: PathBuf::from(&path).is_dir(), path })
+        .map(|(_, path)| {
+            let prefix = if path.ends_with(['\\', '/']) { path.clone() } else { format!("{path}\\") };
+            let documents = conn
+                .query_row(
+                    "SELECT count(*) FROM files WHERE status <> 'name'
+                     AND lower(substr(path, 1, length(?1))) = lower(?1)",
+                    [&prefix],
+                    |r| r.get::<_, i64>(0),
+                )
+                .unwrap_or(0);
+            FolderInfo { exists: PathBuf::from(&path).is_dir(), path, documents }
+        })
         .collect();
     let dir = db::index_dir(app)?;
     let index_bytes = ["index.db", "index.db-wal"]
@@ -72,7 +85,7 @@ fn status(app: &AppHandle) -> Result<Status, String> {
         confirmed: db::get_meta(&conn, CONFIRMED_KEY).is_some(),
         folders,
         files: count("SELECT count(*) FROM files"),
-        documents: count("SELECT count(*) FROM files WHERE status='ok'"),
+        documents: count("SELECT count(*) FROM files WHERE status <> 'name'"),
         pending: count("SELECT count(*) FROM files WHERE status='pending'"),
         last_check: db::get_meta(&conn, "last_check").and_then(|v| v.parse().ok()).unwrap_or(0),
         running: index::is_running(),
@@ -157,6 +170,12 @@ pub fn docsearch_folder_choices(app: AppHandle) -> FolderChoices {
 #[tauri::command]
 pub async fn docsearch_status(app: AppHandle) -> Result<Status, String> {
     blocking(move || status(&app)).await
+}
+
+/// 진행 중인 대조·읽기를 멈춘다. 못 읽은 문서는 다음에 이어 읽는다.
+#[tauri::command]
+pub fn docsearch_cancel() {
+    index::cancel();
 }
 
 /// [지금 다시 읽기]

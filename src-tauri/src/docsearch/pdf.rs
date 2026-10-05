@@ -98,6 +98,10 @@ pub fn read_pdfs(
                 _ => Err(if line.error.is_empty() { "PDF를 읽지 못했습니다".to_string() } else { line.error }),
             };
             on_result(&line.path, result);
+            if super::index::stop_requested() {
+                let _ = child.kill(); // [취소]: 남은 PDF 는 다음에 이어 읽는다
+                break;
+            }
         }
     }
     let _ = child.wait();

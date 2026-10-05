@@ -13,7 +13,7 @@ export interface DocSearchProgress {
 export interface DocSearchStatus {
   /** 사용자가 검색 폴더를 골라 시작했는지. 아니면 먼저 고르게 한다. */
   confirmed: boolean;
-  folders: { path: string; exists: boolean }[];
+  folders: { path: string; exists: boolean; documents: number }[];
   files: number;
   documents: number;
   pending: number;
@@ -65,6 +65,7 @@ export const docSearch = {
   openScreen: () => invoke<DocSearchStatus>("docsearch_open_screen"),
   status: () => invoke<DocSearchStatus>("docsearch_status"),
   refresh: () => invoke<DocSearchStatus>("docsearch_refresh"),
+  cancel: () => invoke<void>("docsearch_cancel"),
   setFolders: (folders: string[]) => invoke<DocSearchStatus>("docsearch_set_folders", { folders }),
   search: (query: string, filters: DocSearchFilters) =>
     invoke<DocSearchResult>("docsearch_search", { query, filters }),

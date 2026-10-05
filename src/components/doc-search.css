@@ -638,3 +638,275 @@
   border: 1px solid var(--border);
   color: var(--text-secondary);
 }
+
+/* ── 왼쪽 '검색 폴더' 판 + 오른쪽 검색 (도큐파인더와 같은 배치) ── */
+.ds-shell {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.ds-shell > .ds-view {
+  min-width: 0;
+  padding-top: 22px;
+}
+
+.ds-side {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100%;
+  min-height: 100%;
+  max-height: 100vh;
+  padding: 16px 12px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
+}
+
+.ds-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ds-side-head em {
+  color: var(--text-muted);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.ds-side-head.is-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ds-side-head button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.ds-side-head button:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ds-side-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-side-list li {
+  position: relative;
+  border-radius: 8px;
+}
+
+.ds-side-folder {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+}
+
+.ds-side-folder span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-side-folder span.is-missing {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.ds-side-folder b {
+  padding: 1px 7px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ds-side-list li:hover .ds-side-folder {
+  background: var(--bg-tertiary);
+}
+
+.ds-side-list li.is-active .ds-side-folder {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+
+.ds-side-remove {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  transform: translateY(-50%);
+}
+
+.ds-side-list li:hover .ds-side-remove {
+  display: grid;
+}
+
+.ds-side-remove:hover {
+  color: var(--error);
+}
+
+.ds-side-list.is-suggest .ds-side-folder {
+  color: var(--text-muted);
+}
+
+.ds-side-list.is-suggest .ds-side-folder svg:last-child {
+  opacity: 0.6;
+}
+
+.ds-side-sub {
+  margin: 8px 6px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.ds-side-empty {
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ds-empty small {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ds-recent-chips {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ds-recent-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  font-size: 12px;
+}
+
+.ds-foot.is-running {
+  position: sticky;
+}
+
+.ds-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1f8a4c;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #1f8a4c 20%, transparent);
+}
+
+.ds-state strong {
+  color: var(--text-primary);
+}
+
+.ds-current {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-percent {
+  color: #1f8a4c;
+  font-size: 13px;
+}
+
+.ds-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--bg-tertiary);
+}
+
+.ds-bar span {
+  display: block;
+  height: 100%;
+  background: #1f8a4c;
+  transition: width 300ms;
+}
+
+@media (max-width: 900px) {
+  .ds-shell {
+    grid-template-columns: 1fr;
+  }
+  .ds-side {
+    position: static;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

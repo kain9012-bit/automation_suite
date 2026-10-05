@@ -19,6 +19,19 @@ use walkdir::WalkDir;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static RERUN: AtomicBool = AtomicBool::new(false);
+/// [취소]를 눌렀을 때. 하던 파일까지만 하고 멈춘다. 못 읽은 문서는 '읽을 차례'로 남아 다음에 이어 읽는다.
+static STOP: AtomicBool = AtomicBool::new(false);
+
+pub fn stop_requested() -> bool {
+    STOP.load(Ordering::SeqCst)
+}
+
+pub fn cancel() {
+    RERUN.store(false, Ordering::SeqCst);
+    if RUNNING.load(Ordering::SeqCst) {
+        STOP.store(true, Ordering::SeqCst);
+    }
+}
 static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
 
 #[derive(Clone, Debug, Serialize)]
@@ -55,6 +68,7 @@ pub fn start(app: &AppHandle) -> bool {
         RERUN.store(true, Ordering::SeqCst);
         return false;
     }
+    STOP.store(false, Ordering::SeqCst);
     let app = app.clone();
     std::thread::spawn(move || {
         loop {
@@ -62,13 +76,14 @@ pub fn start(app: &AppHandle) -> bool {
             if let Err(error) = run(&app) {
                 let _ = app.emit("docsearch-error", error);
             }
-            if !RERUN.load(Ordering::SeqCst) {
+            if !RERUN.load(Ordering::SeqCst) || STOP.load(Ordering::SeqCst) {
                 break;
             }
         }
         if let Ok(mut p) = PROGRESS.lock() {
             *p = None;
         }
+        STOP.store(false, Ordering::SeqCst);
         RUNNING.store(false, Ordering::SeqCst);
         let _ = app.emit("docsearch-progress", Option::<Progress>::None);
         let _ = app.emit("docsearch-updated", ());
@@ -98,14 +113,18 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut last_emit = Instant::now() - Duration::from_secs(1);
 
     // ① 목록 대조
-    sync_list(&mut conn, |count, name| {
+    let finished = sync_list(&mut conn, |count, name| {
         set_progress(
             app,
             Some(Progress { phase: "scan".into(), done: count, total: 0, current: name.to_string() }),
             &mut last_emit,
             false,
         );
+        !stop_requested()
     })?;
+    if !finished {
+        return Ok(());
+    }
 
     // ② 바뀐 문서 읽기 (최근 것부터)
     let pending: Vec<(i64, String, String)> = {
@@ -129,6 +148,9 @@ fn run(app: &AppHandle) -> Result<(), String> {
     let mut done = 0usize;
 
     for (id, path, ext) in others {
+        if stop_requested() {
+            return Ok(());
+        }
         let name = file_name(&path);
         set_progress(
             app,
@@ -144,6 +166,9 @@ fn run(app: &AppHandle) -> Result<(), String> {
 
     // PDF 는 파이썬 실행기를 한 번 띄워 여러 개를 읽는다.
     for batch in pdfs.chunks(200) {
+        if stop_requested() {
+            return Ok(());
+        }
         let ids: HashMap<String, i64> = batch.iter().map(|(id, path, _)| (path.clone(), *id)).collect();
         let paths: Vec<String> = batch.iter().map(|(_, path, _)| path.clone()).collect();
         let mut handled: HashSet<i64> = HashSet::new();
@@ -165,6 +190,7 @@ fn run(app: &AppHandle) -> Result<(), String> {
             // 실행기를 띄우지 못했으면 '읽을 차례'로 남겨 다음 대조 때 다시 읽는다.
             Err(_) => done += batch.len() - handled.len(),
             // 실행기가 도중에 끝나 결과가 안 온 PDF 는 오류로 적는다(같은 파일로 매번 멈추지 않게).
+            Ok(()) if stop_requested() => return Ok(()),
             Ok(()) => {
                 for (id, _, _) in batch {
                     if !handled.contains(id) {
@@ -183,7 +209,8 @@ fn run(app: &AppHandle) -> Result<(), String> {
 
 /// 검색 폴더를 훑어 파일 목록을 색인과 맞춘다. 파일은 열지 않고 수정 날짜·크기만 본다.
 /// 새 파일은 넣고, 날짜나 크기가 바뀐 파일은 글을 지우고 '읽을 차례'로 돌리고, 사라진 파일은 뺀다.
-pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str)) -> Result<(), String> {
+/// `on_file` 이 false 를 돌려주면(취소) 목록을 고치지 않고 Ok(false).
+pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str) -> bool) -> Result<bool, String> {
     let folders = db::folders(conn)?;
     let mut seen: HashMap<String, Seen> = HashMap::new();
     let mut scanned_folders: HashSet<i64> = HashSet::new();
@@ -193,7 +220,9 @@ pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str)) ->
             continue; // 연결이 끊긴 드라이브 등: 기존 목록을 지우지 않고 둔다
         }
         scanned_folders.insert(*folder_id);
-        walk(&root, *folder_id, &mut seen, &mut on_file);
+        if !walk(&root, *folder_id, &mut seen, &mut on_file) {
+            return Ok(false); // 다 훑지 못한 목록으로 지우면 안 되므로 그대로 둔다
+        }
     }
 
     let known: HashMap<String, Known> = {
@@ -250,7 +279,8 @@ pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str)) ->
             db::delete_file(&tx, old.id)?;
         }
     }
-    tx.commit().map_err(|e| e.to_string())
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 fn file_name(path: &str) -> String {
@@ -396,7 +426,8 @@ const ATTR_OFFLINE: u32 = 0x1000;
 const ATTR_RECALL_ON_OPEN: u32 = 0x40000;
 const ATTR_RECALL_ON_DATA_ACCESS: u32 = 0x400000;
 
-fn walk(root: &Path, folder_id: i64, seen: &mut HashMap<String, Seen>, mut on_file: impl FnMut(usize, &str)) {
+/// 다 훑었으면 true, 도중에 멈췄으면 false
+fn walk(root: &Path, folder_id: i64, seen: &mut HashMap<String, Seen>, mut on_file: impl FnMut(usize, &str) -> bool) -> bool {
     let iter = WalkDir::new(root).follow_links(false).into_iter().filter_entry(|entry| {
         if entry.depth() == 0 || !entry.file_type().is_dir() {
             return true;
@@ -439,9 +470,12 @@ fn walk(root: &Path, folder_id: i64, seen: &mut HashMap<String, Seen>, mut on_fi
             .unwrap_or(0);
         // 원드라이브의 '온라인 전용' 파일은 내용을 읽으면 내려받기가 시작되므로 이름으로만 찾는다.
         let cloud = a & (ATTR_OFFLINE | ATTR_RECALL_ON_OPEN | ATTR_RECALL_ON_DATA_ACCESS) != 0;
-        on_file(seen.len() + 1, &name);
+        if !on_file(seen.len() + 1, &name) {
+            return false;
+        }
         seen.insert(path, Seen { folder_id, name, ext, size: meta.len() as i64, mtime, cloud });
     }
+    true
 }
 
 #[cfg(test)]
@@ -485,7 +519,7 @@ mod tests {
         let b = docs.join("지울문서.txt");
         std::fs::write(&a, "바나나 예산 회의").unwrap();
         std::fs::write(&b, "사과 계획").unwrap();
-        sync_list(&mut conn, |_, _| {}).unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
         read_pending(&mut conn);
         let f = Filters::default();
         assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 1);
@@ -495,7 +529,7 @@ mod tests {
         let later = std::time::SystemTime::now() + std::time::Duration::from_secs(120);
         std::fs::File::options().write(true).open(&a).unwrap().set_modified(later).unwrap();
         std::fs::remove_file(&b).unwrap();
-        sync_list(&mut conn, |_, _| {}).unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
         read_pending(&mut conn);
         assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 0, "예전 내용은 빠져야 함");
         assert_eq!(search(&conn, "수박", &f).unwrap().hits.len(), 1, "바뀐 내용으로 찾혀야 함");
@@ -504,7 +538,7 @@ mod tests {
         // 검색 폴더를 상위 폴더로 바꿔도 파일이 사라지지 않음
         conn.execute("DELETE FROM folders", []).unwrap();
         conn.execute("INSERT INTO folders(path) VALUES(?1)", [dir.to_string_lossy()]).unwrap();
-        sync_list(&mut conn, |_, _| {}).unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
         assert_eq!(search(&conn, "수박", &f).unwrap().hits.len(), 1, "상위 폴더로 바꿔도 남아야 함");
         drop(conn);
         let _ = std::fs::remove_dir_all(&dir);

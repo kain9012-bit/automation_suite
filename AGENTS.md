@@ -95,7 +95,8 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 - hwp·hwpx·docx·xlsx·pptx·txt 는 Rust 에서, PDF 는 사이드카 `runner.py --pdf-text-list`(PyMuPDF)로 읽는다.
 - 배포용·암호 문서, 100MB 초과, 원드라이브 온라인 전용 파일은 이름으로만 찾는다.
 - 처음 열면 검색 폴더를 고르게 하고(meta `folders_confirmed`), 고르기 전에는 아무 파일도 읽지 않는다.
-  고른 폴더는 검색창 아래 '검색 범위'에 늘 보인다.
+  고른 폴더는 화면 왼쪽 '검색 폴더'에 문서 수와 함께 늘 보인다. 읽는 중에는 아래쪽에 진행률과 [취소]
+  (`docsearch_cancel`, 못 읽은 문서는 `pending`으로 남아 다음 대조 때 이어 읽음).
 
 ## 빠른 실행(런처) 규칙
 

@@ -11,9 +11,9 @@ import {
   HardDrive,
   LoaderCircle,
   Presentation,
+  Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   Trash2,
   X,
   type LucideIcon,
@@ -101,6 +101,25 @@ function progressText(progress: DocSearchProgress | null) {
   return `바뀐 문서 읽는 중… ${progress.done.toLocaleString()}/${progress.total.toLocaleString()}`;
 }
 
+const RECENT_KEY = "jbedu-suite:docsearch-recent";
+
+function readRecent(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string").slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRecent(list: string[]) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)));
+  } catch {
+    // 저장이 막혀도 검색은 된다
+  }
+}
+
 export function DocSearchView() {
   const [status, setStatus] = useState<DocSearchStatus | null>(null);
   const [choices, setChoices] = useState<FolderChoices | null>(null);
@@ -112,7 +131,7 @@ export function DocSearchView() {
   const [result, setResult] = useState<DocSearchResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
-  const [managing, setManaging] = useState(false);
+  const [recent, setRecent] = useState<string[]>(readRecent);
   const searchSeq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -191,6 +210,20 @@ export function DocSearchView() {
     return () => window.clearTimeout(timer);
   }, [query, runSearch]);
 
+  // 결과가 나온 검색어를 2초 그대로 두면 최근 검색에 남긴다
+  useEffect(() => {
+    const text = query.trim();
+    if (!text || !result || result.total === 0) return;
+    const timer = window.setTimeout(() => {
+      setRecent((list) => {
+        const next = [text, ...list.filter((q) => q !== text)].slice(0, 8);
+        writeRecent(next);
+        return next;
+      });
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [query, result]);
+
   const running = !!status?.running || !!progress;
 
   const saveFolders = async (folders: string[]) => {
@@ -198,7 +231,6 @@ export function DocSearchView() {
       const s = await docSearch.setFolders(folders);
       setStatus(s);
       setProgress(s.progress);
-      setManaging(false);
       if (folder && !hasPath(folders, folder)) setFolder("");
       setMessage("");
     } catch (error) {
@@ -206,12 +238,14 @@ export function DocSearchView() {
     }
   };
 
-  const refresh = async () => {
+  const act = async (action: () => Promise<unknown>) => {
     try {
-      const s = await docSearch.refresh();
-      setStatus(s);
-      setProgress(s.progress);
-      setMessage("");
+      const value = await action();
+      if (value && typeof value === "object" && "confirmed" in (value as object)) {
+        const s = value as DocSearchStatus;
+        setStatus(s);
+        setProgress(s.progress);
+      }
     } catch (error) {
       setMessage(String(error));
     }
@@ -219,14 +253,6 @@ export function DocSearchView() {
 
   const toggleKind = (id: string) =>
     setKinds((current) => (current.includes(id) ? current.filter((k) => k !== id) : [...current, id]));
-
-  const act = async (action: () => Promise<void>) => {
-    try {
-      await action();
-    } catch (error) {
-      setMessage(String(error));
-    }
-  };
 
   if (!status || !choices) {
     return <div className="ds-view ds-loading">{message || "불러오는 중…"}</div>;
@@ -243,7 +269,7 @@ export function DocSearchView() {
           <h2>어느 폴더에서 문서를 찾을까요?</h2>
           <p>
             고른 폴더 안의 문서만 읽어서 찾습니다(하위 폴더 포함). 고르기 전에는 아무 파일도 읽지 않으며,
-            나중에 검색 화면에서 언제든 바꿀 수 있습니다.
+            나중에 검색 화면 왼쪽 '검색 폴더'에서 언제든 더하거나 뺄 수 있습니다.
           </p>
           <FolderPicker
             initial={initial}
@@ -257,208 +283,294 @@ export function DocSearchView() {
     );
   }
 
+  const folders = status.folders;
+  const paths = folders.map((f) => f.path);
+  const suggestions = [...choices.common, ...choices.drives].filter((c) => !hasPath(paths, c.path));
+
+  const addFolder = async () => {
+    const chosen = await openDialog({ directory: true, multiple: false, title: "검색할 폴더 선택" });
+    if (typeof chosen === "string" && !hasPath(paths, chosen)) await saveFolders([...paths, chosen]);
+  };
+
+  const removeFolder = (path: string) => {
+    if (!window.confirm(`'${folderName(path, choices)}' 폴더를 검색 폴더에서 뺄까요?\n그 안의 문서는 색인에서 지워집니다.`)) return;
+    void saveFolders(paths.filter((p) => p !== path));
+  };
+
   const highlights = result?.highlights ?? [];
+  const percent =
+    progress?.phase === "read" && progress.total ? Math.floor((progress.done / progress.total) * 100) : null;
 
   return (
-    <div className="ds-view">
-      <header className="ds-head">
-        <h2>문서 검색</h2>
-        <p>파일 이름과 문서 내용(한글·PDF·엑셀·워드·파워포인트·텍스트)에서 함께 찾습니다.</p>
-      </header>
-
-      <section className="ds-searchbox">
-        <label className="hero-search ds-search">
-          <Search size={18} />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="찾을 낱말을 입력하세요 (띄어 쓰면 모두 들어 있는 문서)"
-            aria-label="문서 검색어"
-          />
-          {searching && <LoaderCircle size={16} className="ds-spin" />}
-          {query && (
-            <button className="ds-clear" onClick={() => setQuery("")} title="지우기">
-              <X size={15} />
-            </button>
-          )}
-        </label>
-
-        <div className="ds-scope">
-          <span className="ds-scope-label">검색 범위</span>
-          <div className="ds-scope-chips">
-            <button className={!folder ? "is-active" : ""} onClick={() => setFolder("")}>
-              전체 {status.folders.length}곳
-            </button>
-            {status.folders.map((f) => (
+    <div className="ds-shell">
+      <aside className="ds-side">
+        <div className="ds-side-head">
+          <span>
+            검색 폴더 <em>({folders.length})</em>
+          </span>
+          <button onClick={() => void addFolder()} title="폴더 추가">
+            <Plus size={15} />
+          </button>
+        </div>
+        <ul className="ds-side-list">
+          {folders.map((f) => (
+            <li key={f.path} className={folder === f.path ? "is-active" : ""}>
               <button
-                key={f.path}
-                className={`${folder === f.path ? "is-active" : ""} ${f.exists ? "" : "is-missing"}`}
+                className="ds-side-folder"
                 onClick={() => setFolder(folder === f.path ? "" : f.path)}
-                title={f.exists ? f.path : `${f.path} (지금 없음)`}
+                title={f.exists ? `${f.path}\n누르면 이 폴더 안에서만 찾습니다` : `${f.path} (지금 없음)`}
               >
-                {/^[a-zA-Z]:[\\/]?$/.test(f.path) ? <HardDrive size={12} /> : <FolderOpen size={12} />}
-                {folderName(f.path, choices)}
+                {/^[a-zA-Z]:[\\/]?$/.test(f.path) ? <HardDrive size={15} /> : <FolderOpen size={15} />}
+                <span className={f.exists ? "" : "is-missing"}>{folderName(f.path, choices)}</span>
+                <b>{f.documents.toLocaleString()}</b>
               </button>
-            ))}
-          </div>
-          <button className="ds-scope-edit" onClick={() => setManaging(true)}>
-            <SlidersHorizontal size={13} />
-            범위 바꾸기
-          </button>
-        </div>
-
-        <div className="ds-filters">
-          <div className="ds-chips" role="group" aria-label="파일 종류">
-            <button className={kinds.length === 0 ? "is-active" : ""} onClick={() => setKinds([])}>
-              모든 종류
-            </button>
-            {KINDS.map((kind) => (
-              <button
-                key={kind.id}
-                className={kinds.includes(kind.id) ? "is-active" : ""}
-                onClick={() => toggleKind(kind.id)}
-              >
-                {kind.label}
+              <button className="ds-side-remove" onClick={() => removeFolder(f.path)} title="검색 폴더에서 빼기">
+                <X size={13} />
               </button>
-            ))}
-          </div>
-          <select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="수정 기간">
-            {PERIODS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+            </li>
+          ))}
+          {!folders.length && <li className="ds-side-empty">+ 를 눌러 검색할 폴더를 넣으세요.</li>}
+        </ul>
 
-      {message && (
-        <div className="ds-message" role="alert">
-          <span>{message}</span>
-          <button onClick={() => setMessage("")} title="닫기">
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      <section className="ds-results">
-        {!query.trim() && (
-          <div className="ds-empty">
-            <Search size={28} />
-            <strong>찾을 낱말을 입력하세요.</strong>
-            <span>
-              위 <b>검색 범위</b>의 폴더 안에서 파일 이름과 문서 내용을 함께 찾습니다. 예: <b>예산 편성</b> → 두
-              낱말이 모두 들어 있는 문서
-            </span>
-          </div>
-        )}
-
-        {query.trim() && result && (
+        {suggestions.length > 0 && (
           <>
-            <div className="ds-count">
-              {result.total === 0
-                ? "찾는 문서가 없습니다."
-                : result.total > result.hits.length
-                  ? `${result.total.toLocaleString()}개 중 잘 맞는 ${result.hits.length}개`
-                  : `${result.total.toLocaleString()}개`}
-              {result.total === 0 && running && <span> 새 문서를 확인하는 중이라, 끝나면 다시 찾아 봅니다.</span>}
-            </div>
-            <ul className="ds-list">
-              {result.hits.map((hit: DocSearchHit) => {
-                const Icon = iconFor(hit.ext);
-                const note = statusNote(hit.status);
-                return (
-                  <li
-                    key={hit.path}
-                    className="ds-item"
-                    onDoubleClick={() => void act(() => docSearch.openFile(hit.path))}
+            <div className="ds-side-sub">추천 ({suggestions.length})</div>
+            <ul className="ds-side-list is-suggest">
+              {suggestions.map((c) => (
+                <li key={c.path}>
+                  <button
+                    className="ds-side-folder"
+                    onClick={() => void saveFolders([...paths, c.path])}
+                    title={`${c.path}\n누르면 검색 폴더에 넣습니다`}
                   >
-                    <span className={`ds-icon ext-${hit.ext}`}>
-                      <Icon size={18} />
-                    </span>
-                    <div className="ds-body">
-                      <div className="ds-title">
-                        <strong>
-                          <Highlighted text={hit.name} highlights={highlights} />
-                        </strong>
-                        <span className="ds-meta">
-                          {formatDate(hit.mtime)} · {formatSize(hit.size)}
-                        </span>
-                      </div>
-                      <div className="ds-path" title={hit.folder}>
-                        {hit.folder}
-                      </div>
-                      {hit.snippet && (
-                        <p className="ds-snippet">
-                          <Highlighted text={hit.snippet} highlights={highlights} />
-                        </p>
-                      )}
-                      {note && <span className="ds-note">{note}</span>}
-                    </div>
-                    <div className="ds-actions">
-                      <button className="secondary-button" onClick={() => void act(() => docSearch.openFile(hit.path))}>
-                        열기
-                      </button>
-                      <button
-                        className="secondary-button"
-                        onClick={() => void act(() => docSearch.revealFile(hit.path))}
-                        title="폴더 열기"
-                      >
-                        <FolderOpen size={14} />
-                        폴더
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
+                    {/^[a-zA-Z]:[\\/]?$/.test(c.path) ? <HardDrive size={15} /> : <FolderOpen size={15} />}
+                    <span>{c.label}</span>
+                    <Plus size={13} />
+                  </button>
+                </li>
+              ))}
             </ul>
           </>
         )}
-      </section>
 
-      <footer className="ds-foot">
-        <span className="ds-state">
+        <div className="ds-side-head is-section">
+          <span>
+            최근 검색 <em>({recent.length})</em>
+          </span>
+          {recent.length > 0 && (
+            <button
+              onClick={() => {
+                setRecent([]);
+                writeRecent([]);
+              }}
+              title="최근 검색 지우기"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+        <ul className="ds-side-list">
+          {recent.map((q) => (
+            <li key={q}>
+              <button className="ds-side-folder" onClick={() => setQuery(q)}>
+                <Search size={14} />
+                <span>{q}</span>
+              </button>
+            </li>
+          ))}
+          {!recent.length && <li className="ds-side-empty">아직 없습니다.</li>}
+        </ul>
+      </aside>
+
+      <div className="ds-view">
+        <section className="ds-searchbox">
+          <label className="hero-search ds-search">
+            <Search size={18} />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={
+                folder
+                  ? `'${folderName(folder, choices)}' 안에서 찾을 낱말을 입력하세요`
+                  : "찾을 낱말을 입력하세요 (띄어 쓰면 모두 들어 있는 문서)"
+              }
+              aria-label="문서 검색어"
+            />
+            {searching && <LoaderCircle size={16} className="ds-spin" />}
+            {query && (
+              <button className="ds-clear" onClick={() => setQuery("")} title="지우기">
+                <X size={15} />
+              </button>
+            )}
+          </label>
+          <div className="ds-filters">
+            <div className="ds-chips" role="group" aria-label="파일 종류">
+              <button className={kinds.length === 0 ? "is-active" : ""} onClick={() => setKinds([])}>
+                모든 종류
+              </button>
+              {KINDS.map((kind) => (
+                <button
+                  key={kind.id}
+                  className={kinds.includes(kind.id) ? "is-active" : ""}
+                  onClick={() => toggleKind(kind.id)}
+                >
+                  {kind.label}
+                </button>
+              ))}
+            </div>
+            <div className="ds-filter-right">
+              {folder && (
+                <button className="ds-scope-pill" onClick={() => setFolder("")} title="모든 검색 폴더에서 찾기">
+                  <FolderOpen size={12} />
+                  {folderName(folder, choices)} 안에서만
+                  <X size={12} />
+                </button>
+              )}
+              <select value={period} onChange={(event) => setPeriod(event.target.value)} aria-label="수정 기간">
+                {PERIODS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {message && (
+          <div className="ds-message" role="alert">
+            <span>{message}</span>
+            <button onClick={() => setMessage("")} title="닫기">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <section className="ds-results">
+          {!query.trim() && (
+            <div className="ds-empty">
+              <Search size={30} />
+              <strong>문서 검색</strong>
+              <span>
+                왼쪽 <b>검색 폴더</b> 안에서 파일 이름과 문서 내용(한글·PDF·엑셀·워드·파워포인트·텍스트)을 함께
+                찾습니다.
+              </span>
+              {recent.length > 0 && (
+                <div className="ds-recent-chips">
+                  {recent.slice(0, 5).map((q) => (
+                    <button key={q} onClick={() => setQuery(q)}>
+                      <Search size={12} />
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <small>
+                문서 {status.documents.toLocaleString()}개 · 폴더 {folders.length}곳
+              </small>
+            </div>
+          )}
+
+          {query.trim() && result && (
+            <>
+              <div className="ds-count">
+                {result.total === 0
+                  ? "찾는 문서가 없습니다."
+                  : result.total > result.hits.length
+                    ? `${result.total.toLocaleString()}개 중 잘 맞는 ${result.hits.length}개`
+                    : `${result.total.toLocaleString()}개`}
+                {result.total === 0 && running && <span> 문서를 읽는 중이라, 끝나면 다시 찾아 봅니다.</span>}
+              </div>
+              <ul className="ds-list">
+                {result.hits.map((hit: DocSearchHit) => {
+                  const Icon = iconFor(hit.ext);
+                  const note = statusNote(hit.status);
+                  return (
+                    <li
+                      key={hit.path}
+                      className="ds-item"
+                      onDoubleClick={() => void act(() => docSearch.openFile(hit.path))}
+                    >
+                      <span className={`ds-icon ext-${hit.ext}`}>
+                        <Icon size={18} />
+                      </span>
+                      <div className="ds-body">
+                        <div className="ds-title">
+                          <strong>
+                            <Highlighted text={hit.name} highlights={highlights} />
+                          </strong>
+                          <span className="ds-meta">
+                            {formatDate(hit.mtime)} · {formatSize(hit.size)}
+                          </span>
+                        </div>
+                        <div className="ds-path" title={hit.folder}>
+                          {hit.folder}
+                        </div>
+                        {hit.snippet && (
+                          <p className="ds-snippet">
+                            <Highlighted text={hit.snippet} highlights={highlights} />
+                          </p>
+                        )}
+                        {note && <span className="ds-note">{note}</span>}
+                      </div>
+                      <div className="ds-actions">
+                        <button className="secondary-button" onClick={() => void act(() => docSearch.openFile(hit.path))}>
+                          열기
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => void act(() => docSearch.revealFile(hit.path))}
+                          title="폴더 열기"
+                        >
+                          <FolderOpen size={14} />
+                          폴더
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </section>
+
+        <footer className={`ds-foot ${running ? "is-running" : ""}`}>
           {running ? (
             <>
-              <LoaderCircle size={13} className="ds-spin" />
-              {progressText(progress)}
+              <span className="ds-state">
+                <i className="ds-dot" />
+                <strong>{progress?.phase === "scan" ? "목록 대조" : "색인"}</strong>
+                {progress?.phase === "read" ? `${progress.done.toLocaleString()}/${progress.total.toLocaleString()}` : ""}
+                {progress?.phase === "scan" ? `${progress.done.toLocaleString()}개 확인` : ""}
+                {progress?.current && <span className="ds-current">· {progress.current}</span>}
+              </span>
+              <div className="ds-foot-right">
+                {percent !== null && <b className="ds-percent">{percent}%</b>}
+                <button className="secondary-button" onClick={() => void act(docSearch.cancel)}>
+                  취소
+                </button>
+              </div>
+              {percent !== null && (
+                <span className="ds-bar">
+                  <span style={{ width: `${percent}%` }} />
+                </span>
+              )}
             </>
           ) : (
             <>
-              문서 {status.documents.toLocaleString()}개 · 파일 {status.files.toLocaleString()}개
-              {status.lastCheck ? ` · 마지막 확인 ${formatTime(status.lastCheck)}` : ""}
+              <span className="ds-state">
+                문서 {status.documents.toLocaleString()}개
+                {status.lastCheck ? ` · 마지막 확인 ${formatTime(status.lastCheck)}` : ""}
+              </span>
+              <button className="secondary-button" onClick={() => void act(docSearch.refresh)}>
+                <RefreshCw size={13} />
+                지금 다시 읽기
+              </button>
             </>
           )}
-        </span>
-        <button className="secondary-button" onClick={() => void refresh()} disabled={running}>
-          <RefreshCw size={13} />
-          지금 다시 읽기
-        </button>
-      </footer>
-
-      {managing && (
-        <div className="ds-modal-backdrop" onMouseDown={() => setManaging(false)}>
-          <section className="ds-modal" onMouseDown={(event) => event.stopPropagation()}>
-            <header>
-              <strong>검색 범위 바꾸기</strong>
-              <button onClick={() => setManaging(false)} title="닫기">
-                <X size={17} />
-              </button>
-            </header>
-            <div className="ds-modal-body">
-              <FolderPicker
-                initial={status.folders.map((f) => f.path)}
-                choices={choices}
-                missing={status.folders.filter((f) => !f.exists).map((f) => f.path)}
-                submitLabel="저장"
-                onCancel={() => setManaging(false)}
-                onSubmit={(folders) => void saveFolders(folders)}
-              />
-            </div>
-          </section>
-        </div>
-      )}
+        </footer>
+      </div>
     </div>
   );
 }
