@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   File,
@@ -55,6 +55,14 @@ const PERIODS: { id: string; label: string; days: number }[] = [
   { id: "quarter", label: "최근 3개월", days: 92 },
   { id: "year", label: "최근 1년", days: 366 },
 ];
+
+/** `child` 가 `parent` 폴더 안(같은 폴더 제외)에 있는지. 대소문자·끝의 \ 는 가리지 않는다. */
+function isInside(child: string, parent: string) {
+  const norm = (p: string) => p.replace(/[\\/]+$/, "").toLowerCase() + "\\";
+  const c = norm(child);
+  const p = norm(parent);
+  return c !== p && c.startsWith(p);
+}
 
 /** 탐색기 아이콘: 확장자 → PNG data URL(받지 못했으면 null). 화면을 다시 열어도 다시 묻지 않는다. */
 const systemIcons = new Map<string, string | null>();
@@ -310,9 +318,21 @@ export function DocSearchView() {
     if (typeof chosen === "string" && !hasPath(paths, chosen)) await saveFolders([...paths, chosen]);
   };
 
-  const removeFolder = (path: string) => {
-    if (!window.confirm(`'${folderName(path, choices)}' 폴더를 검색 폴더에서 뺄까요?\n그 안의 문서는 색인에서 지워집니다.`)) return;
-    void saveFolders(paths.filter((p) => p !== path));
+  // [×]: 실수로 빼지 않게 한 번 묻는다. 빼면 그 폴더의 색인이 지워져 다시 넣을 때 처음부터 읽기 때문.
+  const removeFolder = async (path: string) => {
+    const name = folderName(path, choices);
+    const rest = paths.filter((p) => p !== path);
+    const parent = rest.find((p) => isInside(path, p));
+    const detail = parent
+      ? `이 폴더는 '${folderName(parent, choices)}' 안에 있어서, 빼도 그 안의 문서는 계속 검색됩니다.`
+      : "이 폴더의 문서는 색인에서 지워집니다.\n다시 추가하면 문서를 처음부터 다시 읽어야 합니다.";
+    const yes = await ask(`'${name}' 폴더를 검색 대상에서 제거하시겠습니까?\n\n${detail}`, {
+      title: "검색 폴더 제거",
+      kind: "warning",
+      okLabel: "제거",
+      cancelLabel: "취소",
+    });
+    if (yes) await saveFolders(rest);
   };
 
   const highlights = result?.highlights ?? [];
@@ -342,7 +362,7 @@ export function DocSearchView() {
                 <span className={f.exists ? "" : "is-missing"}>{folderName(f.path, choices)}</span>
                 <b>{f.documents.toLocaleString()}</b>
               </button>
-              <button className="ds-side-remove" onClick={() => removeFolder(f.path)} title="검색 폴더에서 빼기">
+              <button className="ds-side-remove" onClick={() => void removeFolder(f.path)} title="검색 폴더에서 빼기">
                 <X size={13} />
               </button>
             </li>

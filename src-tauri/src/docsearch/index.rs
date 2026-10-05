@@ -390,8 +390,30 @@ const SKIP_DIRS: &[&str] = &[
     "program files (x86)",
     "programdata",
     "__pycache__",
+    "site-packages",
     "$recycle.bin",
 ];
+
+/// 사용자 폴더 등에 직접 깔린 프로그램 폴더. 폴더 안에 이 흔적이 있으면 통째로 건너뛴다.
+/// (예: C:\Users\이름\anaconda3 — 파이썬 배포판의 txt·csv 수천 개가 색인을 차지하고 검색 결과를 흐렸다)
+/// 사용자가 검색 폴더로 직접 고른 폴더 자체는 따지지 않는다.
+const PROGRAM_MARKERS: &[(&str, bool)] = &[
+    ("conda-meta", true),     // 아나콘다·미니콘다 설치 폴더와 그 가상환경
+    ("pyvenv.cfg", false),    // 파이썬 가상환경
+    ("unins000.exe", false),  // Inno Setup 으로 설치한 프로그램
+    ("uninstall.exe", false), // NSIS 로 설치한 프로그램
+];
+
+fn is_program_dir(dir: &Path) -> bool {
+    PROGRAM_MARKERS.iter().any(|(name, is_dir)| {
+        let marker = dir.join(name);
+        if *is_dir {
+            marker.is_dir()
+        } else {
+            marker.is_file()
+        }
+    })
+}
 
 fn skip_dir_name(name: &str) -> bool {
     let lower = name.to_lowercase();
@@ -437,8 +459,8 @@ fn walk(root: &Path, folder_id: i64, seen: &mut HashMap<String, Seen>, mut on_fi
             return false;
         }
         match entry.metadata() {
-            Ok(meta) => attrs(&meta) & (ATTR_HIDDEN | ATTR_SYSTEM) == 0,
-            Err(_) => false,
+            Ok(meta) if attrs(&meta) & (ATTR_HIDDEN | ATTR_SYSTEM) == 0 => !is_program_dir(entry.path()),
+            _ => false,
         }
     });
     for entry in iter.flatten() {
@@ -552,5 +574,42 @@ mod tests {
         assert!(skip_dir_name("$RECYCLE.BIN"));
         assert!(skip_dir_name(".git"));
         assert!(!skip_dir_name("업무자료"));
+    }
+
+    #[test]
+    fn program_folders_are_skipped_but_chosen_root_is_not() {
+        let dir = std::env::temp_dir().join(format!("ds-prog-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let make = |rel: &str, text: &str| {
+            let p = dir.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        };
+        make("업무/회의록.txt", "회의");
+        make("anaconda3/conda-meta/history", "");
+        make("anaconda3/pkgs/라이선스.txt", "x");
+        make("anaconda3/envs/py311/conda-meta/history", "");
+        make("venv/pyvenv.cfg", "home = x");
+        make("venv/Lib/notes.txt", "x");
+        make("도구/unins000.exe", "");
+        make("도구/readme.txt", "x");
+        make("설치본/uninstall.exe", "");
+        make("설치본/설명.txt", "x");
+        make("python/Lib/site-packages/pkg/data.csv", "x");
+        // 일반 폴더에 conda-meta '파일'이 있는 것은 프로그램 흔적이 아님
+        make("자료/conda-meta", "메모");
+        make("자료/보고서.txt", "보고");
+
+        let mut seen = HashMap::new();
+        assert!(walk(&dir, 1, &mut seen, |_, _| true));
+        let mut names: Vec<&str> = seen.values().map(|s| s.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["conda-meta", "보고서.txt", "회의록.txt"]);
+
+        // 사용자가 프로그램 폴더 자체를 검색 폴더로 고르면 그 안은 읽는다
+        let mut seen = HashMap::new();
+        assert!(walk(&dir.join("도구"), 1, &mut seen, |_, _| true));
+        assert_eq!(seen.len(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
