@@ -1,0 +1,13 @@
+{
+  "id": "doc_size_reducer",
+  "name": "문서 용량 줄이기",
+  "top_tab": "PDF·문서",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "한글(hwpx)·엑셀·워드·파워포인트·PDF 안의 사진만 줄여 목표 용량에 맞춥니다.",
+  "order": 52,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["용량", "압축", "줄이기", "사진", "이미지", "첨부", "메일", "hwpx", "엑셀", "워드", "파워포인트", "pdf"]
+}

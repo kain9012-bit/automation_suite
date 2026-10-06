@@ -75,6 +75,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   hwp_to_hwpx_converter: ArrowRightLeft,
   pdf_compress: Minimize2,
   hwp_compress: Minimize2,
+  doc_size_reducer: Minimize2,
   pdf_page_organizer: LayoutGrid,
   pdf_page_number_adder: Hash,
   certificate_pdf_collector: Award,
