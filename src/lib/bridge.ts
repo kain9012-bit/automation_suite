@@ -37,6 +37,12 @@ export async function saveToolDownload(name: string, bytes: ArrayBuffer): Promis
   });
 }
 
+/** 파일을 그 파일의 기본 프로그램으로 연다(엑셀이면 엑셀). */
+export async function openFilePath(path: string): Promise<void> {
+  if (!isTauri()) throw new Error("파일 열기는 설치된 앱에서 사용할 수 있습니다.");
+  return invoke<void>("open_file_path", { path });
+}
+
 /** 작업 결과가 저장된 폴더를 탐색기로 연다. */
 export async function revealPath(path: string): Promise<void> {
   if (!isTauri()) throw new Error("결과 폴더 열기는 설치된 앱에서 사용할 수 있습니다.");

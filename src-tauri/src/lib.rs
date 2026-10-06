@@ -327,6 +327,15 @@ fn unique_download_path(dir: &Path, name: &str) -> PathBuf {
         .unwrap_or(first)
 }
 
+/// 저장한 파일을 기본 프로그램으로 연다(내려받기 알림의 [열기]).
+#[tauri::command]
+fn open_file_path(path: String) -> Result<(), String> {
+    if !PathBuf::from(&path).is_file() {
+        return Err("파일이 없습니다. 옮겨졌거나 지워졌을 수 있습니다.".to_string());
+    }
+    macro_deck::open_with_default(&path)
+}
+
 #[tauri::command]
 fn save_tool_download(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
     // 보통은 바이트 그대로 온다. IPC 가 예비 경로(postMessage)로 돌면 숫자 배열(JSON)로 온다.
@@ -847,6 +856,7 @@ pub fn run() {
             read_tool_html,
             open_tool_in_browser,
             save_tool_download,
+            open_file_path,
             reveal_path,
             file_sizes,
             path_kinds,

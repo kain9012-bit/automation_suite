@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, FolderOpen, LoaderCircle, RotateCw } from "lucide-react";
-import { openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
+import { CheckCircle2, ExternalLink, FolderOpen, LoaderCircle, RotateCw, X } from "lucide-react";
+import { openFilePath, openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
 import { injectDownloadBridge, readDownloadMessage } from "../lib/htmlToolDownload";
 import type { ToolManifest } from "../types";
 
@@ -14,6 +14,15 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
   // 도구가 내려받은 파일: 앱이 '다운로드' 폴더에 저장한 경로
   const [saved, setSaved] = useState("");
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // 저장했다는 알림(도구 화면 오른쪽 아래). 브라우저의 '다운로드 완료' 표시를 대신한다. 10초 뒤 저절로 닫힌다.
+  const [toast, setToast] = useState<{ path: string } | { error: string } | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const showToast = (value: { path: string } | { error: string }) => {
+    window.clearTimeout(toastTimer.current);
+    setToast(value);
+    toastTimer.current = window.setTimeout(() => setToast(null), 10000);
+  };
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   // 도구 안의 내려받기 링크를 가로챈 내용이 오면 '다운로드' 폴더에 저장한다(src/lib/htmlToolDownload.ts).
   useEffect(() => {
@@ -23,10 +32,15 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
       if (!download) return;
       setNotice("");
       void saveToolDownload(download.name, download.bytes)
-        .then((path) => setSaved(path))
+        .then((path) => {
+          setSaved(path);
+          showToast({ path });
+        })
         .catch((reason) => {
+          const error = reason instanceof Error ? reason.message : String(reason);
           setSaved("");
-          setNotice(`파일을 저장하지 못했습니다: ${reason instanceof Error ? reason.message : String(reason)}`);
+          setNotice(`파일을 저장하지 못했습니다: ${error}`);
+          showToast({ error });
         });
     };
     window.addEventListener("message", onMessage);
@@ -35,7 +49,11 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
 
   useEffect(() => {
     setSaved("");
+    setToast(null);
   }, [tool.id]);
+
+  const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+  const report = (reason: unknown) => setNotice(reason instanceof Error ? reason.message : String(reason));
 
   useEffect(() => {
     let live = true;
@@ -80,18 +98,14 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
           <strong>{tool.name}</strong>
           <span>
             {notice ||
-              (saved ? `다운로드 폴더에 저장했습니다: ${saved.split(/[\\/]/).pop()}` : "HTML 도구 · 통합 프레임")}
+              (saved ? `다운로드 폴더에 저장했습니다: ${fileName(saved)}` : "HTML 도구 · 통합 프레임")}
           </span>
         </div>
         <div className="toolbar-actions">
           {saved && (
             <button
               className="secondary-button"
-              onClick={() =>
-                void revealPath(saved).catch((reason) =>
-                  setNotice(reason instanceof Error ? reason.message : String(reason)),
-                )
-              }
+              onClick={() => void revealPath(saved).catch(report)}
             >
               <FolderOpen size={15} />
               다운로드 폴더
@@ -140,6 +154,36 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
             sandbox={sandbox}
             className="html-tool-frame"
           />
+        )}
+        {toast && (
+          <div className={`download-toast${"error" in toast ? " is-error" : ""}`} role="status" aria-live="polite">
+            {"error" in toast ? (
+              <div className="download-toast-body">
+                <strong>파일을 저장하지 못했습니다</strong>
+                <span>{toast.error}</span>
+              </div>
+            ) : (
+              <>
+                <CheckCircle2 className="download-toast-icon" size={20} />
+                <div className="download-toast-body">
+                  <strong>다운로드했습니다</strong>
+                  <span title={toast.path}>다운로드 폴더 · {fileName(toast.path)}</span>
+                </div>
+                <div className="download-toast-actions">
+                  <button className="secondary-button" onClick={() => void openFilePath(toast.path).catch(report)}>
+                    열기
+                  </button>
+                  <button className="secondary-button" onClick={() => void revealPath(toast.path).catch(report)}>
+                    <FolderOpen size={14} />
+                    폴더
+                  </button>
+                </div>
+              </>
+            )}
+            <button className="download-toast-close" onClick={() => setToast(null)} title="닫기" aria-label="닫기">
+              <X size={14} />
+            </button>
+          </div>
         )}
       </div>
     </div>
