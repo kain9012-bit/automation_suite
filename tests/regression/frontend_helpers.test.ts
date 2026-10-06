@@ -15,6 +15,7 @@ import {
 } from "../../src/lib/toolRunStore.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { TAB_STYLES, TOOL_ICONS, toolIcon, toolTone } from "../../src/lib/toolIcons.ts";
+import { DOWNLOAD_MESSAGE, injectDownloadBridge, readDownloadMessage } from "../../src/lib/htmlToolDownload.ts";
 
 let passed = 0;
 const test = (name: string, body: () => void) => {
@@ -114,6 +115,26 @@ test("아이콘을 정하지 않은 도구는 탭 아이콘, 모르는 탭은 �
   assert.equal(toolIcon({ id: "새_도구", top_tab: "PDF·문서" }), TAB_STYLES["PDF·문서"].icon);
   assert.equal(toolTone({ top_tab: "새 탭" }), "default");
   assert.equal(toolTone({ top_tab: "엑셀·데이터" }), "data");
+});
+
+// ── HTML 도구 내려받기 가로채기 ─────────────────────────────────
+test("가로채기 스크립트는 <head> 바로 뒤, doctype 앞에는 넣지 않음", () => {
+  const out = injectDownloadBridge("<!DOCTYPE html>\n<html lang=ko><head><meta charset=utf-8></head><body></body></html>");
+  assert.ok(out.startsWith("<!DOCTYPE html>\n<html lang=ko><head><script>"));
+  assert.equal(out.match(/__jbeduDownloadBridge = true/g)?.length, 1);
+  assert.ok(injectDownloadBridge("<!doctype html><p>x").startsWith("<!doctype html><script>"));
+  assert.ok(injectDownloadBridge("<p>x").startsWith("<script>"));
+});
+test("가로채기 스크립트에 </script> 가 섞이지 않음", () => {
+  const out = injectDownloadBridge("<head></head>");
+  assert.equal(out.indexOf("</script>"), out.lastIndexOf("</script>"));
+});
+test("내려받기 메시지만 받아들임", () => {
+  const bytes = new ArrayBuffer(3);
+  assert.deepEqual(readDownloadMessage({ type: DOWNLOAD_MESSAGE, name: "a.xlsx", bytes }), { name: "a.xlsx", bytes });
+  assert.equal(readDownloadMessage({ type: "other", bytes }), null);
+  assert.equal(readDownloadMessage({ type: DOWNLOAD_MESSAGE, bytes: "x" }), null);
+  assert.equal(readDownloadMessage(null), null);
 });
 
 console.log(`\n${passed}개 통과`);

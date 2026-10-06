@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, LoaderCircle, RotateCw } from "lucide-react";
-import { openToolInBrowser, readToolHtml } from "../lib/bridge";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, FolderOpen, LoaderCircle, RotateCw } from "lucide-react";
+import { openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
+import { injectDownloadBridge, readDownloadMessage } from "../lib/htmlToolDownload";
 import type { ToolManifest } from "../types";
 
 export function HtmlToolView({ tool }: { tool: ToolManifest }) {
@@ -10,6 +11,31 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
   const [reloadKey, setReloadKey] = useState(0);
   // 새 창 열기 실패는 도구 화면을 가리지 않고 도구 이름 옆에만 알린다.
   const [notice, setNotice] = useState("");
+  // 도구가 내려받은 파일: 앱이 '다운로드' 폴더에 저장한 경로
+  const [saved, setSaved] = useState("");
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // 도구 안의 내려받기 링크를 가로챈 내용이 오면 '다운로드' 폴더에 저장한다(src/lib/htmlToolDownload.ts).
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!frameRef.current || event.source !== frameRef.current.contentWindow) return;
+      const download = readDownloadMessage(event.data);
+      if (!download) return;
+      setNotice("");
+      void saveToolDownload(download.name, download.bytes)
+        .then((path) => setSaved(path))
+        .catch((reason) => {
+          setSaved("");
+          setNotice(`파일을 저장하지 못했습니다: ${reason instanceof Error ? reason.message : String(reason)}`);
+        });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    setSaved("");
+  }, [tool.id]);
 
   useEffect(() => {
     let live = true;
@@ -32,6 +58,8 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
     };
   }, [tool.id, reloadKey]);
 
+  const frameHtml = useMemo(() => injectDownloadBridge(html), [html]);
+
   const sandbox = useMemo(
     () =>
       [
@@ -50,9 +78,25 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
       <div className="workspace-toolbar">
         <div>
           <strong>{tool.name}</strong>
-          <span>{notice || "HTML 도구 · 통합 프레임"}</span>
+          <span>
+            {notice ||
+              (saved ? `다운로드 폴더에 저장했습니다: ${saved.split(/[\\/]/).pop()}` : "HTML 도구 · 통합 프레임")}
+          </span>
         </div>
         <div className="toolbar-actions">
+          {saved && (
+            <button
+              className="secondary-button"
+              onClick={() =>
+                void revealPath(saved).catch((reason) =>
+                  setNotice(reason instanceof Error ? reason.message : String(reason)),
+                )
+              }
+            >
+              <FolderOpen size={15} />
+              다운로드 폴더
+            </button>
+          )}
           <button
             className="secondary-button"
             onClick={() => setReloadKey((value) => value + 1)}
@@ -91,7 +135,8 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
           <iframe
             key={reloadKey}
             title={tool.name}
-            srcDoc={html}
+            ref={frameRef}
+            srcDoc={frameHtml}
             sandbox={sandbox}
             className="html-tool-frame"
           />

@@ -28,6 +28,15 @@ export async function openToolInBrowser(toolId: string): Promise<void> {
   return invoke<void>("open_tool_in_browser", { toolId });
 }
 
+/** HTML 도구가 내려받으려던 파일을 '다운로드' 폴더에 저장하고, 저장한 경로를 돌려준다.
+ *  파일 내용은 JSON 이 아닌 그대로(바이트) 보낸다. 이름은 헤더로(한글이라 인코딩해서). */
+export async function saveToolDownload(name: string, bytes: ArrayBuffer): Promise<string> {
+  if (!isTauri()) throw new Error("내려받기는 설치된 앱에서 사용할 수 있습니다.");
+  return invoke<string>("save_tool_download", new Uint8Array(bytes), {
+    headers: { "x-file-name": encodeURIComponent(name) },
+  });
+}
+
 /** 작업 결과가 저장된 폴더를 탐색기로 연다. */
 export async function revealPath(path: string): Promise<void> {
   if (!isTauri()) throw new Error("결과 폴더 열기는 설치된 앱에서 사용할 수 있습니다.");

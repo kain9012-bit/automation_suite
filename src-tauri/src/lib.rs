@@ -268,6 +268,98 @@ fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
     macro_deck::open_with_default(&html_path.to_string_lossy())
 }
 
+// ── HTML 도구 내려받기 ─────────────────────────────────────────────
+// 앱 안(iframe)에서 HTML 도구가 내려받으려던 파일을 '다운로드' 폴더에 저장한다.
+// 화면 쪽(src/lib/htmlToolDownload.ts)이 내려받기 링크를 가로채 파일 내용을 넘긴다.
+// WebView2 의 내려받기에 기대지 않으려는 것이다(앱 안에서는 반응이 없던 일이 있었다).
+
+/// 한 번에 받을 수 있는 크기. 도구가 만드는 엑셀·그림은 이보다 훨씬 작다.
+const TOOL_DOWNLOAD_MAX_BYTES: usize = 512 * 1024 * 1024;
+
+/// encodeURIComponent 로 보낸 이름을 되돌린다. 잘못된 % 는 그대로 둔다.
+fn decode_percent(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16).map(|d| d as u8);
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(high), Some(low)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push(high * 16 + low);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// 윈도우 파일 이름으로 쓸 수 없는 글자를 _ 로 바꾸고, 경로 부분은 버린다.
+fn clean_download_name(name: &str) -> String {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or("");
+    let cleaned: String = base
+        .chars()
+        .map(|c| if c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*') { '_' } else { c })
+        .collect();
+    let cleaned = cleaned.trim().trim_end_matches(['.', ' ']).to_string();
+    if cleaned.is_empty() || cleaned.chars().all(|c| c == '.') {
+        "내려받은 파일".to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// 같은 이름이 있으면 브라우저처럼 "이름 (1).확장자" 로 비켜 간다.
+fn unique_download_path(dir: &Path, name: &str) -> PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rfind('.') {
+        Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+        _ => (name, ""),
+    };
+    (1..)
+        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
+        .find(|p| !p.exists())
+        .unwrap_or(first)
+}
+
+#[tauri::command]
+fn save_tool_download(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    // 보통은 바이트 그대로 온다. IPC 가 예비 경로(postMessage)로 돌면 숫자 배열(JSON)로 온다.
+    let bytes: std::borrow::Cow<[u8]> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => std::borrow::Cow::Borrowed(bytes.as_slice()),
+        tauri::ipc::InvokeBody::Json(Value::Array(items)) => std::borrow::Cow::Owned(
+            items
+                .iter()
+                .map(|v| v.as_u64().filter(|n| *n <= 255).map(|n| n as u8))
+                .collect::<Option<Vec<u8>>>()
+                .ok_or_else(|| "내려받을 파일 내용이 올바르지 않습니다.".to_string())?,
+        ),
+        _ => return Err("내려받을 파일 내용이 없습니다.".to_string()),
+    };
+    if bytes.len() > TOOL_DOWNLOAD_MAX_BYTES {
+        return Err("파일이 너무 커서 저장하지 않았습니다.".to_string());
+    }
+    let name = request
+        .headers()
+        .get("x-file-name")
+        .and_then(|value| value.to_str().ok())
+        .map(decode_percent)
+        .unwrap_or_default();
+    let dir = app
+        .path()
+        .download_dir()
+        .map_err(|error| format!("다운로드 폴더를 찾지 못했습니다: {error}"))?;
+    fs::create_dir_all(&dir).map_err(|error| format!("다운로드 폴더를 만들지 못했습니다: {error}"))?;
+    let path = unique_download_path(&dir, &clean_download_name(&name));
+    fs::write(&path, &*bytes).map_err(|error| format!("파일을 저장하지 못했습니다: {error}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 // ── 예전 탐색기 우클릭 메뉴 정리 ─────────────────────────────────────
 // 우클릭 메뉴 기능은 없앴다. 그러나 예전 버전이 HKCU에 써 둔 키가 남아 있으면
 // 탐색기에 눌러도 아무 일이 없는 메뉴가 계속 보인다. 예전 버전이 쓰던 곳은 두 군데다.
@@ -754,6 +846,7 @@ pub fn run() {
             list_tools,
             read_tool_html,
             open_tool_in_browser,
+            save_tool_download,
             reveal_path,
             file_sizes,
             path_kinds,
@@ -786,7 +879,26 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_legacy_context_key, parse_tool_output};
+    use super::{clean_download_name, decode_percent, is_legacy_context_key, parse_tool_output, unique_download_path};
+
+    #[test]
+    fn tool_download_names() {
+        assert_eq!(decode_percent("%EA%B0%9C%EC%9D%B8%EC%88%98%EC%8B%A0%EA%B7%B8%EB%A3%B9.xlsx"), "개인수신그룹.xlsx");
+        assert_eq!(decode_percent("100%"), "100%");
+        assert_eq!(decode_percent("a%zz%가"), "a%zz%가");
+        assert_eq!(clean_download_name("..\\..\\x/평가:결과?.xlsx"), "평가_결과_.xlsx");
+        assert_eq!(clean_download_name("  "), "내려받은 파일");
+        assert_eq!(clean_download_name("보고서. "), "보고서");
+        let dir = std::env::temp_dir().join(format!("jbedu-dl-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(unique_download_path(&dir, "a.xlsx"), dir.join("a.xlsx"));
+        std::fs::write(dir.join("a.xlsx"), b"x").unwrap();
+        std::fs::write(dir.join("a (1).xlsx"), b"x").unwrap();
+        assert_eq!(unique_download_path(&dir, "a.xlsx"), dir.join("a (2).xlsx"));
+        std::fs::write(dir.join("README"), b"x").unwrap();
+        assert_eq!(unique_download_path(&dir, "README"), dir.join("README (1)"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     use serde_json::json;
 
     #[test]

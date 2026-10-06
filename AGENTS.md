@@ -54,6 +54,9 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 - HTML·CSS·JS를 `index.html` 안에 inline으로 둔다
 - 요청 없이 번들러나 프레임워크를 도입하지 않는다
 - 오프라인 실행이 필요한 도구에서는 외부 CDN을 피한다
+- 내려받기는 `<a download href="blob:…|data:…">` 그대로 쓰면 된다. 앱 안(iframe)에서는 앱이 끼워 넣는 스크립트
+  (`src/lib/htmlToolDownload.ts`)가 가로채 Rust `save_tool_download`로 '다운로드' 폴더에 저장한다.
+  WebView2 의 내려받기에 기대지 않는다(1.4.4 전에는 앱 안에서 반응이 없던 일이 있었다).
 - **API 키를 코드에 박지 않는다.** 저장소가 공개되어 있어 그대로 노출된다.
   키가 필요하면 사용자가 설정에서 입력하도록 만든다
 
