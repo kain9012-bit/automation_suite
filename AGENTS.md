@@ -102,6 +102,11 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 - 배포용·암호 문서, 100MB 초과, 원드라이브 온라인 전용 파일은 이름으로만 찾는다.
 - 건너뛰는 폴더: 시스템 폴더(`SKIP_DIRS`)와, 안에 `conda-meta`·`pyvenv.cfg`·`unins000.exe`·`uninstall.exe`가 있는
   프로그램 폴더(`PROGRAM_MARKERS`). 사용자가 검색 폴더로 직접 고른 폴더 자체는 따지지 않는다.
+- 내용까지 읽을 문서 종류(1.4.5, `docsearch/types.rs`): meta `content_types`(쉼표로 이은 id).
+  **표시가 없으면 모든 종류**(1.4.4 에서 만든 색인은 그대로), 처음 고를 때 기본은 한글·PDF·워드·텍스트.
+  끈 종류는 다음 대조(`sync_list`)에서 글을 지우고 `name`(이름으로만 찾음), 켠 종류는 `pending`.
+  종류를 바꾸면 하던 대조를 멈추고 다시 돈다(`index::restart`). 글을 지워도 index.db 크기는 바로 줄지 않는다(빈 자리를 다시 씀).
+  종류 id·확장자는 `src/lib/docsearch.ts`의 `CONTENT_TYPES`와 같게 둔다.
 - 검색 폴더 [×]는 확인 창(`plugin-dialog`의 `ask`, 권한 `dialog:allow-message`)을 거친다.
 - 처음 열면 검색 폴더를 고르게 하고(meta `folders_confirmed`), 고르기 전에는 아무 파일도 읽지 않는다.
   고른 폴더는 화면 왼쪽 '검색 폴더'에 문서 수와 함께 늘 보인다. 읽는 중에는 아래쪽에 진행률과 [취소]

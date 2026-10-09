@@ -21,6 +21,22 @@ export interface DocSearchStatus {
   running: boolean;
   progress: DocSearchProgress | null;
   indexBytes: number;
+  /** 내용까지 찾는 문서 종류(CONTENT_TYPES 의 id). 나머지는 파일 이름으로만 찾는다. */
+  contentTypes: string[];
+}
+
+/** 내용까지 찾을 문서 종류(1.4.5). id 와 확장자는 src-tauri/src/docsearch/types.rs 와 같아야 한다. */
+export const CONTENT_TYPES: { id: string; label: string; exts: string }[] = [
+  { id: "hwp", label: "한글", exts: "hwp · hwpx" },
+  { id: "pdf", label: "PDF", exts: "pdf" },
+  { id: "word", label: "워드", exts: "docx" },
+  { id: "text", label: "텍스트(메모장)", exts: "txt · md" },
+  { id: "excel", label: "엑셀", exts: "xlsx · csv" },
+  { id: "ppt", label: "파워포인트", exts: "pptx" },
+];
+
+export function contentTypeLabel(id: string): string {
+  return CONTENT_TYPES.find((t) => t.id === id)?.label ?? id;
 }
 
 export interface DocSearchFilters {
@@ -66,7 +82,12 @@ export const docSearch = {
   status: () => invoke<DocSearchStatus>("docsearch_status"),
   refresh: () => invoke<DocSearchStatus>("docsearch_refresh"),
   cancel: () => invoke<void>("docsearch_cancel"),
-  setFolders: (folders: string[]) => invoke<DocSearchStatus>("docsearch_set_folders", { folders }),
+  /** contentTypes 는 처음 고를 때만 넘긴다. 빼면 지금 종류를 그대로 둔다. */
+  setFolders: (folders: string[], contentTypes?: string[]) =>
+    invoke<DocSearchStatus>("docsearch_set_folders", { folders, contentTypes: contentTypes ?? null }),
+  setContentTypes: (contentTypes: string[]) =>
+    invoke<DocSearchStatus>("docsearch_set_content_types", { contentTypes }),
+  defaultContentTypes: () => invoke<string[]>("docsearch_default_content_types"),
   search: (query: string, filters: DocSearchFilters) =>
     invoke<DocSearchResult>("docsearch_search", { query, filters }),
   openFile: (path: string) => invoke<void>("docsearch_open_file", { path }),

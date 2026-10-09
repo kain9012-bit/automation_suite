@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
@@ -19,6 +19,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  CONTENT_TYPES,
+  contentTypeLabel,
   docSearch,
   folderName,
   hasPath,
@@ -36,6 +38,7 @@ import "./doc-search.css";
  * 문서 검색(1.4.4): 사이드바 '문서 검색' 화면.
  * 처음에는 어느 폴더에서 찾을지 먼저 고르게 하고(고르기 전에는 아무것도 읽지 않음),
  * 고른 폴더는 검색창 바로 아래에 늘 보여 "이 안에서만 찾는다"를 알 수 있게 한다.
+ * 1.4.5: 내용까지 찾을 문서 종류도 고른다(처음 고르는 화면과 왼쪽 '내용 검색 문서').
  */
 
 const KINDS: { id: string; label: string }[] = [
@@ -93,7 +96,8 @@ function formatTime(secs: number) {
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)}GB`;
 }
 
 function Highlighted({ text, highlights }: { text: string; highlights: string[] }) {
@@ -143,6 +147,8 @@ export function DocSearchView() {
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
   const [recent, setRecent] = useState<string[]>(readRecent);
+  /** 처음 고르는 화면에서 고른 내용 검색 종류 */
+  const [setupTypes, setSetupTypes] = useState<string[] | null>(null);
   const [, setIconsLoaded] = useState(0);
   const searchSeq = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +186,10 @@ export function DocSearchView() {
   // 화면을 열 때: 폴더를 골라 둔 PC면 10분 지났을 때 뒤에서 대조. 고르기 전이면 고르는 화면.
   useEffect(() => {
     void docSearch.folderChoices().then(setChoices).catch(() => setChoices({ common: [], drives: [] }));
+    void docSearch
+      .defaultContentTypes()
+      .then(setSetupTypes)
+      .catch(() => setSetupTypes(["hwp", "pdf", "word", "text"]));
     void docSearch
       .openScreen()
       .then((s) => {
@@ -252,9 +262,9 @@ export function DocSearchView() {
 
   const running = !!status?.running || !!progress;
 
-  const saveFolders = async (folders: string[]) => {
+  const saveFolders = async (folders: string[], contentTypes?: string[]) => {
     try {
-      const s = await docSearch.setFolders(folders);
+      const s = await docSearch.setFolders(folders, contentTypes);
       setStatus(s);
       setProgress(s.progress);
       if (folder && !hasPath(folders, folder)) setFolder("");
@@ -280,7 +290,7 @@ export function DocSearchView() {
   const toggleKind = (id: string) =>
     setKinds((current) => (current.includes(id) ? current.filter((k) => k !== id) : [...current, id]));
 
-  if (!status || !choices) {
+  if (!status || !choices || !setupTypes) {
     return <div className="ds-view ds-loading">{message || "불러오는 중…"}</div>;
   }
 
@@ -301,8 +311,39 @@ export function DocSearchView() {
             initial={initial}
             choices={choices}
             submitLabel="이 폴더들에서 찾기 시작"
-            onSubmit={(folders) => void saveFolders(folders)}
-          />
+            onSubmit={(folders) => void saveFolders(folders, setupTypes)}
+          >
+            <h3>내용까지 찾을 문서</h3>
+            <div className="ds-pick-grid">
+              {CONTENT_TYPES.map((t) => {
+                const on = setupTypes.includes(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    className={`ds-pick ${on ? "is-on" : ""}`}
+                    onClick={() =>
+                      setSetupTypes(on ? setupTypes.filter((x) => x !== t.id) : [...setupTypes, t.id])
+                    }
+                    aria-pressed={on}
+                  >
+                    <span className="ds-check">{on && <Check size={13} />}</span>
+                    {(() => {
+                      const Icon = iconFor(t.exts.split(" ")[0]);
+                      return <Icon size={16} />;
+                    })()}
+                    <span className="ds-pick-text">
+                      <strong>{t.label}</strong>
+                      <small>{t.exts}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="ds-pick-note">
+              고르지 않은 종류도 파일 이름으로는 찾습니다. 엑셀·파워포인트는 글자가 많아 처음 읽는 데 오래 걸리고
+              색인이 커질 수 있어 기본으로 꺼 두었습니다. 나중에 검색 화면 왼쪽 '내용 검색 문서'에서 바꿀 수 있습니다.
+            </p>
+          </FolderPicker>
           {message && <div className="ds-message">{message}</div>}
         </section>
       </div>
@@ -333,6 +374,24 @@ export function DocSearchView() {
       cancelLabel: "취소",
     });
     if (yes) await saveFolders(rest);
+  };
+
+  // 내용 검색 종류 켜기·끄기. 끌 때는 읽어 둔 글이 지워지므로 한 번 묻는다.
+  const enabledTypes = status.contentTypes;
+  const toggleContentType = async (id: string) => {
+    const on = enabledTypes.includes(id);
+    const label = contentTypeLabel(id);
+    if (on) {
+      const yes = await ask(
+        `'${label}' 문서의 내용 검색을 끄시겠습니까?\n\n` +
+          `이미 읽어 둔 ${label} 문서의 내용은 색인에서 지워지고, 파일 이름으로만 찾습니다.\n` +
+          "다시 켜면 내용을 처음부터 다시 읽어야 합니다.",
+        { title: "내용 검색 끄기", kind: "warning", okLabel: "끄기", cancelLabel: "취소" },
+      );
+      if (!yes) return;
+    }
+    const next = on ? enabledTypes.filter((x) => x !== id) : [...enabledTypes, id];
+    await act(() => docSearch.setContentTypes(next));
   };
 
   const highlights = result?.highlights ?? [];
@@ -390,6 +449,35 @@ export function DocSearchView() {
             </ul>
           </>
         )}
+
+        <div className="ds-side-head is-section">
+          <span>
+            내용 검색 문서 <em>({enabledTypes.length})</em>
+          </span>
+        </div>
+        <ul className="ds-side-list is-types">
+          {CONTENT_TYPES.map((t) => {
+            const on = enabledTypes.includes(t.id);
+            return (
+              <li key={t.id} className={on ? "" : "is-off"}>
+                <button
+                  className="ds-side-folder"
+                  onClick={() => void toggleContentType(t.id)}
+                  aria-pressed={on}
+                  title={
+                    on
+                      ? `${t.exts}\n내용까지 찾습니다. 누르면 끕니다.`
+                      : `${t.exts}\n파일 이름으로만 찾습니다. 누르면 내용까지 찾습니다.`
+                  }
+                >
+                  <span className="ds-check">{on && <Check size={11} />}</span>
+                  <span>{t.label}</span>
+                  <small>{t.exts}</small>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
 
         <div className="ds-side-head is-section">
           <span>
@@ -491,8 +579,16 @@ export function DocSearchView() {
               <Search size={30} />
               <strong>문서 검색</strong>
               <span>
-                왼쪽 <b>검색 폴더</b> 안에서 파일 이름과 문서 내용(한글·PDF·엑셀·워드·파워포인트·텍스트)을 함께
-                찾습니다.
+                {enabledTypes.length ? (
+                  <>
+                    왼쪽 <b>검색 폴더</b> 안에서 파일 이름과 문서 내용(
+                    {enabledTypes.map(contentTypeLabel).join("·")})을 함께 찾습니다.
+                  </>
+                ) : (
+                  <>
+                    왼쪽 <b>검색 폴더</b> 안에서 파일 이름으로 찾습니다.
+                  </>
+                )}
               </span>
               {recent.length > 0 && (
                 <div className="ds-recent-chips">
@@ -606,6 +702,7 @@ export function DocSearchView() {
             <>
               <span className="ds-state">
                 문서 {status.documents.toLocaleString()}개
+                {status.indexBytes > 0 ? ` · 색인 ${formatSize(status.indexBytes)}` : ""}
                 {status.lastCheck ? ` · 마지막 확인 ${formatTime(status.lastCheck)}` : ""}
               </span>
               <button className="secondary-button" onClick={() => void act(docSearch.refresh)}>
@@ -628,6 +725,7 @@ function FolderPicker({
   submitLabel,
   onSubmit,
   onCancel,
+  children,
 }: {
   initial: string[];
   choices: FolderChoices;
@@ -635,6 +733,8 @@ function FolderPicker({
   submitLabel: string;
   onSubmit: (folders: string[]) => void;
   onCancel?: () => void;
+  /** 제출 단추 위에 더 보일 것(내용 검색 종류) */
+  children?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string[]>(initial);
   const presets = [...choices.common, ...choices.drives];
@@ -705,6 +805,8 @@ function FolderPicker({
           </button>
         </li>
       </ul>
+
+      {children}
 
       <div className="ds-picker-foot">
         <span>{selected.length ? `${selected.length}곳에서 찾습니다.` : "한 곳 이상 골라 주세요."}</span>

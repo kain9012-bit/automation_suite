@@ -802,6 +802,27 @@
   opacity: 0.6;
 }
 
+/* 내용 검색 문서(1.4.5): 켠 종류는 체크, 끈 종류는 흐리게(이름으로만 찾음) */
+.ds-side-list.is-types .ds-check {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+}
+
+.ds-side-list.is-types li:not(.is-off) .ds-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.ds-side-list.is-types small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ds-side-list.is-types li.is-off .ds-side-folder {
+  color: var(--text-muted);
+}
+
 .ds-side-sub {
   margin: 8px 6px 4px;
   color: var(--text-muted);

@@ -11,6 +11,7 @@ mod index;
 mod pdf;
 mod search;
 mod tokenize;
+mod types;
 #[cfg(test)]
 mod bench;
 
@@ -56,6 +57,8 @@ pub struct Status {
     progress: Option<index::Progress>,
     /// 색인 파일 크기(바이트)
     index_bytes: u64,
+    /// 내용까지 찾는 문서 종류(types.rs 의 id). 나머지는 이름으로만 찾는다.
+    content_types: Vec<String>,
 }
 
 fn status(app: &AppHandle) -> Result<Status, String> {
@@ -92,6 +95,7 @@ fn status(app: &AppHandle) -> Result<Status, String> {
         running: index::is_running(),
         progress: index::progress(),
         index_bytes,
+        content_types: types::enabled(&conn),
     })
 }
 
@@ -185,6 +189,26 @@ pub async fn docsearch_file_icons(exts: Vec<String>) -> Result<std::collections:
     blocking(move || Ok(icons::file_icons(&exts))).await
 }
 
+/// 처음 고를 때 켜 두는 내용 검색 종류
+#[tauri::command]
+pub fn docsearch_default_content_types() -> Vec<String> {
+    types::DEFAULT_NEW.iter().map(|s| s.to_string()).collect()
+}
+
+/// 내용 검색 종류를 바꾼다. 하던 대조·읽기를 멈추고 다시 돌며, 그 대조에서 끈 종류의 글을 지우고
+/// 켠 종류를 읽을 차례로 돌린다(index::sync_list).
+#[tauri::command]
+pub async fn docsearch_set_content_types(app: AppHandle, content_types: Vec<String>) -> Result<Status, String> {
+    blocking(move || {
+        let conn = db::open(&app)?;
+        types::set(&conn, &content_types)?;
+        drop(conn);
+        index::restart(&app);
+        status(&app)
+    })
+    .await
+}
+
 /// [지금 다시 읽기]
 #[tauri::command]
 pub async fn docsearch_refresh(app: AppHandle) -> Result<Status, String> {
@@ -197,7 +221,11 @@ pub async fn docsearch_refresh(app: AppHandle) -> Result<Status, String> {
 
 /// 검색 폴더를 바꾼다. 뺀 폴더의 파일은 다음 대조에서 색인에서 빠지고, 더한 폴더는 바로 대조를 시작한다.
 #[tauri::command]
-pub async fn docsearch_set_folders(app: AppHandle, folders: Vec<String>) -> Result<Status, String> {
+pub async fn docsearch_set_folders(
+    app: AppHandle,
+    folders: Vec<String>,
+    content_types: Option<Vec<String>>,
+) -> Result<Status, String> {
     blocking(move || {
         let mut conn = db::open(&app)?;
         let wanted: Vec<String> = {
@@ -223,6 +251,10 @@ pub async fn docsearch_set_folders(app: AppHandle, folders: Vec<String>) -> Resu
             .map_err(|e| e.to_string())?;
         }
         db::set_meta(&tx, CONFIRMED_KEY, "1")?;
+        // 처음 고를 때 함께 고른 내용 검색 종류. 나중에 폴더만 바꿀 때는 그대로 둔다.
+        if let Some(ids) = &content_types {
+            types::set(&tx, ids)?;
+        }
         tx.commit().map_err(|e| e.to_string())?;
         drop(conn);
         index::start(&app);

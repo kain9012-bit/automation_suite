@@ -21,6 +21,8 @@ static RUNNING: AtomicBool = AtomicBool::new(false);
 static RERUN: AtomicBool = AtomicBool::new(false);
 /// [취소]를 눌렀을 때. 하던 파일까지만 하고 멈춘다. 못 읽은 문서는 '읽을 차례'로 남아 다음에 이어 읽는다.
 static STOP: AtomicBool = AtomicBool::new(false);
+/// 하던 일을 멈추고 처음부터 다시 돌 때(내용 검색 종류를 바꿨을 때). 끈 종류를 계속 읽지 않게 한다.
+static RESTART: AtomicBool = AtomicBool::new(false);
 
 pub fn stop_requested() -> bool {
     STOP.load(Ordering::SeqCst)
@@ -28,6 +30,7 @@ pub fn stop_requested() -> bool {
 
 pub fn cancel() {
     RERUN.store(false, Ordering::SeqCst);
+    RESTART.store(false, Ordering::SeqCst);
     if RUNNING.load(Ordering::SeqCst) {
         STOP.store(true, Ordering::SeqCst);
     }
@@ -62,6 +65,17 @@ fn set_progress(app: &AppHandle, value: Option<Progress>, last_emit: &mut Instan
     }
 }
 
+/// 돌고 있으면 지금 일을 멈추고 처음부터 다시 돈다. 안 돌고 있으면 시작한다.
+pub fn restart(app: &AppHandle) {
+    if RUNNING.load(Ordering::SeqCst) {
+        RESTART.store(true, Ordering::SeqCst);
+        STOP.store(true, Ordering::SeqCst);
+    }
+    if !start(app) {
+        RERUN.store(true, Ordering::SeqCst);
+    }
+}
+
 /// 뒤에서 대조를 시작한다. 이미 돌고 있으면 끝난 뒤 한 번 더 돌게 표시만 한다.
 pub fn start(app: &AppHandle) -> bool {
     if RUNNING.swap(true, Ordering::SeqCst) {
@@ -75,6 +89,10 @@ pub fn start(app: &AppHandle) -> bool {
             RERUN.store(false, Ordering::SeqCst);
             if let Err(error) = run(&app) {
                 let _ = app.emit("docsearch-error", error);
+            }
+            if RESTART.swap(false, Ordering::SeqCst) {
+                STOP.store(false, Ordering::SeqCst);
+                continue;
             }
             if !RERUN.load(Ordering::SeqCst) || STOP.load(Ordering::SeqCst) {
                 break;
@@ -105,6 +123,7 @@ struct Known {
     folder_id: i64,
     size: i64,
     mtime: i64,
+    status: String,
 }
 
 fn run(app: &AppHandle) -> Result<(), String> {
@@ -227,13 +246,19 @@ pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str) -> 
 
     let known: HashMap<String, Known> = {
         let mut stmt = conn
-            .prepare("SELECT id, path, folder_id, size, mtime FROM files")
+            .prepare("SELECT id, path, folder_id, size, mtime, status FROM files")
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
                 Ok((
                     r.get::<_, String>(1)?,
-                    Known { id: r.get(0)?, folder_id: r.get(2)?, size: r.get(3)?, mtime: r.get(4)? },
+                    Known {
+                        id: r.get(0)?,
+                        folder_id: r.get(2)?,
+                        size: r.get(3)?,
+                        mtime: r.get(4)?,
+                        status: r.get(5)?,
+                    },
                 ))
             })
             .map_err(|e| e.to_string())?
@@ -242,9 +267,11 @@ pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str) -> 
         rows
     };
 
+    // 내용까지 읽을 종류(types.rs). 끈 종류는 이름으로만 찾는다.
+    let exts = super::types::enabled_exts(conn);
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     for (path, item) in &seen {
-        let status = initial_status(item);
+        let status = initial_status(item, &exts);
         match known.get(path) {
             None => {
                 tx.execute(
@@ -258,6 +285,15 @@ pub fn sync_list(conn: &mut Connection, mut on_file: impl FnMut(usize, &str) -> 
                 tx.execute(
                     "UPDATE files SET folder_id=?2, size=?3, mtime=?4, status=?5, detail='' WHERE id=?1",
                     params![old.id, item.folder_id, item.size, item.mtime, status],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            // 내용 검색 종류를 바꾼 뒤: 끈 종류는 글을 지우고 이름으로만, 켠 종류는 다시 읽을 차례로.
+            Some(old) if extract::content_kind(&item.ext).is_some() && (old.status == "name") != (status == "name") => {
+                db::clear_content(&tx, old.id)?;
+                tx.execute(
+                    "UPDATE files SET folder_id=?2, status=?3, detail='' WHERE id=?1",
+                    params![old.id, item.folder_id, status],
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -290,8 +326,8 @@ fn file_name(path: &str) -> String {
         .unwrap_or_default()
 }
 
-fn initial_status(item: &Seen) -> &'static str {
-    if extract::content_kind(&item.ext).is_none() {
+fn initial_status(item: &Seen, exts: &HashSet<String>) -> &'static str {
+    if extract::content_kind(&item.ext).is_none() || !exts.contains(&item.ext) {
         "name"
     } else if item.cloud {
         "cloud"
@@ -562,6 +598,56 @@ mod tests {
         conn.execute("INSERT INTO folders(path) VALUES(?1)", [dir.to_string_lossy()]).unwrap();
         sync_list(&mut conn, |_, _| true).unwrap();
         assert_eq!(search(&conn, "수박", &f).unwrap().hits.len(), 1, "상위 폴더로 바꿔도 남아야 함");
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn turning_a_content_type_off_and_on() {
+        use crate::docsearch::search::{search, Filters};
+        let dir = std::env::temp_dir().join(format!("ds-types-sync-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let docs = dir.join("docs");
+        std::fs::create_dir_all(&docs).unwrap();
+        let mut conn = db::open_at(&dir.join("i.db")).unwrap();
+        conn.execute("INSERT INTO folders(path) VALUES(?1)", [docs.to_string_lossy()]).unwrap();
+        std::fs::write(docs.join("메모.txt"), "사과 회의").unwrap();
+        std::fs::write(docs.join("쿼리결과.csv"), "학교,바나나\n전주,1").unwrap();
+        let f = Filters::default();
+        let status_of = |conn: &Connection, name: &str| -> String {
+            conn.query_row("SELECT status FROM files WHERE name=?1", [name], |r| r.get(0)).unwrap()
+        };
+
+        // 표시 없음(1.4.4 색인) → 모든 종류를 읽는다
+        sync_list(&mut conn, |_, _| true).unwrap();
+        read_pending(&mut conn);
+        assert_eq!(status_of(&conn, "쿼리결과.csv"), "ok");
+        assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 1);
+
+        // 엑셀(csv 포함)을 끄면 글을 지우고 이름으로만 찾는다
+        super::super::types::set(&conn, &["hwp".into(), "pdf".into(), "word".into(), "text".into()]).unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
+        assert_eq!(status_of(&conn, "쿼리결과.csv"), "name");
+        assert_eq!(status_of(&conn, "메모.txt"), "ok", "켜 둔 종류는 다시 읽지 않는다");
+        assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 0, "끈 종류의 내용은 안 나와야 함");
+        assert_eq!(search(&conn, "쿼리결과", &f).unwrap().hits.len(), 1, "이름으로는 찾혀야 함");
+        let left: i64 = conn
+            .query_row("SELECT count(*) FROM chunks c JOIN files f ON f.id=c.file_id WHERE f.name='쿼리결과.csv'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(left, 0);
+
+        // 새로 생긴 csv 도 이름으로만
+        std::fs::write(docs.join("새쿼리.csv"), "체리").unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
+        assert_eq!(status_of(&conn, "새쿼리.csv"), "name");
+
+        // 다시 켜면 읽을 차례로 돌아가 내용으로 찾힌다
+        super::super::types::set(&conn, &["text".into(), "excel".into()]).unwrap();
+        sync_list(&mut conn, |_, _| true).unwrap();
+        assert_eq!(status_of(&conn, "쿼리결과.csv"), "pending");
+        read_pending(&mut conn);
+        assert_eq!(search(&conn, "바나나", &f).unwrap().hits.len(), 1);
+        assert_eq!(search(&conn, "체리", &f).unwrap().hits.len(), 1);
         drop(conn);
         let _ = std::fs::remove_dir_all(&dir);
     }
