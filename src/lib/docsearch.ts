@@ -3,8 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 /** 문서 검색(1.4.4) — Rust 쪽 src-tauri/src/docsearch 와 주고받는 값 */
 
 export interface DocSearchProgress {
-  /** "scan": 목록 대조 · "read": 바뀐 문서 읽기 */
-  phase: "scan" | "read";
+  /** "scan": 목록 대조 · "read": 바뀐 문서 읽기 · "compact": 색인 정리(1.4.6) */
+  phase: "scan" | "read" | "compact";
   done: number;
   total: number;
   current: string;
@@ -37,6 +37,13 @@ export const CONTENT_TYPES: { id: string; label: string; exts: string }[] = [
 
 export function contentTypeLabel(id: string): string {
   return CONTENT_TYPES.find((t) => t.id === id)?.label ?? id;
+}
+
+export interface DocSearchCompactResult {
+  /** 정리 전·후 색인 파일 크기(바이트) */
+  before: number;
+  after: number;
+  status: DocSearchStatus;
 }
 
 export interface DocSearchFilters {
@@ -88,6 +95,8 @@ export const docSearch = {
   setContentTypes: (contentTypes: string[]) =>
     invoke<DocSearchStatus>("docsearch_set_content_types", { contentTypes }),
   defaultContentTypes: () => invoke<string[]>("docsearch_default_content_types"),
+  /** [색인 정리]: 빈 자리를 비워 색인 파일 크기를 줄인다. 그동안 검색은 잠시 멈춘다. */
+  compact: () => invoke<DocSearchCompactResult>("docsearch_compact"),
   search: (query: string, filters: DocSearchFilters) =>
     invoke<DocSearchResult>("docsearch_search", { query, filters }),
   openFile: (path: string) => invoke<void>("docsearch_open_file", { path }),

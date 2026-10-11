@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  Eraser,
   File,
   FileSpreadsheet,
   FileText,
@@ -112,6 +113,7 @@ function Highlighted({ text, highlights }: { text: string; highlights: string[] 
 
 function progressText(progress: DocSearchProgress | null) {
   if (!progress) return "새 문서 확인 중…";
+  if (progress.phase === "compact") return "색인 정리 중…";
   if (progress.phase === "scan") return `파일 목록 대조 중… ${progress.done.toLocaleString()}개`;
   return `바뀐 문서 읽는 중… ${progress.done.toLocaleString()}/${progress.total.toLocaleString()}`;
 }
@@ -261,6 +263,7 @@ export function DocSearchView() {
   }, [query, result]);
 
   const running = !!status?.running || !!progress;
+  const compacting = progress?.phase === "compact";
 
   const saveFolders = async (folders: string[], contentTypes?: string[]) => {
     try {
@@ -284,6 +287,31 @@ export function DocSearchView() {
       }
     } catch (error) {
       setMessage(String(error));
+    }
+  };
+
+  // [색인 정리]: 끈 문서 종류·뺀 폴더의 글이 남긴 빈 자리를 비운다.
+  const compactIndex = async () => {
+    const yes = await ask(
+      "색인 파일의 빈 자리를 비워 크기를 줄입니다.\n\n" +
+        "내용 검색 종류를 끄거나 검색 폴더를 뺀 뒤에 하면 효과가 큽니다. " +
+        "색인 크기에 따라 몇 초에서 몇 분 걸리고, 그동안은 검색할 수 없습니다. " +
+        "읽던 문서가 있으면 잠시 멈췄다가 정리가 끝나면 이어서 읽습니다.\n\n" +
+        "지금 색인 크기만큼 디스크 여유 공간이 필요합니다.",
+      { title: "색인 정리", kind: "info", okLabel: "정리", cancelLabel: "취소" },
+    );
+    if (!yes) return;
+    setResult(null);
+    setProgress({ phase: "compact", done: 0, total: 0, current: "" });
+    try {
+      const done = await docSearch.compact();
+      setStatus(done.status);
+      setProgress(done.status.progress);
+      setMessage(`색인을 정리했습니다: ${formatSize(done.before)} → ${formatSize(done.after)}`);
+    } catch (error) {
+      setProgress(null);
+      setMessage(String(error));
+      void docSearch.status().then(setStatus).catch(() => undefined);
     }
   };
 
@@ -516,8 +544,11 @@ export function DocSearchView() {
               ref={inputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              disabled={compacting}
               placeholder={
-                folder
+                compacting
+                  ? "색인을 정리하는 동안은 검색할 수 없습니다"
+                  : folder
                   ? `'${folderName(folder, choices)}' 안에서 찾을 낱말을 입력하세요`
                   : "찾을 낱말을 입력하세요 (띄어 쓰면 모두 들어 있는 문서)"
               }
@@ -681,16 +712,20 @@ export function DocSearchView() {
             <>
               <span className="ds-state">
                 <i className="ds-dot" />
-                <strong>{progress?.phase === "scan" ? "목록 대조" : "색인"}</strong>
+                <strong>{compacting ? "색인 정리 중" : progress?.phase === "scan" ? "목록 대조" : "색인"}</strong>
                 {progress?.phase === "read" ? `${progress.done.toLocaleString()}/${progress.total.toLocaleString()}` : ""}
                 {progress?.phase === "scan" ? `${progress.done.toLocaleString()}개 확인` : ""}
                 {progress?.current && <span className="ds-current">· {progress.current}</span>}
               </span>
               <div className="ds-foot-right">
                 {percent !== null && <b className="ds-percent">{percent}%</b>}
-                <button className="secondary-button" onClick={() => void act(docSearch.cancel)}>
-                  취소
-                </button>
+                {compacting ? (
+                  <span className="ds-compact-note">끝날 때까지 검색할 수 없습니다</span>
+                ) : (
+                  <button className="secondary-button" onClick={() => void act(docSearch.cancel)}>
+                    취소
+                  </button>
+                )}
               </div>
               {percent !== null && (
                 <span className="ds-bar">
@@ -705,10 +740,22 @@ export function DocSearchView() {
                 {status.indexBytes > 0 ? ` · 색인 ${formatSize(status.indexBytes)}` : ""}
                 {status.lastCheck ? ` · 마지막 확인 ${formatTime(status.lastCheck)}` : ""}
               </span>
-              <button className="secondary-button" onClick={() => void act(docSearch.refresh)}>
-                <RefreshCw size={13} />
-                지금 다시 읽기
-              </button>
+              <div className="ds-foot-right">
+                {status.indexBytes > 0 && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => void compactIndex()}
+                    title="끈 문서 종류·뺀 폴더의 글이 남긴 빈 자리를 비워 색인 파일 크기를 줄입니다"
+                  >
+                    <Eraser size={13} />
+                    색인 정리
+                  </button>
+                )}
+                <button className="secondary-button" onClick={() => void act(docSearch.refresh)}>
+                  <RefreshCw size={13} />
+                  지금 다시 읽기
+                </button>
+              </div>
             </>
           )}
         </footer>

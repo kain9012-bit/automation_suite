@@ -64,3 +64,19 @@ jpeg-js
 
 - 소스코드      : https://github.com/jpeg-js/jpeg-js
 - 라이선스 전문 : http://www.apache.org/licenses/LICENSE-2.0
+
+HTML 도구가 쓰는 부품과 글꼴
+----------------------------
+아래 부품과 글꼴은 예전에는 HTML 도구를 열 때 인터넷(cdn.jsdelivr.net)에서 받아 왔습니다.
+1.4.6부터 설치본에 넣어 두고 쓰므로 인터넷 없이도 동작합니다. 모두 고치지 않고 그대로
+사용하며, 라이선스 전문은 tools/_vendor/LICENSES 폴더에 있습니다.
+
+- SheetJS (xlsx) 0.18.5            : Apache License 2.0 (Copyright (C) 2012-present SheetJS LLC)
+- ExcelJS 4.4.0                    : MIT License (Copyright (c) 2014-2019 Guyon Roche)
+- pdf-lib 1.17.1                   : MIT License (Copyright (c) 2019 Andrew Dillon)
+- JSZip 3.10.1                     : MIT License 로 사용 (MIT 또는 GPL-3.0 중 선택)
+                                     (Copyright (c) 2009-2016 Stuart Knightley 외)
+- Chart.js 4.4.1                   : MIT License (Copyright (c) 2014-2022 Chart.js Contributors)
+- chartjs-plugin-datalabels 2.2.0  : MIT License (Copyright (c) 2017-2021 chartjs-plugin-datalabels contributors)
+- Pretendard 1.3.9 (가변 글꼴)     : SIL Open Font License 1.1
+                                     (Copyright (c) 2021, Kil Hyung-jin, Reserved Font Name Pretendard)

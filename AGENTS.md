@@ -113,9 +113,22 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
   (`docsearch_cancel`, 못 읽은 문서는 `pending`으로 남아 다음 대조 때 이어 읽음).
 - 결과의 파일 아이콘은 그 PC 탐색기의 아이콘을 확장자별로 받아 쓴다(`docsearch/icons.rs`, 48px PNG).
   한컴·마이크로소프트 아이콘 그림을 프로그램에 넣어 배포하지 않는다. 못 받으면 원래 아이콘.
+- [색인 정리](1.4.6, `docsearch_compact`): `index::exclusive` 로 대조·읽기를 멈추고 기다린 뒤 혼자
+  `db::compact`(FTS optimize → VACUUM → WAL 비우기)를 한다. 끝나면 멈췄던 읽기·밀린 대조를 이어 한다.
+  정리 중에는 다른 연결이 쓰기를 기다리므로 `migrate` 는 스키마 표시가 같으면 쓰지 않는다.
 - 설치 제거 때 `docsearch` 색인 폴더를 지운다(`installer-hooks.nsh`의 `NSIS_HOOK_POSTUNINSTALL`).
   **업데이트 때는 절대 지우지 않는다**: `/UPDATE`(앱 자동 업데이트)와, 새 설치 파일이 이전 제거 프로그램을
   `_?=설치폴더`로 부를 때($EXEDIR = $INSTDIR)는 건너뛴다. 이 조건을 바꾸면 Wine 등으로 네 가지 경우를 다시 확인한다.
+
+## HTML 도구의 외부 부품(1.4.6~)
+
+HTML 도구가 `cdn.jsdelivr.net` 에서 받던 부품(xlsx·exceljs·pdf-lib·jszip·chart.js·datalabels)과
+Pretendard 글꼴은 `tools/_vendor` 에 사본을 두고, `src-tauri/src/html_vendor.rs` 가 도구를 열 때
+(앱 안·브라우저 모두) 그 자리에 끼워 넣는다. **도구 HTML 파일의 주소는 그대로 둔다.**
+- 도구에 새 외부 부품을 쓰면 `html_vendor.rs` 의 `SCRIPTS` 표, `tools/_vendor`, `THIRD_PARTY_NOTICES.txt` 에 함께 더한다.
+  안 하면 테스트 `every_bundled_html_tool_works_offline` 가 실패한다.
+- 사본은 npm 에 올라온 그 버전의 배포 파일 그대로 쓴다(jsdelivr 가 주는 것과 같은지 확인함).
+- 학사일정 추출의 나이스 Open API 호출처럼 도구 기능 자체가 인터넷을 쓰는 것은 그대로다.
 
 ## 처음 사용 안내(튜토리얼, 1.4.6~)
 

@@ -76,6 +76,42 @@ pub fn restart(app: &AppHandle) {
     }
 }
 
+/// 대조·읽기를 멈추게 하고 끝나기를 기다린 뒤 `work` 를 혼자 한다([색인 정리]).
+/// 그동안 들어온 대조 요청(프로그램 시작·[지금 다시 읽기] 등)은 끝난 뒤 한 번 돈다.
+/// 멈췄던 읽기도 그때 이어서 한다(못 읽은 문서는 '읽을 차례'로 남아 있다).
+pub fn exclusive<T>(app: &AppHandle, phase: &str, work: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let mut interrupted = false;
+    while RUNNING.swap(true, Ordering::SeqCst) {
+        // 돌고 있다: 하던 파일까지만 하고 멈추게 한다.
+        interrupted = true;
+        RESTART.store(false, Ordering::SeqCst);
+        STOP.store(true, Ordering::SeqCst);
+        if Instant::now() > deadline {
+            return Err("문서 읽기를 멈추지 못했습니다. 잠시 뒤 다시 해 주세요.".to_string());
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    STOP.store(false, Ordering::SeqCst);
+    let mut last_emit = Instant::now();
+    let shown = Progress { phase: phase.to_string(), done: 0, total: 0, current: String::new() };
+    set_progress(app, Some(shown), &mut last_emit, true);
+
+    let result = work();
+
+    if let Ok(mut p) = PROGRESS.lock() {
+        *p = None;
+    }
+    RUNNING.store(false, Ordering::SeqCst);
+    let _ = app.emit("docsearch-progress", Option::<Progress>::None);
+    if interrupted || RERUN.swap(false, Ordering::SeqCst) {
+        start(app);
+    } else {
+        let _ = app.emit("docsearch-updated", ());
+    }
+    result
+}
+
 /// 뒤에서 대조를 시작한다. 이미 돌고 있으면 끝난 뒤 한 번 더 돌게 표시만 한다.
 pub fn start(app: &AppHandle) -> bool {
     if RUNNING.swap(true, Ordering::SeqCst) {

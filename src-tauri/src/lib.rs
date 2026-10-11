@@ -1,6 +1,7 @@
 mod board_update;
 mod desktop;
 mod docsearch;
+mod html_vendor;
 mod macro_deck;
 mod updates;
 
@@ -248,7 +249,9 @@ fn read_tool_html(app: AppHandle, tool_id: String) -> Result<String, String> {
         PathBuf::from("web").join("index.html")
     };
     let html_path = checked_child(&record.root, &relative)?;
-    fs::read_to_string(html_path).map_err(|error| format!("HTML 도구를 읽지 못했습니다: {error}"))
+    let html = fs::read_to_string(html_path).map_err(|error| format!("HTML 도구를 읽지 못했습니다: {error}"))?;
+    // 인터넷에서 받던 부품을 설치본의 사본으로 바꿔 끼운다(인터넷 없이 동작).
+    Ok(html_vendor::localize(&app, &html))
 }
 
 /// HTML 도구를 기본 브라우저의 별도 창으로 연다.
@@ -265,7 +268,22 @@ fn open_tool_in_browser(app: AppHandle, tool_id: String) -> Result<(), String> {
     if !html_path.is_file() {
         return Err("도구 화면 파일을 찾지 못했습니다.".to_string());
     }
-    macro_deck::open_with_default(&html_path.to_string_lossy())
+    // 브라우저로 열 때도 인터넷 없이 동작하도록, 부품을 바꿔 끼운 사본을 캐시 폴더에 만들어 연다.
+    // 바꿀 것이 없으면 원래 파일을 그대로 연다.
+    let html = fs::read_to_string(&html_path).map_err(|error| format!("HTML 도구를 읽지 못했습니다: {error}"))?;
+    let localized = html_vendor::localize(&app, &html);
+    if localized == html {
+        return macro_deck::open_with_default(&html_path.to_string_lossy());
+    }
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| format!("임시 폴더를 찾지 못했습니다: {error}"))?
+        .join("html-tools");
+    fs::create_dir_all(&dir).map_err(|error| format!("임시 폴더를 만들지 못했습니다: {error}"))?;
+    let copy = dir.join(format!("{}.html", record.manifest.id));
+    fs::write(&copy, localized).map_err(|error| format!("도구 화면을 준비하지 못했습니다: {error}"))?;
+    macro_deck::open_with_default(&copy.to_string_lossy())
 }
 
 // ── HTML 도구 내려받기 ─────────────────────────────────────────────
@@ -879,6 +897,7 @@ pub fn run() {
             docsearch::docsearch_cancel,
             docsearch::docsearch_set_content_types,
             docsearch::docsearch_default_content_types,
+            docsearch::docsearch_compact,
             docsearch::docsearch_file_icons,
             docsearch::docsearch_search,
             docsearch::docsearch_open_file,

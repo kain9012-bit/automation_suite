@@ -79,12 +79,7 @@ fn status(app: &AppHandle) -> Result<Status, String> {
             FolderInfo { exists: PathBuf::from(&path).is_dir(), path, documents }
         })
         .collect();
-    let dir = db::index_dir(app)?;
-    let index_bytes = ["index.db", "index.db-wal"]
-        .iter()
-        .filter_map(|n| std::fs::metadata(dir.join(n)).ok())
-        .map(|m| m.len())
-        .sum();
+    let index_bytes = index_bytes(app)?;
     Ok(Status {
         confirmed: db::get_meta(&conn, CONFIRMED_KEY).is_some(),
         folders,
@@ -97,6 +92,16 @@ fn status(app: &AppHandle) -> Result<Status, String> {
         index_bytes,
         content_types: types::enabled(&conn),
     })
+}
+
+/// 색인 파일 크기(index.db + 쓰는 중인 WAL)
+fn index_bytes(app: &AppHandle) -> Result<u64, String> {
+    let dir = db::index_dir(app)?;
+    Ok(["index.db", "index.db-wal"]
+        .iter()
+        .filter_map(|n| std::fs::metadata(dir.join(n)).ok())
+        .map(|m| m.len())
+        .sum())
 }
 
 fn normalize_folder(path: &str) -> String {
@@ -205,6 +210,29 @@ pub async fn docsearch_set_content_types(app: AppHandle, content_types: Vec<Stri
         drop(conn);
         index::restart(&app);
         status(&app)
+    })
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactResult {
+    before: u64,
+    after: u64,
+    status: Status,
+}
+
+/// [색인 정리]: 하던 대조·읽기를 멈추고 색인 파일의 빈 자리를 비운다. 끝나면 멈췄던 읽기를 이어 한다.
+#[tauri::command]
+pub async fn docsearch_compact(app: AppHandle) -> Result<CompactResult, String> {
+    blocking(move || {
+        let before = index_bytes(&app)?;
+        index::exclusive(&app, "compact", || {
+            let conn = db::open(&app)?;
+            db::compact(&conn)
+        })?;
+        let after = index_bytes(&app)?;
+        Ok(CompactResult { before, after, status: status(&app)? })
     })
     .await
 }

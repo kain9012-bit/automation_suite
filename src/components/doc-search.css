@@ -891,6 +891,12 @@
   gap: 8px;
 }
 
+/* 색인 정리 중(1.4.6): 취소 대신 안내 */
+.ds-compact-note {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .ds-dot {
   width: 7px;
   height: 7px;
