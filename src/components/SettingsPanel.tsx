@@ -144,7 +144,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
         </p>
       </div>
 
-      <section className="settings-card settings-card-stack">
+      <section className="settings-card settings-card-stack" data-tour="settings-desktop">
         <div className="setting-icon"><MonitorCog size={20} /></div>
         <div>
           <strong>Windows 시작 및 트레이</strong>
@@ -154,7 +154,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
             <label><span><b>닫기(X) 시 트레이로 숨기기</b><small>완전 종료는 트레이 메뉴에서 선택합니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.close_to_tray} disabled={desktopBusy} onChange={(event) => void changeDesktop("close_to_tray", event.target.checked)} /><i /></span></label>
             <label><span><b>최소화 시 트레이로 숨기기</b><small>작업 표시줄을 깔끔하게 유지합니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.minimize_to_tray} disabled={desktopBusy} onChange={(event) => void changeDesktop("minimize_to_tray", event.target.checked)} /><i /></span></label>
             <label><span><b>자동 실행 시 창 숨김</b><small>필요할 때 트레이 아이콘을 눌러 엽니다.</small></span><span className="switch"><input type="checkbox" checked={desktop.start_minimized} disabled={desktopBusy} onChange={(event) => void changeDesktop("start_minimized", event.target.checked)} /><i /></span></label>
-            <label><span><b>창 열기·숨기기 단축키</b><small>어느 화면에서든 이 키로 앱을 꺼내고 숨깁니다.</small></span><HotkeyInput value={desktop.toggle_hotkey} fallback={DEFAULT_TOGGLE_HOTKEY} disabled={desktopBusy} onChange={(next) => void changeHotkey(next)} /></label>
+            <label data-tour="settings-hotkey"><span><b>창 열기·숨기기 단축키</b><small>어느 화면에서든 이 키로 앱을 꺼내고 숨깁니다.</small></span><HotkeyInput value={desktop.toggle_hotkey} fallback={DEFAULT_TOGGLE_HOTKEY} disabled={desktopBusy} onChange={(next) => void changeHotkey(next)} /></label>
             {!!hotkeyError && (
               <p className="setting-warning">{hotkeyError}</p>
             )}
@@ -162,7 +162,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
         </div>
       </section>
 
-      <section className="settings-card settings-card-stack">
+      <section className="settings-card settings-card-stack" data-tour="settings-notify">
         <div className="setting-icon"><Bell size={20} /></div>
         <div>
           <strong>작업 완료 알림</strong>
@@ -173,7 +173,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
         </div>
       </section>
 
-      <section className="settings-card">
+      <section className="settings-card" data-tour="settings-tutorial">
         <div className="setting-icon"><PlayCircle size={20} /></div>
         <div>
           <strong>처음 사용 안내</strong>
@@ -196,7 +196,7 @@ export function SettingsPanel({ onRefresh, onStartTutorial, hotkeyError }: { onR
         </button>
       </section>
 
-      <section className="settings-card">
+      <section className="settings-card" data-tour="settings-update">
         <div className="setting-icon">
           <Download size={20} />
         </div>

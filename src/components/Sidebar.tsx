@@ -83,7 +83,7 @@ export function Sidebar({
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-group">
+        <div className="nav-group" data-tour="nav-main">
           {!collapsed && <p className="nav-label">탐색</p>}
           <NavigationButton
             icon={Home}
@@ -115,7 +115,7 @@ export function Sidebar({
           />
         </div>
 
-        <div className="nav-group">
+        <div className="nav-group" data-tour="nav-tools">
           {!collapsed && <p className="nav-label">도구</p>}
           {categories.map((category) => {
             const Icon = CATEGORY_ICONS[category] ?? BarChart3;

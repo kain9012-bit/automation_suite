@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Command,
@@ -25,7 +25,7 @@ import { QuickLauncher } from "./components/QuickLauncher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { ToolGrid } from "./components/ToolGrid";
-import { TutorialOverlay } from "./components/TutorialOverlay";
+import { TutorialOverlay, type TutorialDestination } from "./components/TutorialOverlay";
 import { useTools } from "./hooks/useTools";
 import { useQuickLauncherHotkeys } from "./hooks/useQuickLauncherHotkeys";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
@@ -71,6 +71,26 @@ export default function App() {
   const [tutorialOpen, setTutorialOpen] = useState(
     () => localStorage.getItem("jbedu-suite:tutorial-complete") !== "true",
   );
+  const contentRef = useRef<HTMLElement>(null);
+
+  // 처음 사용 안내: 단계마다 그 화면으로 옮긴다. 사이드바를 접어 두면 강조할 곳이 안 보여 펼친다.
+  const navigateTutorial = useCallback((destination: TutorialDestination) => {
+    setCommandOpen(false);
+    setSidebarCollapsed(false);
+    setView({ kind: destination.view });
+  }, []);
+
+  const startTutorial = () => {
+    setQuery("");
+    setView({ kind: "home" });
+    setTutorialOpen(true);
+  };
+
+  const closeTutorial = () => {
+    setTutorialOpen(false);
+    setView({ kind: "home" });
+    contentRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -231,7 +251,7 @@ export default function App() {
       return <DocSearchView />;
     }
     if (view.kind === "settings") {
-      return <SettingsPanel onRefresh={registry.refresh} hotkeyError={hotkeyError} onStartTutorial={() => { setView({ kind: "home" }); setTutorialOpen(true); }} />;
+      return <SettingsPanel onRefresh={registry.refresh} hotkeyError={hotkeyError} onStartTutorial={startTutorial} />;
     }
     if (view.kind === "tool") {
       if (view.tool.type === "html" || view.tool.has_html) {
@@ -277,7 +297,7 @@ export default function App() {
               PDF, 한글, 엑셀, 파일 정리와 자료 수집 도구를 한곳에서
               실행합니다.
             </p>
-            <label className="hero-search">
+            <label className="hero-search" data-tour="home-search">
               <Search size={20} />
               <input
                 value={query}
@@ -301,6 +321,7 @@ export default function App() {
             />
           )}
           <ToolGrid
+            tourId="all-tools"
             title="전체 도구"
             description="등록된 업무 도구를 분류별로 탐색합니다."
             tools={registry.tools}
@@ -383,8 +404,8 @@ export default function App() {
             </div>
           </div>
         )}
-        <main className="app-content" data-tour="tool-area">{content()}</main>
-        <footer className="status-bar">
+        <main className="app-content" ref={contentRef}>{content()}</main>
+        <footer className="status-bar" data-tour="status">
           <span>
             <i className="status-dot" />
             {updater.status}
@@ -449,7 +470,7 @@ export default function App() {
           </section>
         </div>
       )}
-      <TutorialOverlay open={tutorialOpen} onClose={() => setTutorialOpen(false)} />
+      <TutorialOverlay open={tutorialOpen} onNavigate={navigateTutorial} onClose={closeTutorial} />
     </div>
   );
 }

@@ -10,6 +10,8 @@ interface ToolGridProps {
   query?: string;
   onOpen: (tool: ToolManifest) => void;
   onToggleFavorite: (id: string) => void;
+  /** 처음 사용 안내가 강조할 곳의 표시(data-tour) */
+  tourId?: string;
 }
 
 /** 기능 아이콘(도구별)과 탭 색. 정하는 곳은 lib/toolIcons.ts */
@@ -26,6 +28,7 @@ export function ToolGrid({
   query = "",
   onOpen,
   onToggleFavorite,
+  tourId,
 }: ToolGridProps) {
   const normalized = query.trim().toLocaleLowerCase();
   const filtered = normalized
@@ -43,7 +46,7 @@ export function ToolGrid({
     : tools;
 
   return (
-    <section className="tool-section">
+    <section className="tool-section" data-tour={tourId}>
       <div className="section-heading">
         <div>
           <h2>{title}</h2>

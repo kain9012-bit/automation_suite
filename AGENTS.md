@@ -117,6 +117,15 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
   **업데이트 때는 절대 지우지 않는다**: `/UPDATE`(앱 자동 업데이트)와, 새 설치 파일이 이전 제거 프로그램을
   `_?=설치폴더`로 부를 때($EXEDIR = $INSTDIR)는 건너뛴다. 이 조건을 바꾸면 Wine 등으로 네 가지 경우를 다시 확인한다.
 
+## 처음 사용 안내(튜토리얼, 1.4.6~)
+
+`src/components/TutorialOverlay.tsx`. jb_quickpanel 의 튜토리얼과 같은 방식이다.
+- 단계마다 `view`(home·docsearch·settings)로 화면을 옮기고 `data-tour` 표시가 붙은 곳을 강조한다.
+  화면을 고치다 `data-tour` 를 지우면 그 단계는 강조 없이 가운데 카드만 뜬다(2초 기다린 뒤).
+- 어둡게 하는 것은 `.tutorial-spotlight` 의 바깥 그림자 하나뿐이다. 화면 전체에 어두운 막을 더 깔면
+  강조한 곳까지 어두워진다(1.4.5까지의 문제).
+- 안내 중에 도구를 실제로 열지 않는다('최근 사용'에 남기 때문). 마친 기록은 localStorage `jbedu-suite:tutorial-complete`.
+
 ## 빠른 실행(런처) 규칙
 
 홈 화면의 `QuickLauncher`가 사이트·폴더·파일·프로그램 네 가지를 다룬다.

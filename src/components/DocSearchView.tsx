@@ -291,7 +291,7 @@ export function DocSearchView() {
     setKinds((current) => (current.includes(id) ? current.filter((k) => k !== id) : [...current, id]));
 
   if (!status || !choices || !setupTypes) {
-    return <div className="ds-view ds-loading">{message || "불러오는 중…"}</div>;
+    return <div className="ds-view ds-loading" data-tour="docsearch">{message || "불러오는 중…"}</div>;
   }
 
   // ── 처음: 어느 폴더에서 찾을지 고르기 ──
@@ -300,7 +300,7 @@ export function DocSearchView() {
       ? status.folders.map((f) => f.path)
       : choices.common.map((c) => c.path);
     return (
-      <div className="ds-view">
+      <div className="ds-view" data-tour="docsearch">
         <section className="ds-setup">
           <h2>어느 폴더에서 문서를 찾을까요?</h2>
           <p>
@@ -399,7 +399,7 @@ export function DocSearchView() {
     progress?.phase === "read" && progress.total ? Math.floor((progress.done / progress.total) * 100) : null;
 
   return (
-    <div className="ds-shell">
+    <div className="ds-shell" data-tour="docsearch">
       <aside className="ds-side">
         <div className="ds-side-head">
           <span>

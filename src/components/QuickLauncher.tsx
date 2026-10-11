@@ -217,7 +217,7 @@ export function QuickLauncher() {
   };
 
   return (
-    <section className="quick-launcher">
+    <section className="quick-launcher" data-tour="quick-launcher">
       <header className="launcher-head">
         <div>
           <h2>빠른 실행</h2>

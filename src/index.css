@@ -1315,10 +1315,13 @@ kbd {
 .macro-step { display: grid; grid-template-columns: 22px 100px minmax(0, 1fr) 26px; gap: 6px; align-items: center; }
 .macro-step b { color: var(--accent); font-size: 11px; text-align: center; }
 
+/* 처음 사용 안내: 강조한 곳은 원래 밝기 그대로, 나머지만 강조 상자의 바깥 그림자로 어둡게 한다(jb_quickpanel 과 같은 방식).
+   예전처럼 화면 전체에 어두운 막을 한 겹 더 깔면 강조한 곳까지 어두워진다. */
 .tutorial-layer { position: fixed; z-index: 100; inset: 0; pointer-events: auto; }
-.tutorial-layer::before { content: ""; position: absolute; inset: 0; background: rgba(15, 28, 46, .34); }
-.tutorial-spotlight { position: fixed; z-index: 1; border: 2px solid #7fb2e8; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(15, 28, 46, .34), 0 0 0 5px rgba(127, 178, 232, .22); background: transparent; transition: all .22s ease; }
-.tutorial-card { position: fixed; z-index: 2; width: min(360px, calc(100vw - 48px)); padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: #ffffff; color: #1c1917; box-shadow: 0 20px 60px rgba(0, 32, 64, .3); }
+.tutorial-layer.is-plain { background: rgba(15, 28, 46, .42); }
+.tutorial-spotlight { position: fixed; z-index: 1; border: 2px solid #7fb2e8; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(15, 28, 46, .42), 0 0 0 5px rgba(127, 178, 232, .22); background: transparent; pointer-events: none; transition: top .24s ease, left .24s ease, width .24s ease, height .24s ease; }
+.tutorial-card { position: fixed; z-index: 2; max-height: calc(100vh - 28px); overflow-y: auto; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: #ffffff; color: #1c1917; box-shadow: 0 20px 60px rgba(0, 32, 64, .3); transition: top .24s ease, left .24s ease; }
+@media (prefers-reduced-motion: reduce) { .tutorial-spotlight, .tutorial-card { transition: none; } }
 .tutorial-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: #6b7280; font-size: 11px; font-weight: 800; }
 .tutorial-progress button { display: grid; place-items: center; border: 0; background: transparent; color: #6b7280; cursor: pointer; }
 .tutorial-card > strong { display: block; margin-bottom: 7px; font-size: 18px; }

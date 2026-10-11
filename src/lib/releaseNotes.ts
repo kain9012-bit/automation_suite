@@ -22,6 +22,20 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.6",
+    added: [],
+    changed: [
+      {
+        tool: "공통",
+        items: [
+          "처음 사용 안내(튜토리얼)를 16단계로 늘림. 단계마다 홈·문서 검색·설정 화면으로 직접 옮겨 가서 안내",
+          "안내에서 강조한 곳은 원래 밝기 그대로 보이고, 나머지 화면만 어둡게 표시",
+          "안내 카드가 화면 밖으로 나가지 않게 하고, 사이드바를 접어 두었어도 펼쳐서 안내",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.4.5",
     added: [
       {

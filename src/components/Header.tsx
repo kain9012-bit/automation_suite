@@ -46,7 +46,7 @@ export function Header({
           {subtitle && <small>{subtitle}</small>}
         </div>
       </div>
-      <div className="header-actions">
+      <div className="header-actions" data-tour="header-actions">
         <button className="header-command" type="button" onClick={onOpenCommand} data-tour="search">
           <Command size={15} />
           <span>명령 검색</span>
