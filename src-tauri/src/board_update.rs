@@ -22,7 +22,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{Read, Seek, SeekFrom},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     time::Duration,
 };
@@ -340,6 +340,10 @@ fn check_board_update_blocking(app: AppHandle) -> Result<BoardUpdateCheck, Strin
     };
 
     if latest <= installed {
+        // 이미 설치를 마친 버전의 설치본(127MB 남짓)이 받아 둔 폴더에 남지 않게 한다.
+        if let Ok(dir) = download_dir(&app) {
+            remove_old_installers(&dir, None);
+        }
         return Ok(BoardUpdateCheck {
             configured: true,
             current,
@@ -468,6 +472,32 @@ fn download_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// 받아 둔 설치본 파일 이름. 버전이 들어 있다.
+fn installer_name(version: &str) -> String {
+    format!("JBEduON-{}-setup.exe", version.trim())
+}
+
+/// 받아 둔 폴더에서 `keep` 이 아닌 설치본을 지운다. 못 지워도 넘어간다(다음에 다시 지운다).
+fn remove_old_installers(dir: &Path, keep: Option<&str>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with("JBEduON-") && name.ends_with("-setup.exe") && Some(name.as_str()) != keep {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// 같은 버전을 이미 받아 두었고 서명이 맞으면 그 파일을 다시 쓴다.
+/// 업데이트를 '나중에'로 미루고 앱을 다시 켤 때마다 설치본을 처음부터 다시 받던 것을 막는다(1.4.6).
+/// 서명이 어긋나면(덜 쓰였거나 바뀐 파일) 쓰지 않고 새로 받는다.
+fn reuse_saved(target: &Path, verify: impl Fn(&[u8]) -> bool) -> bool {
+    match fs::read(target) {
+        Ok(bytes) => verify(&bytes),
+        Err(_) => false,
+    }
+}
+
 /// 설치본을 받아 서명을 확인하고 저장한다. 저장한 경로를 돌려준다.
 /// 서명이 어긋나면 아무것도 남기지 않는다.
 ///
@@ -483,6 +513,14 @@ fn download_board_update_blocking(app: AppHandle, update: BoardUpdate) -> Result
     let config = read_config(&app)?;
     if config.public_key.trim().is_empty() {
         return Err("공개키가 설정되어 있지 않아 설치본을 확인할 수 없습니다.".to_string());
+    }
+
+    let dir = download_dir(&app)?;
+    let name = installer_name(&update.version);
+    let target = dir.join(&name);
+    if reuse_saved(&target, |bytes| verify_installer(bytes, &update.signature, &config.public_key).is_ok()) {
+        remove_old_installers(&dir, Some(&name));
+        return Ok(target.to_string_lossy().to_string());
     }
 
     // 전체 시간에는 제한을 두지 않는다. 느린 학교 망에서 100MB를 받다가 중간에
@@ -505,7 +543,6 @@ fn download_board_update_blocking(app: AppHandle, update: BoardUpdate) -> Result
 
     // 받은 ZIP은 메모리에 통째로 두지 않고 임시 파일에 바로 쓴다.
     // 임시 파일은 이 함수가 끝나면(실패해도) 지워진다.
-    let dir = download_dir(&app)?;
     let mut archive = tempfile::Builder::new()
         .prefix(".board-update-")
         .suffix(".zip")
@@ -525,9 +562,9 @@ fn download_board_update_blocking(app: AppHandle, update: BoardUpdate) -> Result
     drop(archive);
     verify_installer(&installer, &update.signature, &config.public_key)?;
 
-    let target = dir.join(format!("JBEduON-{}-setup.exe", update.version.trim()));
     fs::write(&target, &installer)
         .map_err(|error| format!("설치본을 저장하지 못했습니다: {error}"))?;
+    remove_old_installers(&dir, Some(&name));
     Ok(target.to_string_lossy().to_string())
 }
 
@@ -554,4 +591,44 @@ pub fn apply_board_update(app: AppHandle, path: String) -> Result<(), String> {
 
     app.exit(0);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("jbedu-upd-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn saved_installer_is_reused_only_when_signature_matches() {
+        let dir = temp_dir("reuse");
+        let target = dir.join(installer_name("1.4.6"));
+        assert!(!reuse_saved(&target, |_| true), "받아 둔 파일이 없으면 새로 받음");
+        fs::write(&target, b"installer").unwrap();
+        assert!(reuse_saved(&target, |bytes| bytes == b"installer"), "서명이 맞으면 다시 씀");
+        assert!(!reuse_saved(&target, |_| false), "서명이 어긋나면 새로 받음");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn only_other_installers_are_removed() {
+        let dir = temp_dir("clean");
+        for name in ["JBEduON-1.4.5-setup.exe", "JBEduON-1.4.6-setup.exe", "other.txt", ".board-update-x.zip"] {
+            fs::write(dir.join(name), b"x").unwrap();
+        }
+        remove_old_installers(&dir, Some("JBEduON-1.4.6-setup.exe"));
+        let mut left: Vec<String> =
+            fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        left.sort();
+        assert_eq!(left, vec![".board-update-x.zip", "JBEduON-1.4.6-setup.exe", "other.txt"]);
+        remove_old_installers(&dir, None);
+        assert!(!dir.join("JBEduON-1.4.6-setup.exe").exists(), "설치를 마치면 남은 설치본도 지움");
+        assert!(dir.join("other.txt").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
