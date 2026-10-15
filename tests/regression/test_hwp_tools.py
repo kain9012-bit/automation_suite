@@ -184,6 +184,7 @@ class FakeHwp:
         self.saved: list[tuple] = []
         self.quit_called = False
         self._path = ""
+        self.held = None   # 한글이 열어 둔(쥐고 있는) 파일. 이 파일은 덮어쓸 수 없다.
         self.XHwpWindows = FakeWindows(self)
         self.HAction = FakeAction(self)
         self.HParameterSet = FakeParamSets()
@@ -203,6 +204,7 @@ class FakeHwp:
         if source in S.open_fail:
             return False
         self._path = "" if S.path_empty else path
+        self.held = path
         self.opened.append(source)
         self.opened_paths.append(path)
         self.opened_print.append(print_method_of(path))
@@ -217,13 +219,19 @@ class FakeHwp:
         if S.save_raises:
             raise RuntimeError("save boom")
         write_by_format(path, fmt or "")
+        if str(fmt or "").upper().startswith("HWPX"):
+            # 실제 한글: 다른 이름으로 저장하면 지금 문서가 그 파일이 되고 그 파일을 쥐고 있다.
+            self._path = path
+            self.held = path
         return True
 
     def Clear(self, _n):
         self._path = ""
+        self.held = None
 
     def Quit(self):
         self.quit_called = True
+        self.held = None
 
 
 def _source_name(path: str) -> str:
@@ -270,7 +278,20 @@ def _couninit():
     S.couninit += 1
 
 
+_real_replace = os.replace
+
+
+def _replace_unless_held(src, dst, *a, **k):
+    """한글이 쥐고 있는 파일 위로는 덮어쓸 수 없다(실제 한글에서 '액세스가 거부되었습니다')."""
+    target = os.path.normcase(os.path.abspath(dst))
+    for hwp in S.hwps:
+        if hwp.held and os.path.normcase(os.path.abspath(hwp.held)) == target:
+            raise PermissionError(5, "액세스가 거부되었습니다", str(dst))
+    return _real_replace(src, dst, *a, **k)
+
+
 def install_stubs() -> None:
+    os.replace = _replace_unless_held
     pythoncom = types.ModuleType("pythoncom")
     pythoncom.CoInitialize = _coinit
     pythoncom.CoUninitialize = _couninit
@@ -446,9 +467,13 @@ def _(tmp):
 @check("3 PDF(runner): 일부 실패 시 failed=[{name,error}] 이고 메시지에 실패 수")
 def _(tmp):
     srcs = make_files(tmp, ["a.hwp", "b.hwp"])
-    # 둘째 파일(b.hwp)을 열지 못한다. 1.4.7부터 hwp 는 인쇄 방식 사본을 한 번 더 열므로
-    # '두 번째 Open' 이 아니라 원본 이름으로 가린다.
-    S.open_fail = {"b.hwp"}
+    calls = {"n": 0}
+
+    def on_open(_name):
+        calls["n"] += 1
+        S.open_result = calls["n"] != 2
+
+    S.on_open = on_open
     code, result, progress, err = run_runner(
         "hwp_to_pdf_converter", {"inputs": [str(p) for p in srcs], "output": str(tmp / "out")}
     )
@@ -698,11 +723,10 @@ def _(tmp):
 
 
 # ------------------------------------------------------------------ 10. 모아 찍기 → 기본 인쇄로 PDF
-def _pdf_via(tool: str, src: Path, out: Path, notes: list | None = None):
-    progress = notes.append if notes is not None else None
+def _pdf_via(tool: str, src: Path, out: Path):
     if tool == "pdf":
-        return pdfconv.convert_with_hancom(src, out, progress)
-    return combiner.convert_with_hancom(src, out, progress)
+        return pdfconv.convert_with_hancom(src, out)
+    return combiner.convert_with_hancom(src, out, None)
 
 
 for _tool, _label in (("pdf", "한글 PDF 변환"), ("combine", "다형식 PDF 통합")):
@@ -710,63 +734,35 @@ for _tool, _label in (("pdf", "한글 PDF 변환"), ("combine", "다형식 PDF �
     def _(tmp, tool=_tool):
         src = make_hwpx(tmp / "모아찍기.hwpx", 4, "모아찍기.hwpx")
         before = src.read_bytes()
-        notes: list = []
-        ok, msg = _pdf_via(tool, src, tmp / "out.pdf", notes)
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
         h = S.hwps[-1]
         assert ok and (tmp / "out.pdf").read_bytes().startswith(b"%PDF"), msg
         assert h.opened_print == [0], f"열 때 인쇄 방식: {h.opened_print}"
         assert src.read_bytes() == before, "원본 파일이 바뀜"
-        assert any("기본 인쇄" in n for n in notes), f"바꿨다는 안내: {notes}"
 
     @check(f"10 {_label}: hwp 는 hwpx 로 저장해 보고 모아 찍기면 0 으로 바꾼 사본을 다시 열어 PDF")
     def _(tmp, tool=_tool):
         S.print_method = 4
         src = make_files(tmp, ["모아찍기.hwp"])[0]
         before = src.read_bytes()
-        notes: list = []
-        ok, msg = _pdf_via(tool, src, tmp / "out.pdf", notes)
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
         h = S.hwps[-1]
         assert ok, msg
         assert [fmt for _p, fmt in h.saved if str(fmt).upper().startswith("HWPX")], f"hwpx 로 저장해 보지 않음: {h.saved}"
         assert h.opened_print[-1] == 0 and len(h.opened) == 2, f"다시 연 사본의 인쇄 방식: {h.opened_print}"
+        # 한글이 쥐고 있는 print_check.hwpx 는 덮어쓸 수 없어, 고친 내용은 새 파일로 써서 연다.
+        assert Path(h.opened_paths[-1]).name == "print_fixed.hwpx", h.opened_paths
         assert src.read_bytes() == before
-        assert any("기본 인쇄" in n for n in notes), f"바꿨다는 안내: {notes}"
 
-    @check(f"10 {_label}: hwp 는 인쇄 방식이 0 이거나 없어도 hwpx 사본을 다시 열어 PDF(안내는 없음)")
+    @check(f"10 {_label}: 기본 인쇄 문서는 예전처럼 한 번만 열고 사본도 바꾸지 않음")
     def _(tmp, tool=_tool):
-        for method in (0, None):
-            S.print_method = method
-            src = make_files(tmp, [f"보통{method}.hwp"])[0]
-            notes: list = []
-            ok, msg = _pdf_via(tool, src, tmp / f"out{method}.pdf", notes)
-            h = S.hwps[-1]
-            assert ok and h.opened[-1] == "print_check.hwpx" and len(h.opened) == 2, (method, msg, h.opened)
-            assert not notes, notes
-
-    @check(f"10 {_label}: hwpx 가 기본 인쇄면 사본을 바꾸지 않고 한 번만 연다")
-    def _(tmp, tool=_tool):
+        S.print_method = 0
+        src = make_files(tmp, ["보통.hwp"])[0]
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
+        assert ok and len(S.hwps[-1].opened) == 1, (msg, S.hwps[-1].opened)
         plain = make_hwpx(tmp / "보통.hwpx", 0, "보통.hwpx")
         ok, msg = _pdf_via(tool, plain, tmp / "out2.pdf")
         assert ok and S.hwps[-1].opened_print == [0], (msg, S.hwps[-1].opened_print)
-
-    @check(f"10 {_label}: hwp 를 hwpx 로 저장하지 못하면 예전처럼 만들고 '확인하지 못함' 안내")
-    def _(tmp, tool=_tool):
-        src = make_files(tmp, ["저장실패.hwp"])[0]
-        h_saveas = FakeHwp.SaveAs
-
-        def fail_hwpx(self, path, fmt=None, arg=None):
-            if str(fmt).upper().startswith("HWPX"):
-                raise RuntimeError("hwpx boom")
-            return h_saveas(self, path, fmt, arg)
-
-        FakeHwp.SaveAs = fail_hwpx
-        try:
-            notes: list = []
-            ok, msg = _pdf_via(tool, src, tmp / "out.pdf", notes)
-        finally:
-            FakeHwp.SaveAs = h_saveas
-        assert ok and len(S.hwps[-1].opened) == 1, (msg, S.hwps[-1].opened)
-        assert any("확인하지 못해" in n for n in notes), notes
 
 
 @check("10 인쇄 방식 바꾸기: mimetype 맨 앞 무압축, 다른 항목·압축은 그대로, 없으면 손대지 않음")
@@ -783,6 +779,12 @@ def _(tmp):
             settings = z.read("settings.xml").decode()
             assert 'name="PrintMethod" type="short">0<' in settings and 'name="ZoomX" type="short">100<' in settings
         assert module.reset_hwpx_print_method(path) is False, "이미 0 이면 다시 쓰지 않음"
+        held = make_hwpx(tmp / f"{module.__name__}_held.hwpx", 4, "x")
+        held_before = held.read_bytes()
+        fixed = tmp / f"{module.__name__}_fixed.hwpx"
+        assert module.reset_hwpx_print_method(held, fixed) is True
+        assert held.read_bytes() == held_before, "dest 를 주면 원래 파일은 그대로"
+        assert print_method_of(fixed) == 0
         none = make_hwpx(tmp / f"{module.__name__}_none.hwpx", None, "x")
         before = none.read_bytes()
         assert module.reset_hwpx_print_method(none) is False and none.read_bytes() == before

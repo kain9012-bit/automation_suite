@@ -175,34 +175,24 @@ def hwpx_print_method(path: Path) -> int | None:
     return int(m.group(2)) if m else None
 
 
-def reset_hwpx_print_method(path: Path) -> bool:
-    """hwpx 의 인쇄 방식이 기본 인쇄(0)가 아니면 0 으로 바꿔 다시 쓴다. 바꿨으면 True.
+def reset_hwpx_print_method(path: Path, dest: Path | None = None) -> bool:
+    """hwpx 의 인쇄 방식이 기본 인쇄(0)가 아니면 0 으로 바꿔 쓴다. 바꿨으면 True.
+    dest 가 없으면 path 를 고쳐 쓰고, 있으면 path 는 그대로 두고 dest 에 쓴다.
     다른 항목·순서·압축 방식은 그대로 둔다(mimetype 이 맨 앞에 무압축으로 남아야 한다)."""
     method = hwpx_print_method(path)
     if not method:
         return False
     path = Path(path)
-    temp = path.with_name(path.name + ".tmp")
+    target = Path(dest) if dest is not None else path
+    temp = target.with_name(target.name + ".tmp")
     with zipfile.ZipFile(path) as src, zipfile.ZipFile(temp, "w") as dst:
         for info in src.infolist():
             data = src.read(info.filename)
             if info.filename == "settings.xml":
                 data = _PRINT_METHOD.sub(lambda m: m.group(1) + b"0" + m.group(3), data, count=1)
             dst.writestr(info, data)
-    os.replace(temp, path)
+    os.replace(temp, target)
     return True
-
-
-def _note(progress, text: str) -> None:
-    if progress is not None:
-        try:
-            progress(text)
-        except Exception:
-            pass
-
-
-RESET_NOTE = "모아 찍기 등으로 저장된 문서라 기본 인쇄(한 쪽에 한 쪽)로 바꿔 PDF를 만듭니다."
-UNCHECKED_NOTE = "인쇄 방식을 확인하지 못해 문서에 저장된 설정 그대로 만듭니다(모아 찍기로 저장된 문서면 PDF도 모아 찍힐 수 있음)."
 
 
 def _save_as_hwpx(hwp, path: Path) -> bool:
@@ -286,8 +276,7 @@ def convert_with_hancom(input_path: Path, output_path: Path, progress: ProgressF
         # 인쇄 방식이 모아 찍기 등으로 저장돼 있어도 PDF 는 기본 인쇄(한 쪽에 한 쪽)로 만든다.
         if ext == ".hwpx":
             try:
-                if reset_hwpx_print_method(tmp_in):
-                    _note(progress, f"{input_path.name}: {RESET_NOTE}")
+                reset_hwpx_print_method(tmp_in)
             except Exception:
                 pass  # 고치지 못하면 예전처럼 그대로 연다
 
@@ -300,29 +289,21 @@ def convert_with_hancom(input_path: Path, output_path: Path, progress: ProgressF
         _open(tmp_in)
 
         if ext == ".hwp":
-            # hwp 는 인쇄 방식을 바로 고칠 수 없다. 늘 hwpx 사본으로 저장하고, 그 사본의 인쇄 방식을
-            # 기본 인쇄로 맞춘 뒤 사본을 다시 열어 PDF 를 만든다(인쇄 방식이 적혀 있지 않아도 다시 연다.
-            # 처음 연 hwp 가 메모리에 들고 있는 인쇄 방식을 따라가지 않게 하려는 것이다).
+            # hwp 는 인쇄 방식을 바로 고칠 수 없어 hwpx 사본으로 저장해 보고, 바꿔야 하면 고친 사본을 연다.
+            # 한글은 방금 저장한 사본을 열어 둔 채라 그 파일은 덮어쓸 수 없다(액세스 거부, 실제 한글에서 확인).
+            # 그래서 0 으로 바꾼 내용은 새 파일(print_fixed.hwpx)로 쓴다.
             tmp_x = temp_dir / "print_check.hwpx"
+            tmp_fixed = temp_dir / "print_fixed.hwpx"
             try:
-                saved = _save_as_hwpx(hwp, tmp_x)
+                needs_reset = _save_as_hwpx(hwp, tmp_x) and reset_hwpx_print_method(tmp_x, tmp_fixed)
             except Exception:
-                saved = False
-            if not saved:
-                _note(progress, f"{input_path.name}: {UNCHECKED_NOTE}")
-            else:
-                try:
-                    changed = reset_hwpx_print_method(tmp_x)
-                except Exception:
-                    changed = False
+                needs_reset = False
+            if needs_reset:
                 try:
                     hwp.Clear(1)
-                    _open(tmp_x)
-                    if changed:
-                        _note(progress, f"{input_path.name}: {RESET_NOTE}")
+                    _open(tmp_fixed)
                 except Exception:
                     # 사본을 열지 못하면 원래 문서로 예전처럼 만든다.
-                    _note(progress, f"{input_path.name}: {UNCHECKED_NOTE}")
                     hwp.Clear(1)
                     _open(tmp_in)
 
