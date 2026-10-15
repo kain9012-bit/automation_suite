@@ -52,12 +52,6 @@ export async function openWorkToolsBoard(): Promise<void> {
   return invoke<void>("open_work_tools_board");
 }
 
-/** 사이드바 문의 카드: JB에듀 메신저로 담당자에게 쪽지 쓰기 창을 연다. */
-export async function openSupportMessenger(): Promise<void> {
-  if (!isTauri()) throw new Error("메신저 쪽지는 설치된 앱에서 사용할 수 있습니다.");
-  return invoke<void>("open_support_messenger");
-}
-
 /** 작업 결과가 저장된 폴더를 탐색기로 연다. */
 export async function revealPath(path: string): Promise<void> {
   if (!isTauri()) throw new Error("결과 폴더 열기는 설치된 앱에서 사용할 수 있습니다.");

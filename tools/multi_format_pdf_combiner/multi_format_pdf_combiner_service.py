@@ -193,6 +193,18 @@ def reset_hwpx_print_method(path: Path) -> bool:
     return True
 
 
+def _note(progress, text: str) -> None:
+    if progress is not None:
+        try:
+            progress(text)
+        except Exception:
+            pass
+
+
+RESET_NOTE = "모아 찍기 등으로 저장된 문서라 기본 인쇄(한 쪽에 한 쪽)로 바꿔 PDF를 만듭니다."
+UNCHECKED_NOTE = "인쇄 방식을 확인하지 못해 문서에 저장된 설정 그대로 만듭니다(모아 찍기로 저장된 문서면 PDF도 모아 찍힐 수 있음)."
+
+
 def _save_as_hwpx(hwp, path: Path) -> bool:
     """열려 있는 문서를 hwpx 로 저장한다(인쇄 방식 확인용 임시 사본). 실패하면 False."""
     for fmt in ("HWPX", "HWPXDocument"):
@@ -274,7 +286,8 @@ def convert_with_hancom(input_path: Path, output_path: Path, progress: ProgressF
         # 인쇄 방식이 모아 찍기 등으로 저장돼 있어도 PDF 는 기본 인쇄(한 쪽에 한 쪽)로 만든다.
         if ext == ".hwpx":
             try:
-                reset_hwpx_print_method(tmp_in)
+                if reset_hwpx_print_method(tmp_in):
+                    _note(progress, f"{input_path.name}: {RESET_NOTE}")
             except Exception:
                 pass  # 고치지 못하면 예전처럼 그대로 연다
 
@@ -287,18 +300,29 @@ def convert_with_hancom(input_path: Path, output_path: Path, progress: ProgressF
         _open(tmp_in)
 
         if ext == ".hwp":
-            # hwp 는 인쇄 방식을 바로 고칠 수 없어 hwpx 사본으로 저장해 보고, 바꿔야 하면 그 사본을 연다.
+            # hwp 는 인쇄 방식을 바로 고칠 수 없다. 늘 hwpx 사본으로 저장하고, 그 사본의 인쇄 방식을
+            # 기본 인쇄로 맞춘 뒤 사본을 다시 열어 PDF 를 만든다(인쇄 방식이 적혀 있지 않아도 다시 연다.
+            # 처음 연 hwp 가 메모리에 들고 있는 인쇄 방식을 따라가지 않게 하려는 것이다).
             tmp_x = temp_dir / "print_check.hwpx"
             try:
-                needs_reset = _save_as_hwpx(hwp, tmp_x) and reset_hwpx_print_method(tmp_x)
+                saved = _save_as_hwpx(hwp, tmp_x)
             except Exception:
-                needs_reset = False
-            if needs_reset:
+                saved = False
+            if not saved:
+                _note(progress, f"{input_path.name}: {UNCHECKED_NOTE}")
+            else:
+                try:
+                    changed = reset_hwpx_print_method(tmp_x)
+                except Exception:
+                    changed = False
                 try:
                     hwp.Clear(1)
                     _open(tmp_x)
+                    if changed:
+                        _note(progress, f"{input_path.name}: {RESET_NOTE}")
                 except Exception:
                     # 사본을 열지 못하면 원래 문서로 예전처럼 만든다.
+                    _note(progress, f"{input_path.name}: {UNCHECKED_NOTE}")
                     hwp.Clear(1)
                     _open(tmp_in)
 

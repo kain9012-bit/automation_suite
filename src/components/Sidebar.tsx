@@ -11,8 +11,7 @@ import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { TAB_STYLES } from "../lib/toolIcons";
-import { message } from "@tauri-apps/plugin-dialog";
-import { openSupportMessenger, openWorkToolsBoard } from "../lib/bridge";
+import { openWorkToolsBoard } from "../lib/bridge";
 import type { View } from "../types";
 
 interface SidebarProps {
@@ -142,7 +141,15 @@ export function Sidebar({
       </nav>
 
       <div className="sidebar-bottom">
-        {/* 업무경감 도구 게시판을 기본 브라우저로 연다(1.4.7). */}
+        {!collapsed && (
+          <div className="support-card" data-tour="support">
+            <strong>문의</strong>
+            <span>전북특별자치도교육청</span>
+            <span>정책기획과 빅데이터팀</span>
+            <b>063-239-3176</b>
+          </div>
+        )}
+        {/* 업무경감 도구 게시판을 기본 브라우저로 연다(1.4.7). 문의 카드 아래. */}
         <button
           className="sidebar-item sidebar-link"
           onClick={() => void openWorkToolsBoard().catch(() => undefined)}
@@ -151,28 +158,6 @@ export function Sidebar({
           <Wrench size={collapsed ? 18 : 16} />
           {!collapsed && <span>업무경감 도구 바로가기</span>}
         </button>
-        {!collapsed && (
-          // 누르면 JB에듀 메신저로 담당자에게 쪽지 쓰기 창을 연다(1.4.7).
-          <button
-            type="button"
-            className="support-card"
-            data-tour="support"
-            title="누르면 JB에듀 메신저로 담당자에게 쪽지를 보낼 수 있습니다"
-            onClick={() =>
-              void openSupportMessenger().catch((error) =>
-                message(`${error instanceof Error ? error.message : String(error)}\n전화(063-239-3176)로 문의해 주세요.`, {
-                  title: "문의",
-                  kind: "warning",
-                }).catch(() => undefined),
-              )
-            }
-          >
-            <strong>문의</strong>
-            <span>전북특별자치도교육청</span>
-            <span>정책기획과 빅데이터팀</span>
-            <b>063-239-3176</b>
-          </button>
-        )}
         <div data-tour="settings">
           <NavigationButton
             icon={Settings}
