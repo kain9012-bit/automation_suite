@@ -74,6 +74,15 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
 `web/index.html`이 남아 있어도 `type`이 `internal_python`이면 HTML로 열리지 않는다.
 반대로 `type`이 `html`일 때만 `web/index.html` 폴백이 적용된다.
 
+### 한글 문서를 PDF 로 만들 때(1.4.7~)
+
+한글의 'PDF로 저장'은 문서에 저장된 인쇄 방식(모아 찍기 등)을 따른다. 그래서 한글→PDF 변환과
+다형식 PDF 통합은 임시 사본의 인쇄 방식을 기본 인쇄로 되돌린 뒤 저장한다.
+- hwpx: 사본의 `settings.xml` `PrintMethod` 를 0 으로(`reset_hwpx_print_method`). 0 이거나 없으면 손대지 않는다.
+- hwp: 연 문서를 임시 hwpx 로 저장해 보고 0 이 아니면 고친 사본을 다시 연다. 0 이면 처음 연 문서로 그대로 만든다.
+- 같은 함수가 두 도구 service 에 하나씩 있다(도구 폴더가 sys.path 에 함께 올라가 같은 이름 모듈이 겹치므로 따로 두었다).
+  고치면 둘 다 고친다. 확인: `tests/regression/test_hwp_tools.py` 10번.
+
 ### 새 Python 라이브러리가 필요할 때
 
 `bridge/requirements.txt`와 **`bridge/runner.spec`의 `hiddenimports` 양쪽에** 추가한다.

@@ -45,6 +45,8 @@ class State:
         self.on_insert = None
         self.coinit = 0
         self.couninit = 0
+        # hwp 를 hwpx 로 저장할 때 한글이 적어 넣을 인쇄 방식(None 이면 예전처럼 가짜 바이트만 쓴다).
+        self.print_method = None
 
 
 S = State()
@@ -87,8 +89,49 @@ class FakeParamSets:
         self.HFileOpenSave = FakeParam()
 
 
+SETTINGS_XML = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><ha:HWPApplicationSetting '
+    'xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" '
+    'xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">'
+    '<ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/><config:config-item-set name="PrintInfo">'
+    '<config:config-item name="PrintAutoFootNote" type="boolean">false</config:config-item>'
+    '<config:config-item name="PrintMethod" type="short">{method}</config:config-item>'
+    '<config:config-item name="ZoomX" type="short">100</config:config-item>'
+    '</config:config-item-set></ha:HWPApplicationSetting>'
+)
+
+
+def make_hwpx(path, method, source: str = "") -> Path:
+    """한글이 저장한 hwpx 와 같은 짜임(mimetype 맨 앞 무압축, settings.xml 의 PrintMethod)."""
+    import zipfile
+    path = Path(path)
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr(zipfile.ZipInfo("mimetype"), "application/hwp+zip")
+        z.writestr("version.xml", "<version/>", compress_type=zipfile.ZIP_DEFLATED)
+        if method is not None:
+            z.writestr("settings.xml", SETTINGS_XML.format(method=method), compress_type=zipfile.ZIP_DEFLATED)
+        z.writestr("Contents/section0.xml", f"<sec> source {source}</sec>", compress_type=zipfile.ZIP_DEFLATED)
+    return path
+
+
+def print_method_of(path) -> int | None:
+    """테스트 쪽에서 직접 읽는 인쇄 방식(도구 코드를 쓰지 않는다)."""
+    import re
+    import zipfile
+    try:
+        with zipfile.ZipFile(path) as z:
+            data = z.read("settings.xml").decode("utf-8")
+    except Exception:
+        return None
+    m = re.search(r'name="PrintMethod"[^>]*>(\d+)<', data)
+    return int(m.group(1)) if m else None
+
+
 def write_by_format(path: str, fmt: str) -> None:
     fmt = (fmt or "").upper()
+    if fmt.startswith("HWPX") and S.print_method is not None:
+        make_hwpx(path, S.print_method, "saved")
+        return
     if fmt == "PDF":
         data = b"%PDF-1.4 fake"
     elif fmt.startswith("HWPX"):
@@ -136,6 +179,7 @@ class FakeHwp:
         self.inserted: list[str] = []
         self.opened: list[str] = []
         self.opened_paths: list[str] = []
+        self.opened_print: list = []   # 열 때 그 파일에 적혀 있던 인쇄 방식
         self.keep_section: list = []
         self.saved: list[tuple] = []
         self.quit_called = False
@@ -161,6 +205,7 @@ class FakeHwp:
         self._path = "" if S.path_empty else path
         self.opened.append(source)
         self.opened_paths.append(path)
+        self.opened_print.append(print_method_of(path))
         return True
 
     @property
@@ -249,7 +294,7 @@ def install_stubs() -> None:
 
 
 install_stubs()
-for sub in ("hwp_collector", "hwp_to_pdf_converter", "hwp_to_hwpx_converter"):
+for sub in ("hwp_collector", "hwp_to_pdf_converter", "hwp_to_hwpx_converter", "multi_format_pdf_combiner"):
     sys.path.insert(0, str(ROOT / "tools" / sub))
 sys.path.insert(0, str(ROOT / "bridge"))
 os.environ["JBEDU_PROJECT_ROOT"] = str(ROOT)
@@ -260,6 +305,7 @@ collector = importlib.import_module("hwp_collector_service")
 pdfconv = importlib.import_module("hwp_to_pdf_converter_service")
 hwpx = importlib.import_module("hwp_to_hwpx_converter_service")
 runner = importlib.import_module("runner")
+combiner = importlib.import_module("multi_format_pdf_combiner_service")
 
 
 # ------------------------------------------------------------------ 도우미
@@ -653,6 +699,69 @@ def _(tmp):
         except Exception:
             pass
     assert S.coinit == S.couninit == 3, (S.coinit, S.couninit)
+
+
+# ------------------------------------------------------------------ 10. 모아 찍기 → 기본 인쇄로 PDF
+def _pdf_via(tool: str, src: Path, out: Path):
+    if tool == "pdf":
+        return pdfconv.convert_with_hancom(src, out)
+    return combiner.convert_with_hancom(src, out, None)
+
+
+for _tool, _label in (("pdf", "한글 PDF 변환"), ("combine", "다형식 PDF 통합")):
+    @check(f"10 {_label}: hwpx 의 모아 찍기(PrintMethod=4)는 0 으로 바꾼 사본으로 PDF, 원본은 그대로")
+    def _(tmp, tool=_tool):
+        src = make_hwpx(tmp / "모아찍기.hwpx", 4, "모아찍기.hwpx")
+        before = src.read_bytes()
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
+        h = S.hwps[-1]
+        assert ok and (tmp / "out.pdf").read_bytes().startswith(b"%PDF"), msg
+        assert h.opened_print == [0], f"열 때 인쇄 방식: {h.opened_print}"
+        assert src.read_bytes() == before, "원본 파일이 바뀜"
+
+    @check(f"10 {_label}: hwp 는 hwpx 로 저장해 보고 모아 찍기면 0 으로 바꾼 사본을 다시 열어 PDF")
+    def _(tmp, tool=_tool):
+        S.print_method = 4
+        src = make_files(tmp, ["모아찍기.hwp"])[0]
+        before = src.read_bytes()
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
+        h = S.hwps[-1]
+        assert ok, msg
+        assert [fmt for _p, fmt in h.saved if str(fmt).upper().startswith("HWPX")], f"hwpx 로 저장해 보지 않음: {h.saved}"
+        assert h.opened_print[-1] == 0 and len(h.opened) == 2, f"다시 연 사본의 인쇄 방식: {h.opened_print}"
+        assert src.read_bytes() == before
+
+    @check(f"10 {_label}: 기본 인쇄 문서는 예전처럼 한 번만 열고 사본도 바꾸지 않음")
+    def _(tmp, tool=_tool):
+        S.print_method = 0
+        src = make_files(tmp, ["보통.hwp"])[0]
+        ok, msg = _pdf_via(tool, src, tmp / "out.pdf")
+        assert ok and len(S.hwps[-1].opened) == 1, (msg, S.hwps[-1].opened)
+        plain = make_hwpx(tmp / "보통.hwpx", 0, "보통.hwpx")
+        ok, msg = _pdf_via(tool, plain, tmp / "out2.pdf")
+        assert ok and S.hwps[-1].opened_print == [0], (msg, S.hwps[-1].opened_print)
+
+
+@check("10 인쇄 방식 바꾸기: mimetype 맨 앞 무압축, 다른 항목·압축은 그대로, 없으면 손대지 않음")
+def _(tmp):
+    import zipfile
+    for module in (pdfconv, combiner):
+        path = make_hwpx(tmp / f"{module.__name__}.hwpx", 6, "x")
+        assert module.reset_hwpx_print_method(path) is True
+        with zipfile.ZipFile(path) as z:
+            infos = z.infolist()
+            assert infos[0].filename == "mimetype" and infos[0].compress_type == zipfile.ZIP_STORED
+            assert [i.filename for i in infos] == ["mimetype", "version.xml", "settings.xml", "Contents/section0.xml"]
+            assert z.read("Contents/section0.xml") == b"<sec> source x</sec>"
+            settings = z.read("settings.xml").decode()
+            assert 'name="PrintMethod" type="short">0<' in settings and 'name="ZoomX" type="short">100<' in settings
+        assert module.reset_hwpx_print_method(path) is False, "이미 0 이면 다시 쓰지 않음"
+        none = make_hwpx(tmp / f"{module.__name__}_none.hwpx", None, "x")
+        before = none.read_bytes()
+        assert module.reset_hwpx_print_method(none) is False and none.read_bytes() == before
+        broken = tmp / "broken.hwpx"
+        broken.write_bytes(b"PK not a zip")
+        assert module.reset_hwpx_print_method(broken) is False
 
 
 # ------------------------------------------------------------------ 결과

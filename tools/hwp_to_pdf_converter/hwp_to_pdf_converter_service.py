@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Callable, Tuple
 
@@ -41,6 +42,61 @@ def _safe_temp_name(ext: str) -> str:
     if not ext.startswith("."):
         ext = "." + ext
     return "input" + ext
+
+
+# ── 인쇄 방식(모아 찍기 등) 되돌리기 ─────────────────────────────────────────
+# 한글의 'PDF로 저장'은 문서에 저장된 인쇄 방식을 그대로 따른다. 문서를 '2쪽 모아 찍기'로
+# 저장해 두었으면 PDF 도 두 쪽이 한 장에 모여 나온다(한컴 포럼: 최신 패치에서도 같음).
+# hwpx 는 settings.xml 의 PrintMethod 에 인쇄 방식이 적혀 있어(0 = 기본 인쇄·자동 인쇄),
+# 임시 사본에서 이 값만 0 으로 바꾼 뒤 연다. hwp 는 한 번 hwpx 로 저장해 같은 방법을 쓴다.
+# 원본 파일은 건드리지 않는다.
+_PRINT_METHOD = re.compile(
+    rb'(<(?:[\w.-]+:)?config-item\b[^>]*\bname="PrintMethod"[^>]*>)\s*(-?\d+)\s*(</(?:[\w.-]+:)?config-item>)'
+)
+
+
+def hwpx_print_method(path: Path) -> int | None:
+    """hwpx 의 인쇄 방식 값. 적혀 있지 않거나 읽지 못하면 None(기본 인쇄로 본다)."""
+    try:
+        with zipfile.ZipFile(path) as zf:
+            data = zf.read("settings.xml")
+    except Exception:
+        return None
+    m = _PRINT_METHOD.search(data)
+    return int(m.group(2)) if m else None
+
+
+def reset_hwpx_print_method(path: Path) -> bool:
+    """hwpx 의 인쇄 방식이 기본 인쇄(0)가 아니면 0 으로 바꿔 다시 쓴다. 바꿨으면 True.
+    다른 항목·순서·압축 방식은 그대로 둔다(mimetype 이 맨 앞에 무압축으로 남아야 한다)."""
+    method = hwpx_print_method(path)
+    if not method:
+        return False
+    path = Path(path)
+    temp = path.with_name(path.name + ".tmp")
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(temp, "w") as dst:
+        for info in src.infolist():
+            data = src.read(info.filename)
+            if info.filename == "settings.xml":
+                data = _PRINT_METHOD.sub(lambda m: m.group(1) + b"0" + m.group(3), data, count=1)
+            dst.writestr(info, data)
+    os.replace(temp, path)
+    return True
+
+
+def _save_as_hwpx(hwp, path: Path) -> bool:
+    """열려 있는 문서를 hwpx 로 저장한다(인쇄 방식 확인용 임시 사본). 실패하면 False."""
+    for fmt in ("HWPX", "HWPXDocument"):
+        try:
+            if hwp.SaveAs(str(path), fmt, "") is False:
+                continue
+            if path.exists() and path.stat().st_size > 0:
+                with open(path, "rb") as f:
+                    if f.read(2) == b"PK":
+                        return True
+        except Exception:
+            continue
+    return False
 
 
 def get_hwp_object():
@@ -139,10 +195,36 @@ def convert_with_hancom(
 
         shutil.copy2(str(input_path), str(tmp_in))
 
+        # 인쇄 방식이 모아 찍기 등으로 저장돼 있어도 PDF 는 기본 인쇄(한 쪽에 한 쪽)로 만든다.
+        if ext == ".hwpx":
+            try:
+                reset_hwpx_print_method(tmp_in)
+            except Exception:
+                pass  # 고치지 못하면 예전처럼 그대로 연다
+
         try:
             _open_document(hwp, str(tmp_in))
         except Exception as e:
             return False, str(e)
+
+        if ext == ".hwp":
+            # hwp 는 인쇄 방식을 바로 고칠 수 없어 hwpx 사본으로 저장해 보고, 바꿔야 하면 그 사본을 연다.
+            tmp_x = temp_dir / "print_check.hwpx"
+            try:
+                needs_reset = _save_as_hwpx(hwp, tmp_x) and reset_hwpx_print_method(tmp_x)
+            except Exception:
+                needs_reset = False
+            if needs_reset:
+                try:
+                    hwp.Clear(1)
+                    _open_document(hwp, str(tmp_x))
+                except Exception:
+                    # 사본을 열지 못하면 원래 문서로 예전처럼 만든다.
+                    try:
+                        hwp.Clear(1)
+                        _open_document(hwp, str(tmp_in))
+                    except Exception as e:
+                        return False, str(e)
 
         try:
             ps = hwp.HParameterSet.HFileOpenSave

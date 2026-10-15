@@ -22,6 +22,22 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.7",
+    added: [],
+    changed: [
+      {
+        tool: "한글→PDF 변환",
+        items: [
+          "문서의 인쇄 방식이 모아 찍기 등으로 저장돼 있으면 PDF도 여러 쪽이 한 장에 모여 나오던 문제 해결 — 변환할 때 기본 인쇄(한 쪽에 한 쪽)로 바꿔 만듦. 원본 문서는 그대로",
+        ],
+      },
+      {
+        tool: "다형식 PDF 통합",
+        items: ["한글 문서를 넣을 때 위와 같이 기본 인쇄로 바꿔 PDF로 만듦"],
+      },
+    ],
+  },
+  {
     version: "1.4.6",
     added: [
       {

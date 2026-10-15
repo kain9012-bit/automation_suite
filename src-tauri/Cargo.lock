@@ -2223,7 +2223,7 @@ dependencies = [
 
 [[package]]
 name = "jbedu-automation-suite"
-version = "1.4.6"
+version = "1.4.7"
 dependencies = [
  "base64 0.22.1",
  "cfb",
