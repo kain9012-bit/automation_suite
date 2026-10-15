@@ -357,6 +357,41 @@ fn open_work_tools_board() -> Result<(), String> {
     macro_deck::open_with_default(WORK_TOOLS_BOARD_URL)
 }
 
+/// 사이드바 문의 카드: JB에듀 메신저로 담당자에게 쪽지 쓰기 창을 연다(1.4.7).
+/// 메신저가 준 바로가기(.lnk)와 똑같이 실행한다. 메신저가 꺼져 있으면 메신저가 스스로
+/// '로그인해 주세요' 창을 띄운다.
+const SUPPORT_MESSENGER_EXE: &str = r"JBEdu Messenger+\AtMessengerUser.exe";
+const SUPPORT_MESSENGER_ARGS: &str = "type=user&id=kain9012&name=박호용 주무관";
+
+#[tauri::command]
+fn open_support_messenger() -> Result<(), String> {
+    let roots = ["ProgramFiles(x86)", "ProgramFiles"]
+        .iter()
+        .filter_map(|key| std::env::var_os(key))
+        .map(PathBuf::from);
+    let exe = roots
+        .map(|root| root.join(SUPPORT_MESSENGER_EXE))
+        .find(|path| path.is_file())
+        .ok_or_else(|| "이 PC에서 JB에듀 메신저를 찾지 못했습니다.".to_string())?;
+    let mut command = std::process::Command::new(&exe);
+    if let Some(dir) = exe.parent() {
+        command.current_dir(dir);
+    }
+    // 바로가기는 인수를 따옴표 없이 그대로 넘긴다. Rust 의 .arg() 는 공백이 있으면
+    // 따옴표로 감싸므로, 바로가기와 똑같은 명령줄이 되게 raw_arg 로 넘긴다.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.raw_arg(SUPPORT_MESSENGER_ARGS);
+    }
+    #[cfg(not(windows))]
+    command.arg(SUPPORT_MESSENGER_ARGS);
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("메신저를 실행하지 못했습니다: {error}"))
+}
+
 #[tauri::command]
 fn open_file_path(path: String) -> Result<(), String> {
     if !PathBuf::from(&path).is_file() {
@@ -887,6 +922,7 @@ pub fn run() {
             save_tool_download,
             open_file_path,
             open_work_tools_board,
+            open_support_messenger,
             reveal_path,
             file_sizes,
             path_kinds,
