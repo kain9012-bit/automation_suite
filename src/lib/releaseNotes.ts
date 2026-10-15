@@ -23,7 +23,12 @@ export type ReleaseNote = {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.4.7",
-    added: [],
+    added: [
+      {
+        tool: "공통",
+        items: ["사이드바 ‘문의’ 위에 [업무경감 도구 바로가기] 추가 — 누르면 기본 브라우저로 업무경감 도구 게시판이 열림(브라우저가 켜져 있으면 새 탭)"],
+      },
+    ],
     changed: [
       {
         tool: "한글→PDF 변환",

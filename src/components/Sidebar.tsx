@@ -5,11 +5,13 @@ import {
   Home,
   Settings,
   Star,
+  Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { TAB_STYLES } from "../lib/toolIcons";
+import { openWorkToolsBoard } from "../lib/bridge";
 import type { View } from "../types";
 
 interface SidebarProps {
@@ -139,6 +141,15 @@ export function Sidebar({
       </nav>
 
       <div className="sidebar-bottom">
+        {/* 업무경감 도구 게시판을 기본 브라우저로 연다(1.4.7). */}
+        <button
+          className="sidebar-item sidebar-link"
+          onClick={() => void openWorkToolsBoard().catch(() => undefined)}
+          title={collapsed ? "업무경감 도구 바로가기" : "기본 브라우저로 업무경감 도구 게시판을 엽니다"}
+        >
+          <Wrench size={collapsed ? 18 : 16} />
+          {!collapsed && <span>업무경감 도구 바로가기</span>}
+        </button>
         {!collapsed && (
           <div className="support-card" data-tour="support">
             <strong>문의</strong>

@@ -43,6 +43,15 @@ export async function openFilePath(path: string): Promise<void> {
   return invoke<void>("open_file_path", { path });
 }
 
+/** 사이드바 [업무경감 도구 바로가기]: 업무경감 도구 게시판을 기본 브라우저로 연다. 주소는 Rust 쪽에 있다. */
+export async function openWorkToolsBoard(): Promise<void> {
+  if (!isTauri()) {
+    window.open("https://www.jbe.go.kr/board/view.jbe?boardId=BBS_0000683&menuCd=DOM_000000106011002002&dataSid=1165417", "_blank");
+    return;
+  }
+  return invoke<void>("open_work_tools_board");
+}
+
 /** 작업 결과가 저장된 폴더를 탐색기로 연다. */
 export async function revealPath(path: string): Promise<void> {
   if (!isTauri()) throw new Error("결과 폴더 열기는 설치된 앱에서 사용할 수 있습니다.");

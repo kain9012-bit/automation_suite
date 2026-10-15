@@ -346,6 +346,17 @@ fn unique_download_path(dir: &Path, name: &str) -> PathBuf {
 }
 
 /// 저장한 파일을 기본 프로그램으로 연다(내려받기 알림의 [열기]).
+/// 사이드바 [업무경감 도구 바로가기]가 여는 게시판 글(1.4.7).
+const WORK_TOOLS_BOARD_URL: &str =
+    "https://www.jbe.go.kr/board/view.jbe?boardId=BBS_0000683&menuCd=DOM_000000106011002002&dataSid=1165417";
+
+/// 업무경감 도구 게시판을 사용자의 기본 브라우저로 연다(브라우저가 켜져 있으면 새 탭).
+/// 빠른 실행의 '사이트' 버튼과 같은 방식이다. 화면에서 아무 주소나 열 수 없게 주소는 여기에 둔다.
+#[tauri::command]
+fn open_work_tools_board() -> Result<(), String> {
+    macro_deck::open_with_default(WORK_TOOLS_BOARD_URL)
+}
+
 #[tauri::command]
 fn open_file_path(path: String) -> Result<(), String> {
     if !PathBuf::from(&path).is_file() {
@@ -875,6 +886,7 @@ pub fn run() {
             open_tool_in_browser,
             save_tool_download,
             open_file_path,
+            open_work_tools_board,
             reveal_path,
             file_sizes,
             path_kinds,
