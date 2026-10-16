@@ -450,7 +450,7 @@ export function PdfOrganizerPanel({
         </div>
       </div>
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="organize-pages">
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
@@ -619,7 +619,7 @@ export function PdfOrganizerPanel({
           </div>
         </div>
 
-        <div className="split-modes">
+        <div className="split-modes" data-tour="organize-modes">
           {SAVE_MODES.map((item) => (
             <button
               key={item.id}
@@ -646,7 +646,7 @@ export function PdfOrganizerPanel({
           </div>
         )}
 
-        <label className="field-check standalone">
+        <label className="field-check standalone" data-tour="organize-selected">
           <input
             type="checkbox"
             checked={onlySelected && selectedCount > 0}
@@ -663,7 +663,7 @@ export function PdfOrganizerPanel({
           </label>
         )}
 
-        <label className="split-output">
+        <label className="split-output" data-tour="organize-output">
           <span>저장 폴더</span>
           <div className="split-row">
             <input value={output} readOnly placeholder="비우면 첫 번째 PDF와 같은 폴더에 저장합니다" />
@@ -675,7 +675,7 @@ export function PdfOrganizerPanel({
         </label>
       </section>
 
-      <div className="run-row">
+      <div className="run-row" data-tour="organize-run">
         {onReset && (
           <button
             className="secondary-button"
@@ -697,7 +697,7 @@ export function PdfOrganizerPanel({
         </button>
       </div>
 
-      <section className="log-panel">
+      <section className="log-panel" data-tour="organize-log">
         <div className="log-head">
           <strong>작업 기록</strong>
           {!!done && (

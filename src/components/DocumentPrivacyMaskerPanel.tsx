@@ -729,7 +729,7 @@ export function DocumentPrivacyMaskerPanel({
         </div>
       </div>
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="mask-files">
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
@@ -1145,7 +1145,7 @@ export function DocumentPrivacyMaskerPanel({
         </section>
       )}
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="mask-output">
         <label className="split-output">
           <span>저장 폴더</span>
           <div className="split-row">
@@ -1172,7 +1172,7 @@ export function DocumentPrivacyMaskerPanel({
         )}
       </section>
 
-      <div className="run-row">
+      <div className="run-row" data-tour="mask-run">
         {onReset && (
           <button className="secondary-button" onClick={onReset} disabled={running} title="넣은 파일과 설정을 모두 지우고 처음 상태로 돌아갑니다.">
             <RotateCcw size={15} />
@@ -1185,7 +1185,7 @@ export function DocumentPrivacyMaskerPanel({
         </button>
       </div>
 
-      <section className="log-panel">
+      <section className="log-panel" data-tour="mask-log">
         <div className="log-head">
           <strong>작업 기록</strong>
           {!!done && (

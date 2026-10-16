@@ -100,6 +100,16 @@ Tauri 2 + React 19 + Rust로 만든 Windows 데스크톱 앱입니다.
   (빠뜨린 채 배포돼도 탭 아이콘이 나오므로 화면이 깨지지는 않는다.)
 - 새 탭을 만들면 `TAB_STYLES`와 `index.css`의 `tone-*` 색(밝은·어두운 화면 둘 다)을 함께 추가한다.
 
+## 사용가이드(1.4.8~)
+
+- 모든 도구 화면 오른쪽 위에 [사용가이드] 버튼이 있고, 누르면 화면 영역을 하나씩 짚어 설명한다(처음 사용 안내와 같은 모양).
+- **HTML 도구**: 짚을 영역에 `data-tour="이름"`을 붙이고 `scripts/html_guide/steps/<도구ID>.json`에 단계를 적은 뒤
+  `python scripts/html_guide/inject.py <도구ID>`로 넣는다. 엔진(`engine.js`·`engine.css`)을 고치면 `--all`로 모든 도구에 다시 넣는다.
+- **파이썬 도구**: 화면은 `src/components/ToolGuide.tsx`, 단계는 `src/lib/toolGuides.ts`. 공통 화면 도구는 영역마다 설명만,
+  자기 화면이 있는 도구는 단계를 통째로 적는다.
+- **새 도구를 넣으면 사용가이드도 넣는다.** 빠뜨리면 `tests/regression/frontend_helpers.test.ts`가 실패한다.
+- 설명은 실제 코드로 확인한 동작만 쓴다. 단계는 화면 위에서 아래 순서, 처음 열었을 때 보이는 영역만 짚고, 접힌 칸을 펼치는 등 화면 상태를 바꾸지 않는다.
+
 ## 문서 검색(1.4.4~)
 
 사이드바 '문서 검색'. Rust `src-tauri/src/docsearch/`, 화면 `src/components/DocSearchView.tsx`.

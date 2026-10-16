@@ -26,6 +26,8 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { ToolGrid } from "./components/ToolGrid";
 import { TutorialOverlay, type TutorialDestination } from "./components/TutorialOverlay";
+import { ToolGuide } from "./components/ToolGuide";
+import { toolGuideSteps } from "./lib/toolGuides";
 import { useTools } from "./hooks/useTools";
 import { useQuickLauncherHotkeys } from "./hooks/useQuickLauncherHotkeys";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
@@ -404,7 +406,13 @@ export default function App() {
             </div>
           </div>
         )}
-        <main className="app-content" ref={contentRef}>{content()}</main>
+        <main className="app-content" ref={contentRef}>
+          {/* 파이썬 도구의 사용가이드(HTML 도구는 도구 안에 같은 버튼이 있다) */}
+          {view.kind === "tool" && view.tool.type !== "html" && !view.tool.has_html && toolGuideSteps(view.tool.id).length > 0 && (
+            <ToolGuide key={view.tool.id} steps={toolGuideSteps(view.tool.id)} />
+          )}
+          {content()}
+        </main>
         <footer className="status-bar" data-tour="status">
           <span>
             <i className="status-dot" />

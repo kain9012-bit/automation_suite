@@ -1335,6 +1335,10 @@ kbd {
 .tutorial-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 17px; }
 .tutorial-actions button { min-width: 88px; }
 
+/* 파이썬 도구 사용가이드 버튼: HTML 도구의 #usageGuideBtn 과 같은 자리·모양. 도구 화면 오른쪽 위에 붙어 있다 */
+.tool-guide-anchor { position: sticky; top: 0; z-index: 30; height: 0; }
+.tool-guide-button { position: absolute; top: 10px; right: 10px; margin: 0; padding: 6px 14px; border: none; border-radius: 6px; background: #0054a6; color: #ffffff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif; font-size: 12px; font-weight: 500; line-height: normal; cursor: pointer; }
+
 @media (max-width: 760px) {
   .macro-command span { display: none; }
   .deck-form-row { grid-template-columns: 1fr; }

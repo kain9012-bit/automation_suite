@@ -374,7 +374,7 @@ export function ExcelMergePanel({
         </div>
       </div>
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="merge-files">
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
@@ -428,7 +428,7 @@ export function ExcelMergePanel({
             <strong>병합 방식</strong>
           </div>
         </div>
-        <div className="choice-cards em-modes" role="radiogroup" aria-label="병합 방식">
+        <div className="choice-cards em-modes" data-tour="merge-modes" role="radiogroup" aria-label="병합 방식">
           {MODES.map((item) => (
             <button
               key={item.id}
@@ -443,7 +443,7 @@ export function ExcelMergePanel({
             </button>
           ))}
         </div>
-        <div className="em-options">
+        <div className="em-options" data-tour="merge-options">
           {merging && (
             <>
               <label className="field-check standalone">
@@ -781,7 +781,7 @@ export function ExcelMergePanel({
         </section>
       )}
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="merge-output">
         <label className="split-output">
           <span>저장 폴더</span>
           <div className="split-row">
@@ -794,7 +794,7 @@ export function ExcelMergePanel({
         </label>
       </section>
 
-      <div className="run-row">
+      <div className="run-row" data-tour="merge-run">
         {onReset && (
           <button className="secondary-button" onClick={onReset} disabled={running} title="넣은 파일과 설정을 모두 지우고 처음 상태로 돌아갑니다.">
             <RotateCcw size={15} />
@@ -807,7 +807,7 @@ export function ExcelMergePanel({
         </button>
       </div>
 
-      <section className="log-panel">
+      <section className="log-panel" data-tour="merge-log">
         <div className="log-head">
           <strong>작업 기록</strong>
           {!!done && (

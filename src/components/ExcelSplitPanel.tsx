@@ -211,7 +211,7 @@ export function ExcelSplitPanel({
         </div>
       </div>
 
-      <section className="task-card split-card">
+      <section className="task-card split-card" data-tour="split-input">
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
@@ -251,6 +251,7 @@ export function ExcelSplitPanel({
               </div>
               <button
                 className="secondary-button"
+                data-tour="split-reload"
                 onClick={() => void analyze(source, sheetName)}
                 disabled={analyzing || !source}
               >
@@ -259,7 +260,7 @@ export function ExcelSplitPanel({
               </button>
             </div>
 
-            <div className="split-modes">
+            <div className="split-modes" data-tour="split-modes">
               {(Object.keys(MODE_LABELS) as Mode[]).map((item) => (
                 <button
                   key={item}
@@ -272,7 +273,7 @@ export function ExcelSplitPanel({
               ))}
             </div>
 
-            <div className="split-fields">
+            <div className="split-fields" data-tour="split-fields">
               <label>
                 <span>대상 시트</span>
                 <select
@@ -359,7 +360,7 @@ export function ExcelSplitPanel({
               </label>
             )}
 
-            <label className="split-output">
+            <label className="split-output" data-tour="split-output">
               <span>저장 폴더</span>
               <div className="split-row">
                 <input
@@ -375,7 +376,7 @@ export function ExcelSplitPanel({
             </label>
           </section>
 
-          <section className="task-card split-card">
+          <section className="task-card split-card" data-tour="split-preview">
             <div className="task-heading">
               <div>
                 <span className="step-badge">3</span>
@@ -410,7 +411,7 @@ export function ExcelSplitPanel({
             )}
           </section>
 
-      <div className="run-row">
+      <div className="run-row" data-tour="split-run">
         {onReset && (
           <button
             className="secondary-button"
@@ -428,7 +429,7 @@ export function ExcelSplitPanel({
         </button>
       </div>
 
-      <section className="log-panel">
+      <section className="log-panel" data-tour="split-log">
         <div className="log-head">
           <strong>작업 기록</strong>
           {!!done && (

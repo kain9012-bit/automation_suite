@@ -16,6 +16,7 @@ import {
 import { readFileSync, readdirSync } from "node:fs";
 import { TAB_STYLES, TOOL_ICONS, toolIcon, toolTone } from "../../src/lib/toolIcons.ts";
 import { DOWNLOAD_MESSAGE, injectDownloadBridge, readDownloadMessage } from "../../src/lib/htmlToolDownload.ts";
+import { toolGuideSteps } from "../../src/lib/toolGuides.ts";
 
 let passed = 0;
 const test = (name: string, body: () => void) => {
@@ -111,6 +112,29 @@ test("tools 폴더의 모든 도구에 기능 아이콘과 탭 색이 정해져 
   assert.deepEqual(missingIcon, [], "src/lib/toolIcons.ts 의 TOOL_ICONS 에 추가하세요");
   assert.deepEqual(unknownTab, [], "src/lib/toolIcons.ts 의 TAB_STYLES 와 index.css tone-* 에 추가하세요");
 });
+// ── 8. 사용가이드 ───────────────────────────────────────────────
+test("모든 도구에 사용가이드가 있다(HTML 도구는 jb-tour, 파이썬 도구는 toolGuides.ts)", () => {
+  const root = new URL("../../tools/", import.meta.url);
+  const missing: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    let text: string;
+    try {
+      text = readFileSync(new URL(`${entry.name}/manifest.json`, root), "utf-8");
+    } catch {
+      continue;
+    }
+    const manifest = JSON.parse(text.replace(/^\uFEFF/, ""));
+    if (manifest.type === "html") {
+      const html = readFileSync(new URL(`${entry.name}/${manifest.entry}`, root), "utf-8");
+      if (!html.includes('id="jb-tour"') || !html.includes('id="usageGuideBtn"')) missing.push(manifest.id);
+    } else if (!toolGuideSteps(manifest.id).length) {
+      missing.push(manifest.id);
+    }
+  }
+  assert.deepEqual(missing, [], "HTML 도구는 scripts/html_guide(steps/<도구ID>.json + inject.py)로, 파이썬 도구는 src/lib/toolGuides.ts 에 사용가이드를 넣으세요");
+});
+
 test("아이콘을 정하지 않은 도구는 탭 아이콘, 모르는 탭은 기본 색", () => {
   assert.equal(toolIcon({ id: "새_도구", top_tab: "PDF·문서" }), TAB_STYLES["PDF·문서"].icon);
   assert.equal(toolTone({ top_tab: "새 탭" }), "default");

@@ -435,7 +435,7 @@ export function NativeToolPanel({
       </div>
 
       {schema.inputMode !== "none" && (
-      <section className="task-card">
+      <section className="task-card" data-tour="tool-input">
         <div className="task-heading">
           <div>
             <span className="step-badge">1</span>
@@ -599,7 +599,7 @@ export function NativeToolPanel({
           </div>
 
           {!!schema.fields?.length && (
-            <div className="option-grid">
+            <div className="option-grid" data-tour="tool-options">
               {schema.fields.map((field) => (
                 <OptionField
                   key={field.key}
@@ -618,7 +618,7 @@ export function NativeToolPanel({
           )}
 
           {schema.outputMode !== "hidden" && (
-            <label className="form-field output-field">
+            <label className="form-field output-field" data-tour="tool-output">
               <span>{schema.outputLabel ?? "저장 위치"}</span>
               <div className="path-picker">
                 <input
@@ -638,7 +638,7 @@ export function NativeToolPanel({
       )}
 
       {schema.destructive && (
-        <label className="destructive-confirm">
+        <label className="destructive-confirm" data-tour="tool-confirm">
           <TriangleAlert size={18} />
           <input
             type="checkbox"
@@ -649,7 +649,7 @@ export function NativeToolPanel({
         </label>
       )}
 
-      <div className="run-row">
+      <div className="run-row" data-tour="tool-run">
         {onReset && (
           <button
             className="secondary-button"
@@ -689,7 +689,7 @@ export function NativeToolPanel({
         )}
       </div>
 
-      <section className="log-panel">
+      <section className="log-panel" data-tour="tool-log">
         <div className="log-head">
           <strong>작업 기록</strong>
           {!!done && (
