@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>증빙서 측면 표지 생성 도구(v1.0)</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --text:#222222;
+      --ink:#111827;
+      --muted:#6b7280;
+      --label:#374151;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --brand-line:#b7cff0;
+      --border:#d4dbe8;
+      --line:#eef2f7;
+      --radius:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --bad-line:#f3b6b0;
+      --head-bg:#f8fafc;
+      --stage:#e9edf2;
+      --h:36px;
+      --cell-h:32px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;background:var(--bg);color:var(--text);}
+    button,input,select,textarea{font-family:inherit;}
+
+    .app{max-width:1400px;margin:0 auto;padding:24px 16px 32px;}
+    header{text-align:center;margin-bottom:16px;}
+    header h1{font-size:24px;font-weight:600;letter-spacing:-0.02em;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--ink);}
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+    .logo-badge{width:32px;height:32px;border-radius:6px;background:var(--brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;}
+
+    .panel{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-soft);padding:16px;min-width:0;}
+    .panel + .panel{margin-top:16px;}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:12px;}
+    .panel-title{font-size:18px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .meta{margin-left:8px;font-size:12px;font-weight:400;color:var(--muted);}
+
+    /* 입력칸·버튼: 모두 같은 높이·모양 */
+    input[type="text"],input[type="number"],input[type="date"],select,textarea{
+      width:100%;height:var(--h);padding:0 10px;border:1px solid var(--border);border-radius:var(--radius);
+      background:#fff;color:var(--ink);font-size:13px;outline:none;
+    }
+    input:focus,select:focus,textarea:focus{border-color:#8ab4f8;box-shadow:0 0 0 2px rgba(0,86,184,.12);}
+    input:disabled,select:disabled{background:var(--head-bg);color:#9ca3af;}
+    input.bad,select.bad,textarea.bad{border-color:var(--bad-text);background:var(--bad-bg);}
+    input[type="number"]{-moz-appearance:textfield;}
+    input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type="checkbox"]{width:15px;height:15px;margin:0;accent-color:var(--brand);cursor:pointer;vertical-align:middle;}
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+    .btn{height:var(--h);padding:0 14px;border-radius:var(--radius);font-size:13px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+    .btn-primary{background:var(--brand);color:#fff;border:1px solid var(--brand);font-weight:600;}
+    .btn-primary:hover{background:var(--brand-dark);}
+    .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--border);}
+    .btn-ghost:hover{background:var(--head-bg);}
+    .btn-danger{background:#fff;color:var(--bad-text);border:1px solid var(--bad-line);}
+    .btn-danger:hover{background:var(--bad-bg);}
+    .btn:disabled{opacity:.45;cursor:not-allowed;}
+    .btn-icon{width:var(--cell-h);height:var(--cell-h);padding:0;font-size:14px;color:var(--muted);background:#fff;border:1px solid var(--border);}
+    .btn-icon:hover{background:var(--head-bg);color:var(--ink);}
+    .btn-icon.del:hover{background:var(--bad-bg);color:var(--bad-text);border-color:var(--bad-line);}
+    .spacer{flex:1 1 auto;}
+
+    /* 공통·일괄 적용 칸: 줄마다 같은 너비의 머리말로 칸 시작선을 맞춘다 */
+    .bars{margin-top:12px;border:1px solid var(--brand-line);border-radius:var(--radius);background:#f3f8fe;}
+    /* 두 줄이 같은 칸 틀을 쓴다: [머리말][칸1][칸2][칸3]. 칸마다 라벨 너비가 같아 입력칸 시작선이 위아래로 맞는다 */
+    .bar{display:grid;grid-template-columns:104px repeat(2,minmax(0,280px)) minmax(0,420px);align-items:center;gap:8px 20px;padding:10px 12px;}
+    .bar + .bar{border-top:1px solid var(--brand-line);}
+    .bar-title{font-size:12px;font-weight:700;color:var(--brand);white-space:nowrap;}
+    .unit{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:6px;min-width:0;}
+    .unit > span{font-size:12px;font-weight:600;color:var(--label);white-space:nowrap;}
+    .unit > :nth-child(2){grid-column:2 / span 2;}
+    .unit > :nth-child(2):not(:last-child){grid-column:2;}
+    @media(max-width:1000px){.bar{grid-template-columns:minmax(0,1fr);}}
+
+    .hint{margin-top:12px;font-size:12px;color:var(--muted);}
+
+    /* 표지 정보 표 */
+    .table-wrap{margin-top:6px;border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;background:#fff;}
+    table.rows{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed;font-size:13px;}
+    table.rows th{height:38px;padding:0 6px;background:var(--head-bg);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--label);text-align:left;white-space:nowrap;}
+    table.rows th.c,table.rows td.c{text-align:center;}
+    table.rows td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle;}
+    table.rows tr:last-child td{border-bottom:0;}
+    table.rows th:first-child,table.rows td:first-child{padding-left:12px;}
+    table.rows th:last-child,table.rows td:last-child{padding-right:12px;}
+    table.rows input[type="text"],table.rows input[type="number"],table.rows input[type="date"],table.rows select{height:var(--cell-h);padding:0 8px;}
+    input[type="date"]{cursor:pointer;}
+    input[type="date"]:not(:valid),input[type="date"][value=""]{color:var(--muted);}
+    table.rows textarea{height:var(--cell-h);min-height:var(--cell-h);padding:6px 8px;line-height:18px;resize:none;overflow:hidden;display:block;}
+    table.rows tr.off td{background:#fafbfc;}
+    table.rows tr.off td:not(:first-child){opacity:.5;}
+    .no{color:var(--muted);}
+    .volno{font-weight:600;color:var(--ink);}
+    table.rows th.in{padding-left:15px;}   /* 머리글을 입력칸 글자 시작선에 맞춘다 */
+    .ops{display:flex;gap:4px;justify-content:center;}
+
+    .msgs{list-style:none;margin-top:10px;padding:8px 12px;border:1px solid var(--bad-line);border-radius:var(--radius);background:var(--bad-bg);color:var(--bad-text);font-size:12px;line-height:1.7;}
+    .msgs:empty{display:none;}
+
+    /* 표시 항목·저장한 작업 (접어 두는 칸) */
+    .more{margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;}
+    @media(max-width:900px){.more{grid-template-columns:minmax(0,1fr);}}
+    details.box{border:1px solid var(--border);border-radius:var(--radius);background:#fff;}
+    details.box > summary{height:40px;padding:0 12px;display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--ink);background:var(--head-bg);border-radius:var(--radius);}
+    details.box > summary::-webkit-details-marker{display:none;}
+    details.box > summary::before{content:"▶";font-size:10px;color:var(--muted);width:12px;}
+    details.box[open] > summary::before{content:"▼";}
+    details.box[open] > summary{border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;}
+    .box-body{padding:12px;display:grid;gap:10px;}
+    /* 표시 항목: 위에서 아래로 = 표지 위에서 아래로. ▲▼ 로 순서를 바꾼다 */
+    .order{list-style:none;display:grid;gap:6px;}
+    .order li{display:grid;grid-template-columns:22px minmax(0,1fr) auto 30px 30px;align-items:center;gap:8px;height:var(--h);padding:0 6px 0 10px;
+      border:1px solid var(--border);border-radius:var(--radius);background:#fff;font-size:13px;color:var(--ink);}
+    .order li.on{border-color:var(--brand-line);background:var(--brand-soft);}
+    .order li.on .nm{color:var(--brand);font-weight:600;}
+    .order .no{font-size:12px;text-align:center;}
+    .order .nm{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;min-width:0;}
+    .order .opt{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--label);cursor:pointer;}
+    .order .opts{display:flex;align-items:center;gap:8px;}
+    .order .opts select + .opt{margin-left:8px;}
+    .order .box-gap{width:15px;flex:0 0 15px;}   /* 체크가 없는 줄도 이름 시작선을 맞춘다 */
+    .order select{height:28px;width:96px;padding:0 6px;font-size:12px;}
+    .order .btn-icon{width:30px;height:28px;font-size:11px;}
+    .line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;}
+    .line > span{font-size:12px;font-weight:600;color:var(--label);white-space:nowrap;}
+    .line.lbl{grid-template-columns:auto minmax(0,1fr) auto;}
+
+    /* 미리보기 = 인쇄 모양 */
+    .seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;height:var(--h);}
+    .seg button{border:0;background:#fff;padding:0 12px;font-size:12px;color:var(--ink);cursor:pointer;}
+    .seg button + button{border-left:1px solid var(--border);}
+    .seg button.on{background:var(--brand-soft);color:var(--brand);font-weight:600;}
+    .stage{background:var(--stage);border-radius:var(--radius);padding:20px;overflow:auto;}
+    .pages{zoom:var(--zoom,1);width:max-content;margin:0 auto;}
+    .page{position:relative;width:297mm;height:210mm;padding:6mm 2mm 6mm 5mm;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18);overflow:hidden;}
+    .page + .page{margin-top:8mm;}
+    .page-no{position:absolute;right:4mm;bottom:1.5mm;font-size:3mm;line-height:1;color:#9ca3af;font-weight:600;}
+    .page-inner{margin:0 -2mm 0 0;font-size:0;line-height:0;}
+    .item{display:inline-block;vertical-align:top;margin:0 2mm 0 0;position:relative;top:var(--print-nudge-y, 0mm);break-inside:avoid;page-break-inside:avoid;}
+    .empty{padding:48px 16px;text-align:center;font-size:13px;color:var(--muted);}
+
+    .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:13px;padding:10px 18px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .18s, transform .18s;z-index:80;white-space:pre-line;text-align:center;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    /* ---------- 측면 표지 (mm 단위, 화면 미리보기 = 인쇄 크기) ---------- */
+    .pages{font-family:"맑은 고딕","Malgun Gothic",system-ui,sans-serif;}   /* 표지 글꼴은 처음 만든 판과 같게 고정 */
+    .spine { container-type:inline-size; height:198mm; min-height:198mm; max-height:198mm; box-sizing:border-box; flex:none; font-size:16px; line-height:normal; border:0.4mm solid #000; background:#fff; color:#000; display:grid;
+             grid-template-rows:16mm 11mm 11mm 1fr 15.5mm 8mm 12mm; break-inside:avoid; page-break-inside:avoid; overflow:hidden; }
+    .cell { border-bottom:0.3mm solid #000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; overflow:hidden; padding:0.6mm; }
+    .cell:last-child { border-bottom:0; }
+    .lab { font-size:2.4mm; font-size:min(2.8mm,10cqw); line-height:1.2; margin-bottom:0.8mm; }
+    .val { font-weight:700; font-size:5.5mm; font-size:min(6.4mm,18.5cqw); line-height:1.2; white-space:nowrap; }
+    .spine > .cell.kv { padding:0.3mm; }   /* 라벨+값 칸(관리번호·생산년도·보존기간). 순서를 바꿔도 같은 모양 */
+    .spine > .cell.kv .lab { margin-bottom:0.2mm; line-height:1.1; }
+    .spine > .cell.kv .val { line-height:1.05; }
+    .main { min-height:0; border-bottom:0.3mm solid #000; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto 7mm auto 5.5mm auto; justify-items:center; align-content:center; padding:4mm 0; overflow:hidden; }   /* 문서명·권번호 묶음을 가운데 영역의 세로 가운데에 둔다 */
+    .mainTop { display:contents; }   /* 문서명이 .main 격자의 항목이 된다 */
+    .mainTop > .nameCol { grid-row:3; }
+    .main > .vol { grid-row:5; padding:0; }   /* 고정 간격(8mm)이 그대로 보이도록 (3-1) 자체 여백은 제거 */
+    .nameCol { display:flex; flex-direction:column; align-items:center; font-weight:700; font-size:6.5mm; font-size:min(6.5mm,30cqw); line-height:1.08; }
+    .nameCol .sp { min-height:0.45em; }
+    .mainTop > .nameCols { grid-row:3; display:flex; flex-direction:row-reverse; justify-content:center; align-items:flex-start; gap:3.5mm; gap:min(3.5mm,6cqw); }   /* 문서명을 Enter로 나눈 경우: 세로 열을 나란히 */
+    .nameCols .nameCol { font-size:6.5mm; font-size:min(6.5mm,34cqw); }
+    .vol { text-align:center; font-weight:700; font-size:5.8mm; font-size:min(5.8mm,28cqw); padding:0.8mm 0 1.6mm; }
+    .school { font-weight:700; font-size:3.4mm; font-size:min(3.8mm,11.5cqw); line-height:1.2; }
+    .period { font-weight:700; font-size:4.4mm; font-size:min(4.4mm,16cqw); line-height:1.2; text-align:center; white-space:nowrap; }
+    .org { font-weight:700; line-height:1.1; white-space:nowrap; font-size:3.5mm; position:relative; top:-1mm; }   /* 맨 아래 기관명 글자만 1mm 위로(하단 테두리·행 높이는 그대로) */   /* 가로 한 줄: 글자 크기는 JS가 책등 폭(mm)에 맞춰 정한다 */
+
+    @page { size:A4 landscape; margin:6mm 2mm 6mm 5mm; }   /* 왼쪽만 5mm: 프린터 왼쪽 비인쇄 영역에 첫 표지 테두리가 잘리지 않게 */
+    @media print {
+      html, body { height:auto; margin:0; padding:0; background:#fff; }
+      header, .panel-input, .pv-head, .toast, .page-no { display:none !important; }
+      .app, .panel.panel-preview, .stage { display:block; max-width:none; width:auto; height:auto; margin:0; padding:0; border:0; box-shadow:none; background:none; overflow:visible; }
+      .pages { zoom:1 !important; width:auto; margin:0; }
+      .page { width:auto; height:auto; padding:0; margin:0 !important; box-shadow:none; overflow:visible; break-after:page; page-break-after:always; }
+      .page:last-child { break-after:auto; page-break-after:auto; }
+      * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1><span class="logo-badge">S</span>증빙서 측면 표지 생성 도구(v1.0)</h1>
+      <p>문서철 정보를 표에 입력하면 두께에 맞춘 측면 표지를 A4 가로로 인쇄하거나 PDF로 저장합니다.</p>
+    </header>
+
+    <section class="panel panel-input">
+      <div class="panel-head">
+        <div class="panel-title">표지 정보 입력</div>
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="addRow">행 추가</button>
+          <button type="button" class="btn btn-ghost" id="sample">샘플</button>
+          <button type="button" class="btn btn-ghost" id="xlsxDown">양식 다운로드</button>
+          <button type="button" class="btn btn-ghost" id="xlsxUp">엑셀 업로드</button>
+          <input type="file" id="xlsxFile" accept=".xlsx,.xls" hidden />
+          <button type="button" class="btn btn-danger" id="clearRows">전체 지우기</button>
+          <button type="button" class="btn btn-primary" id="print1">인쇄 / PDF 저장</button>
+        </div>
+      </div>
+
+      <div class="bars">
+        <div class="bar">
+          <span class="bar-title">공통</span>
+          <label class="unit"><span>보존기간</span><select id="retention"></select></label>
+          <label class="unit"><span>기관명</span><input id="org" type="text" placeholder="예: ○○초등학교" autocomplete="off" /></label>
+        </div>
+        <div class="bar">
+          <span class="bar-title">모든 행에 적용</span>
+          <div class="unit"><span>생산연도</span><input id="bulkYear" type="text" inputmode="numeric" /><button type="button" class="btn btn-ghost" data-bulk="year">적용</button></div>
+          <div class="unit"><span>두께(mm)</span><input id="bulkT" type="text" inputmode="decimal" /><button type="button" class="btn btn-ghost" data-bulk="t">적용</button></div>
+          <div class="unit"><span>문서명</span><input id="bulkDoc" type="text" /><button type="button" class="btn btn-ghost" data-bulk="doc">적용</button></div>
+        </div>
+      </div>
+
+      <div class="hint">엑셀·한셀에서 복사한 표를 그대로 붙여넣을 수 있습니다 · 인쇄할 행을 체크하세요</div>
+      <div class="table-wrap">
+        <table class="rows">
+          <colgroup>
+            <col style="width:52px" /><col style="width:44px" /><col style="width:84px" /><col style="width:150px" /><col style="width:150px" />
+            <col style="width:84px" /><col style="width:96px" /><col style="width:72px" /><col /><col style="width:88px" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="c"><input type="checkbox" id="checkAll" aria-label="모든 행 인쇄" /></th>
+              <th class="c">번호</th><th class="in">생산연도</th><th class="in">시작일</th><th class="in">종료일</th><th class="in">두께(mm)</th><th class="in">관리번호</th><th class="c">권번호</th><th class="in">문서명</th><th class="c">작업</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <ul class="msgs" id="msgs"></ul>
+
+      <div class="more">
+        <details class="box">
+          <summary>표시 항목</summary>
+          <div class="box-body">
+            <ol class="order" id="prefList"></ol>
+            <div class="actions"><button type="button" class="btn btn-ghost" id="prefsReset">기본값으로</button></div>
+          </div>
+        </details>
+        <details class="box" id="jobsBox">
+          <summary>저장한 작업</summary>
+          <div class="box-body">
+            <div class="line">
+              <select id="jobList"></select>
+              <button type="button" class="btn btn-ghost" id="loadJob">불러오기</button>
+              <button type="button" class="btn btn-danger" id="deleteJob">삭제</button>
+            </div>
+            <div class="actions"><button type="button" class="btn btn-ghost" id="saveJob">현재 작업 저장</button></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel panel-preview">
+      <div class="panel-head pv-head">
+        <div class="panel-title">미리보기<span class="meta" id="pvMeta"></span></div>
+        <div class="actions">
+          <div class="seg" id="zoomSeg"><button type="button" data-zoom="fit" class="on">화면 맞춤</button><button type="button" data-zoom="1">실제 크기</button></div>
+          <button type="button" class="btn btn-primary" id="print2">인쇄 / PDF 저장</button>
+        </div>
+      </div>
+      <div class="stage" id="stage"><div class="pages" id="pages"></div></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 저장 이름(처음 만든 판과 같다: 그 판에서 저장한 작업도 불러온다) ----------
+  var ORG_KEY = 'spine-label-org-v1';
+  var DRAFT_KEY = 'spineLabelDraft';
+  var JOBS_KEY = 'spineLabelSavedJobs';
+  var DISPLAY_KEY = 'spineLabelDisplayPrefs';
+
+  var MIN_MM = 5, MAX_MM = 120, DEFAULT_MM = 30, MAX_ROWS = 300, DEFAULT_DOC = '지출증빙서';
+  var RETENTIONS = ['1년', '3년', '5년', '10년', '30년', '준영구', '영구'];
+  var PREF_KEYS = ['managementNumber', 'productionYear', 'retention', 'period', 'organization', 'volume'];
+  var FOOTER_TYPES = ['school', 'organization', 'department', 'none'];
+  var FOOTER_LABELS = { school: '학교명', organization: '기관명', department: '부서명' };
+  // 표지 칸 순서(위 → 아래). main = 문서명·권번호가 들어가는 가운데 칸, org = 구분명(학교명 등)과 그 아래 기관명을 한 묶음으로
+  var ORDER_DEFAULT = ['managementNumber', 'productionYear', 'retention', 'main', 'period', 'org'];
+  var ORDER_NAMES = { managementNumber: '관리번호', productionYear: '생산년도', retention: '보존기간', main: '문서명', period: '기간', org: '구분명·기관명' };
+  // 표의 입력 열 순서(붙여넣기·엑셀 양식도 이 순서)
+  var COLS = ['year', 's', 'e', 't', 'no', 'doc'];
+  var COL_LABELS = { year: '생산연도', s: '시작일', e: '종료일', t: '두께(mm)', no: '관리번호', doc: '문서명' };
+  var COL_ALIASES = { year: ['생산연도', '생산년도', '연도'], s: ['시작일', '시작'], e: ['종료일', '종료'], t: ['두께(mm)', '두께', '너비(mm)', '폭(mm)'], no: ['관리번호', '번호'], doc: ['문서명', '문서철 제목', '제목'] };
+  // A4 가로 297mm 에서 @page 좌우 여백(5mm·2mm)을 뺀 290mm 에 표지(두께) + 사이 2mm 씩. 인쇄도 같은 쪽 나눔을 쓴다.
+  var ROW_MM = 292, GAP_MM = 2;
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; }
+  function intOf(value, min, max) { var n = Number(String(value).trim()); return Number.isInteger(n) && n >= min && n <= max ? n : null; }
+  function now() { return new Date(); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+
+  // 직접 입력한 날짜 해석: 2027.1.2 / 2027.1.2. / 2027-01-02 / 2027. 1. 2. / 2027/1/2 → {iso:'2027-01-02', text:'2027.1.2.'}, 빈칸 → null, 형식 오류/없는 날짜 → false
+  // ctxY/ctxMo(월 그룹의 생산연도·해당 월)가 있으면 일(day) 숫자만 입력('1', '01')해도 그 연·월의 날짜로 해석한다.
+  function parseDate(raw, ctxY, ctxMo) {
+    var s = String(raw || '').trim();
+    if (!s) return null;
+    // 구분자 형식(2026.9.1 / 2026.09.01 / 2026-09-01 …) 또는 숫자 8자리(20260901). 첫 달·추가 달 모두 이 함수 하나를 쓴다.
+    var m = /^(\d{4})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})\s*\.?$/.exec(s) || /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+    var dayOnly = !m && /^\d{1,2}$/.exec(s);
+    if (!m && !dayOnly) return false;
+    if (dayOnly && !(ctxY && ctxMo)) return false;
+    var y = m ? Number(m[1]) : ctxY, mo = m ? Number(m[2]) : ctxMo, d = m ? Number(m[3]) : Number(dayOnly[0]), check = new Date(y, mo - 1, d);
+    if (check.getFullYear() !== y || check.getMonth() !== mo - 1 || check.getDate() !== d) return false;
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return { iso: y + '-' + pad(mo) + '-' + pad(d), text: y + '.' + mo + '.' + d + '.', y: y, mo: mo, d: d };
+  }
+
+  // 기관명은 가로 한 줄: 책등 폭에 들어가도록 글자 크기(mm)를 정한다(한글 1em, 영문·숫자 약 0.62em 기준, 최대 5.5mm).
+  function orgFontMm(text, widthMm) {
+    var units = 0;
+    Array.from(text).forEach(function (ch) { units += /[ㄱ-ㆎ가-힣一-鿿]/.test(ch) ? 1 : (/[A-Za-z0-9]/.test(ch) ? 0.62 : 0.4); });
+    if (!units) return 5.5;
+    return Math.round(Math.max(1.8, Math.min(5.5, (widthMm - 2.2) / units)) * 100) / 100;
+  }
+
+  // 기간은 두 줄(시작일~ / 종료일): 기본 4.4mm, 더 긴 줄이 책등 폭에 넘칠 때만 줄인다(숫자 0.6em·마침표 0.3em·물결 0.8em로 넉넉히 계산, 최소 3.0mm).
+  function periodFontMm(lines, widthMm) {
+    var units = 0;
+    lines.forEach(function (text) {
+      var u = 0;
+      Array.from(text).forEach(function (ch) { u += /\d/.test(ch) ? 0.6 : ch === '.' ? 0.3 : ch === '~' ? 0.8 : 0.6; });
+      if (u > units) units = u;
+    });
+    if (!units) return 4.4;
+    return Math.floor(Math.max(3.0, Math.min(4.4, (widthMm - 2.4) / units)) * 100) / 100;
+  }
+
+  // ---------- 측면 표지 한 장 ----------
+  // 위에서부터 관리번호 · 생산년도 · 보존기간 · [문서명(세로) · 권번호] · 기간 · 구분명 · 기관명.
+  // 가운데에는 사용자가 쓴 문서명만 둔다(연도·월을 따로 넣지 않는다. 생산년도는 위 칸에 있다).
+  function buildSpine(info) {
+    var item = el('div', 'item'), spine = el('div', 'spine');
+    spine.style.width = info.width + 'mm';
+    var show = info.display || {};
+    var on = function (key) { return show[key] !== false; };
+    var c1 = el('div', 'cell kv'); c1.append(el('div', 'lab', '관리번호'), el('div', 'val', '제 ' + info.no + ' 호'));
+    var c2 = el('div', 'cell kv'); c2.append(el('div', 'lab', '생산년도'), el('div', 'val', info.year));
+    var c3 = el('div', 'cell kv'); c3.append(el('div', 'lab', '보존기간'), el('div', 'val', info.retention));
+    var main = el('div', 'main'), top = el('div', 'mainTop');
+    var makeNameCol = function (text) {   // 문서명은 글자 하나씩 한 줄에 배열(띄어쓰기는 작은 간격)
+      var col = el('div', 'nameCol');
+      Array.from(text).forEach(function (ch) { col.appendChild(el('div', ch.trim() ? '' : 'sp', ch)); });
+      return col;
+    };
+    // 세로 제목에서만 짝이 맞는 일반 괄호 ( )를 세로쓰기용 괄호 ︵ ︶로 바꿔 보여 준다(입력값은 그대로).
+    var verticalParens = function (text) {
+      var chars = Array.from(text), open = [];
+      chars.forEach(function (ch, i) { if (ch === '(') open.push(i); else if (ch === ')' && open.length) { chars[open.pop()] = '︵'; chars[i] = '︶'; } });
+      return chars.join('');
+    };
+    var nameLines = verticalParens(String(info.docName || '')).split(/\r?\n/).map(function (t) { return t.trim(); }).filter(Boolean).slice(0, 2);   // 줄바꿈(Enter)으로 나눈 곳에서만 세로 2열
+    if (nameLines.length > 1) {
+      var nameCols = el('div', 'nameCols');
+      nameLines.forEach(function (t) { nameCols.appendChild(makeNameCol(t)); });
+      top.appendChild(nameCols);
+    } else top.appendChild(makeNameCol(nameLines[0] || ''));
+    main.appendChild(top);
+    var ft = show.footerLabelType || 'school', footerText = ft === 'none' ? '' : ({ school: '학교명', organization: '기관명', department: '부서명' }[ft] || '학교명');
+    var freed = (footerText ? 0 : 8) + (on('organization') ? 0 : 12);   // 아래에서 빠진 행 높이의 절반만 문서명↔권번호 간격에 더한다
+    if (on('volume')) {
+      main.appendChild(el('div', 'vol', '(' + info.total + '-' + info.seq + ')'));
+      main.style.gridTemplateRows = 'auto 0 auto ' + (5.5 + freed / 2) + 'mm auto';
+      main.dataset.gap = String(5.5 + freed / 2);   // 문서명 글자 크기를 정할 때 뺄 간격(mm)
+    } else main.style.gridTemplateRows = 'auto 0 auto';
+    var c5 = el('div', 'cell');   // 기간: '시작일~' / '종료일' 두 줄. 날짜를 넣지 않으면 비워 둔다
+    var line1 = info.from ? info.from + '~' : (info.to ? '~' : ''), line2 = info.to || '';
+    var period = el('div', 'period'); period.append(el('div', '', line1), el('div', '', line2));
+    period.style.fontSize = periodFontMm([line1, line2], info.width) + 'mm';
+    c5.appendChild(period);
+    var c5b = el('div', 'cell'); c5b.appendChild(el('div', 'school', footerText));
+    var c6 = el('div', 'cell'), org = el('div', 'org', info.org);
+    org.style.fontSize = orgFontMm(info.org, info.width) + 'mm';
+    c6.appendChild(org);
+    var parts = [], tracks = [];
+    var blocks = { managementNumber: [on('managementNumber'), c1, '16mm'], productionYear: [on('productionYear'), c2, '11mm'], retention: [on('retention'), c3, '11mm'],
+      main: [true, main, '1fr'], period: [on('period'), c5, '15.5mm'], footer: [!!footerText, c5b, '8mm'], organization: [on('organization'), c6, '12mm'] };
+    (show.order || ORDER_DEFAULT).forEach(function (key) {   // 표시 항목에서 정한 순서. org 는 구분명 칸 바로 아래 기관명 칸
+      (key === 'org' ? ['footer', 'organization'] : [key]).forEach(function (k) { var p = blocks[k]; if (p && p[0]) { parts.push(p[1]); tracks.push(p[2]); } });
+    });
+    spine.style.gridTemplateRows = tracks.join(' ');
+    if (parts[parts.length - 1] === main) main.style.borderBottom = '0';   // 가운데가 맨 아래면 바깥 테두리와 겹치는 선을 없앤다
+    spine.append.apply(spine, parts);
+    item.appendChild(spine);
+    return item;
+  }
+
+  // 붙여넣기·엑셀·예전 저장본의 날짜를 'YYYY-MM-DD' 로. 못 읽으면 null.
+  // 2026-09-01 · 2026.9.1. · 2026/9/1 · 20260901 · 9/1/26(엑셀 표시형) · 엑셀 날짜 숫자. 일(日)만 있는 값은 ctxY·ctxMo 가 있을 때만.
+  function toIso(raw, ctxY, ctxMo) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    var p = parseDate(s, ctxY, ctxMo);
+    if (p) return p.iso;
+    var m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(s);
+    if (m) { var y = Number(m[3]) + (m[3].length === 2 ? 2000 : 0), q = parseDate(y + '.' + m[1] + '.' + m[2]); return q ? q.iso : null; }
+    if (/^\d{5}(\.\d+)?$/.test(s)) { var d = new Date(Math.round((Number(s) - 25569) * 86400000)); return iso(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); }
+    return null;
+  }
+
+  // ---------- 상태 ----------
+  // state = { retention, org, display, rows:[row] }
+  // row = { year, s, e('YYYY-MM-DD' 또는 ''), t, no(직접 입력한 관리번호, 비우면 자동), doc, out(인쇄) }
+  var state = null;
+  function newRow(seed) {
+    var r = { year: String(now().getFullYear()), s: '', e: '', t: String(DEFAULT_MM), no: '', doc: DEFAULT_DOC, out: true };
+    Object.keys(seed || {}).forEach(function (k) { if (seed[k] !== undefined) r[k] = seed[k]; });
+    return r;
+  }
+  function freshState() { return { retention: '5년', org: storedOrg(), display: readPrefs(), rows: [newRow()] }; }
+
+  // ---------- 관리번호·권번호·검증 ----------
+  // 관리번호: 비우면 바로 위 행 + 1(첫 행은 1). 숫자를 쓰면 그 값부터 이어진다.
+  // 권번호 (n-k): 생산연도·문서명이 같은 행이 이어지면 한 묶음으로 센다.
+  function setKey(r) { return r.year.trim() + '\u0001' + r.doc.trim(); }
+  function derive() {
+    var out = [], prev = null;
+    state.rows.forEach(function (r, i) {
+      var d = { problems: [], bad: {} };
+      if (!/^\d{4}$/.test(r.year.trim())) { d.problems.push('생산연도는 4자리 숫자로 입력해 주세요.'); d.bad.year = true; }
+      d.autoNo = i === 0 ? 1 : (prev === null ? null : prev + 1);
+      if (r.no.trim()) {
+        d.no = intOf(r.no, 1, 99999999);
+        if (d.no === null) { d.problems.push('관리번호는 1 이상의 정수로 입력해 주세요.'); d.bad.no = true; }
+      } else d.no = d.autoNo;
+      prev = d.no;
+      var from = r.s ? parseDate(r.s) : null, to = r.e ? parseDate(r.e) : null;
+      d.from = from ? from.text : ''; d.to = to ? to.text : '';
+      var mm = Number(r.t);
+      d.width = r.t.trim() !== '' && isFinite(mm) && mm >= MIN_MM && mm <= MAX_MM ? mm : null;
+      if (d.width === null) { d.problems.push('두께는 ' + MIN_MM + '~' + MAX_MM + 'mm로 입력해 주세요.'); d.bad.t = true; }
+      out.push(d);
+    });
+    var i = 0;
+    while (i < state.rows.length) {
+      var j = i, key = setKey(state.rows[i]);
+      while (j + 1 < state.rows.length && setKey(state.rows[j + 1]) === key) j++;
+      for (var k = i; k <= j; k++) { out[k].total = j - i + 1; out[k].seq = k - i + 1; }
+      i = j + 1;
+    }
+    var seen = {};
+    out.forEach(function (d, idx) {
+      if (d.no === null) return;
+      if (seen[d.no] !== undefined) { d.problems.push('관리번호 제' + d.no + '호가 ' + (seen[d.no] + 1) + '행과 겹칩니다.'); d.bad.no = true; }
+      else seen[d.no] = idx;
+    });
+    return out;
+  }
+
+  // ---------- 표 ----------
+  var rowEls = [];
+  function buildTable() {
+    var body = $('rows'); body.textContent = ''; rowEls = [];
+    state.rows.forEach(function (r, i) { body.appendChild(buildRow(r, i)); });
+    refresh();
+  }
+  function cell(child, cls) { var td = el('td', cls || ''); if (child) td.appendChild(child); return td; }
+  function textInput(value, key) { var i = document.createElement('input'); i.type = 'text'; i.value = value; i.dataset.key = key; i.autocomplete = 'off'; i.spellcheck = false; return i; }
+  function dateInput(value, key) {
+    var i = document.createElement('input'); i.type = 'date'; i.value = value; i.dataset.key = key; i.min = '1900-01-01'; i.max = '2999-12-31';
+    // 칸 어디를 눌러도 달력이 열린다(비어 있으면 오늘이 있는 달)
+    i.addEventListener('click', function () { if (i.showPicker) { try { i.showPicker(); } catch (e) { /* 달력을 열 수 없는 환경 */ } } });
+    return i;
+  }
+
+  function buildRow(r, i) {
+    var tr = el('tr'), x = { tr: tr };
+    var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = r.out; chk.setAttribute('aria-label', (i + 1) + '행 인쇄');
+    chk.addEventListener('change', function () { r.out = chk.checked; tr.classList.toggle('off', !r.out); syncCheckAll(); schedule(); });
+    x.num = el('span', 'no', String(i + 1));
+    var year = textInput(r.year, 'year'); year.inputMode = 'numeric';
+    var s = dateInput(r.s, 's'), e = dateInput(r.e, 'e');
+    var t = textInput(r.t, 't'); t.inputMode = 'decimal';
+    var no = textInput(r.no, 'no'); no.inputMode = 'numeric';
+    x.vol = el('span', 'volno');
+    var doc = document.createElement('textarea'); doc.rows = 1; doc.value = r.doc; doc.dataset.key = 'doc'; doc.spellcheck = false;
+    doc.title = 'Enter로 줄을 나누면 표지에서 세로 2열로 나뉩니다(최대 2줄)';
+
+    [year, t, no].forEach(function (inp) { inp.addEventListener('input', function () { r[inp.dataset.key] = inp.value; refresh(); schedule(); }); });
+    [s, e].forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        r[inp.dataset.key] = inp.value;
+        if (fixOrder(r)) e.value = r.e;   // 시작일을 종료일 뒤로 옮기면 종료일도 시작일로 따라간다
+        refresh(); schedule();
+      });
+    });
+    doc.addEventListener('input', function () {
+      var lines = doc.value.split(/\r?\n/);
+      if (lines.length > 2) { doc.value = lines.slice(0, 2).join('\n'); toast('문서명은 2줄까지 입력할 수 있습니다.'); }
+      r.doc = doc.value; fitDoc(doc); refresh(); schedule();
+    });
+
+    var copy = el('button', 'btn btn-icon', '⧉'); copy.type = 'button'; copy.title = '행 복제'; copy.setAttribute('aria-label', (i + 1) + '행 복제');
+    copy.addEventListener('click', function () { remember(); state.rows.splice(i + 1, 0, Object.assign({}, r, { no: '' })); buildTable(); schedule(); focusCell(i + 1, 'doc'); toast((i + 2) + '행에 복제했습니다.'); });
+    var del = el('button', 'btn btn-icon del', '×'); del.type = 'button'; del.title = '행 삭제'; del.setAttribute('aria-label', (i + 1) + '행 삭제');
+    del.addEventListener('click', function () {
+      if (state.rows.length < 2) { toast('행이 하나뿐이라 지울 수 없습니다.'); return; }
+      remember(); state.rows.splice(i, 1); buildTable(); schedule(); toast((i + 1) + '행을 지웠습니다. (Ctrl+Z 되돌리기)');
+    });
+    var ops = el('div', 'ops'); ops.append(copy, del);
+
+    tr.append(cell(chk, 'c'), cell(x.num, 'c'), cell(year), cell(s), cell(e), cell(t), cell(no), cell(x.vol, 'c'), cell(doc), cell(ops, 'c'));
+    tr.classList.toggle('off', !r.out);
+    x.year = year; x.s = s; x.e = e; x.t = t; x.no = no; x.doc = doc;
+    tr.addEventListener('keydown', onCellKey);
+    rowEls[i] = x;
+    setTimeout(function () { fitDoc(doc); }, 0);
+    return tr;
+  }
+  // 종료일이 시작일보다 앞이면 종료일을 시작일로 맞춘다. 바꿨으면 true.
+  function fixOrder(r) { if (r.s && r.e && r.e < r.s) { r.e = r.s; return true; } return false; }
+  function fitDoc(doc) { doc.style.height = 'auto'; doc.style.height = Math.max(32, doc.scrollHeight + 2) + 'px'; }
+
+  // Enter: 오른쪽 칸 → 줄 끝이면 다음 줄 첫 칸(문서명 칸의 첫 Enter 는 줄바꿈)
+  function onCellKey(ev) {
+    if (ev.key !== 'Enter' || ev.isComposing || ev.shiftKey) return;
+    var target = ev.target; if (!target.dataset || !target.dataset.key) return;
+    if (target.dataset.key === 'doc' && target.value.split('\n').length < 2) return;
+    ev.preventDefault();
+    var all = Array.prototype.slice.call($('rows').querySelectorAll('[data-key]')), at = all.indexOf(target);
+    if (all[at + 1]) all[at + 1].focus();
+  }
+  function focusCell(i, key) { var x = rowEls[i]; if (!x || !x[key]) return; x[key].focus(); if (x[key].select && x[key].type !== 'date') x[key].select(); }
+
+  // 화면 글자만 바꾼다(입력칸은 그대로라 입력 중 커서가 튀지 않는다)
+  function setText(node, text) { if (node.textContent !== text) node.textContent = text; }
+  function setAttr(node, name, value) { if (node.getAttribute(name) !== value) node.setAttribute(name, value); }
+  function refresh() {
+    var info = derive(), msgs = [];
+    state.rows.forEach(function (r, i) {
+      var d = info[i], x = rowEls[i]; if (!x) return;
+      setText(x.num, String(i + 1));
+      setText(x.vol, '(' + d.total + '-' + d.seq + ')');
+      ['year', 's', 'e', 't', 'no'].forEach(function (k) { x[k].classList.toggle('bad', !!d.bad[k]); });
+      setAttr(x.no, 'placeholder', d.autoNo !== null ? '자동 ' + d.autoNo : '');
+      setAttr(x.e, 'min', r.s || '1900-01-01');   // 종료일 달력은 시작일부터
+      d.problems.forEach(function (p) { msgs.push((i + 1) + '행: ' + p); });
+    });
+    var box = $('msgs'), key = msgs.join('\n');
+    if (box.dataset.key !== key) { box.dataset.key = key; box.textContent = ''; msgs.forEach(function (m) { box.appendChild(el('li', '', m)); }); }
+    syncCheckAll();
+    return info;
+  }
+  function syncCheckAll() {
+    var n = state.rows.filter(function (r) { return r.out; }).length, all = $('checkAll');
+    all.checked = n === state.rows.length; all.indeterminate = n > 0 && n < state.rows.length;
+  }
+
+  // 새 행: 마지막 행의 생산연도·두께·문서명을 이어받고, 시작일은 앞 행 종료일 다음 날.
+  function nextRowFrom(last) {
+    if (!last) return newRow();
+    var r = newRow({ year: last.year, t: last.t, doc: last.doc });
+    var p = last.e ? parseDate(last.e) : null;
+    if (p) { var d = new Date(p.y, p.mo - 1, p.d + 1); r.s = iso(d); }
+    return r;
+  }
+  function addRow() {
+    if (state.rows.length >= MAX_ROWS) { toast('행은 ' + MAX_ROWS + '개까지 만들 수 있습니다.'); return; }
+    remember(); state.rows.push(nextRowFrom(state.rows[state.rows.length - 1])); buildTable(); schedule();
+    var i = state.rows.length - 1; focusCell(i, state.rows[i].s ? 'e' : 's');
+  }
+
+  // 표 붙여넣기(엑셀·한셀): 붙여넣은 칸부터 오른쪽·아래로 채우고 모자란 행은 만든다
+  function onPaste(ev) {
+    var target = ev.target; if (!target.dataset || !target.dataset.key) return;
+    var text = (ev.clipboardData && ev.clipboardData.getData('text/plain')) || '';
+    var multi = /[\t\n]/.test(text.replace(/\r?\n$/, ''));
+    if (!multi && target.type !== 'date') return;   // 한 칸짜리 글자는 보통 붙여넣기(날짜 칸은 아래에서 읽어 넣는다)
+    ev.preventDefault();
+    var lines = text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n').map(function (l) { return l.split('\t'); });
+    var tr = target.closest('tr'), r0 = Array.prototype.indexOf.call($('rows').children, tr), c0 = COLS.indexOf(target.dataset.key);
+    if (r0 < 0 || c0 < 0) return;
+    remember();
+    while (state.rows.length < Math.min(MAX_ROWS, r0 + lines.length)) state.rows.push(nextRowFrom(state.rows[state.rows.length - 1]));
+    var cells = 0, missed = 0;
+    lines.forEach(function (vals, ri) {
+      var r = state.rows[r0 + ri]; if (!r) return;
+      vals.forEach(function (v, ci) { var key = COLS[c0 + ci]; if (key) { if (setCell(r, key, v)) cells++; else missed++; } });
+      fixOrder(r);
+    });
+    buildTable(); schedule();
+    toast(lines.length + '행 · ' + cells + '칸을 붙여넣었습니다.' + (missed ? '\n날짜를 읽지 못한 칸 ' + missed + '개는 비워 두었습니다.' : ''));
+  }
+  // 칸 하나에 값 넣기. 날짜를 읽지 못하면 비우고 false.
+  function setCell(r, key, raw) {
+    var v = String(raw == null ? '' : raw).trim();
+    if (key === 's' || key === 'e') { var d = toIso(v); r[key] = d || ''; return d !== null; }
+    if (key === 't') r.t = v.replace(/mm$/i, '').trim();
+    else if (key === 'no') r.no = v.replace(/^제\s*/, '').replace(/\s*호$/, '');
+    else r[key] = v;
+    return true;
+  }
+
+  // ---------- 모든 행에 적용 ----------
+  function bulk(key) {
+    var input = { year: $('bulkYear'), t: $('bulkT'), doc: $('bulkDoc') }[key], v = input.value.trim();
+    if (key === 'year' && !/^\d{4}$/.test(v)) { toast('생산연도는 4자리 숫자로 입력해 주세요.'); input.focus(); return; }
+    if (key === 't') { var mm = Number(v); if (!v || !isFinite(mm) || mm < MIN_MM || mm > MAX_MM) { toast('두께는 ' + MIN_MM + '~' + MAX_MM + 'mm로 입력해 주세요.'); input.focus(); return; } }
+    if (key === 'doc' && !v) { toast('문서명을 입력해 주세요.'); input.focus(); return; }
+    remember();
+    state.rows.forEach(function (r) { r[key] = v; });
+    buildTable(); schedule();
+    toast(COL_LABELS[key] + '을(를) ' + state.rows.length + '개 행에 적용했습니다.');
+  }
+
+  // ---------- 되돌리기(행 추가·삭제·복제·붙여넣기·일괄 적용·지우기·샘플·엑셀·불러오기) ----------
+  var history = [];
+  function remember() { history.push(JSON.stringify(state.rows)); if (history.length > 30) history.shift(); }
+  function undo() {
+    if (!history.length) { toast('되돌릴 작업이 없습니다.'); return; }
+    state.rows = JSON.parse(history.pop()); buildTable(); schedule(); toast('되돌렸습니다.');
+  }
+
+  // ---------- 샘플·지우기 ----------
+  function hasInput() { return state.rows.length > 1 || state.rows.some(function (r) { return r.s || r.e || r.no || r.doc !== DEFAULT_DOC; }); }
+  function sample() {
+    if (hasInput() && !window.confirm('입력한 행을 샘플로 바꿀까요?')) return;
+    var y = now().getFullYear(), ys = String(y);
+    remember();
+    state.rows = [
+      newRow({ year: ys, s: y + '-03-02', e: y + '-03-13', t: '30', doc: '3월분 지출증빙서' }),
+      newRow({ year: ys, s: y + '-03-14', e: y + '-03-24', t: '25', doc: '3월분 지출증빙서' }),
+      newRow({ year: ys, s: y + '-03-25', e: y + '-03-31', t: '20', doc: '3월분 지출증빙서' }),
+      newRow({ year: ys, s: y + '-04-01', e: y + '-04-30', t: '35', doc: '4월분 지출증빙서' }),
+      newRow({ year: ys, t: '40', doc: '지출증빙서\n(카드)' })
+    ];
+    buildTable(); schedule(); toast('샘플을 불러왔습니다.');
+  }
+  function clearRows() {
+    if (!window.confirm('입력한 행을 모두 지울까요?')) return;
+    remember(); state.rows = [newRow()]; buildTable(); schedule(); toast('지웠습니다. (Ctrl+Z 되돌리기)');
+  }
+
+  // ---------- 엑셀 양식·업로드 ----------
+  function xlsxReady() { if (window.XLSX && XLSX.utils) return true; toast('엑셀 기능을 불러오지 못했습니다.'); return false; }
+  function downloadXlsx() {
+    if (!xlsxReady()) return;
+    var aoa = [COLS.map(function (k) { return COL_LABELS[k]; })].concat(state.rows.map(function (r) { return COLS.map(function (k) { return r[k]; }); }));
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = COLS.map(function (k) { return { wch: k === 'doc' ? 28 : 12 }; });
+    // 날짜·관리번호 칸이 엑셀에서 날짜·숫자로 바뀌지 않게 글자 형식으로 둔다
+    for (var R = 1; R < aoa.length; R++) ['s', 'e', 'no'].forEach(function (k) {
+      var ref = XLSX.utils.encode_cell({ r: R, c: COLS.indexOf(k) }); if (ws[ref]) { ws[ref].t = 's'; ws[ref].z = '@'; }
+    });
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '표지정보');
+    XLSX.writeFile(wb, '증빙서_측면표지_입력양식.xlsx');
+  }
+  function uploadXlsx(file) {
+    if (!file || !xlsxReady()) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) { toast('엑셀 파일(.xlsx, .xls)만 올릴 수 있습니다.'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var wb = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+        var aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd' });
+        aoa = aoa.filter(function (row) { return row.some(function (c) { return String(c).trim(); }); });
+        if (aoa.length < 2) { toast('추가할 행이 없습니다.'); return; }
+        var head = aoa[0].map(function (h) { return String(h).replace(/\s+/g, '').toLowerCase(); }), map = {};
+        COLS.forEach(function (k) {
+          var at = head.findIndex(function (h) { return COL_ALIASES[k].some(function (a) { return a.replace(/\s+/g, '').toLowerCase() === h; }); });
+          if (at >= 0) map[k] = at;
+        });
+        if (!Object.keys(map).length) { toast('열 이름을 찾지 못했습니다. 양식을 내려받아 써 주세요.'); return; }
+        remember();
+        var only = !hasInput(), missed = 0;   // 비어 있는 첫 행만 있으면 바꿔 넣는다
+        var added = aoa.slice(1).map(function (vals) {
+          var r = newRow({ doc: '' });
+          COLS.forEach(function (k) { if (map[k] !== undefined && !setCell(r, k, vals[map[k]])) missed++; });
+          if (!r.doc) r.doc = DEFAULT_DOC;
+          fixOrder(r);
+          return r;
+        });
+        state.rows = (only ? [] : state.rows).concat(added).slice(0, MAX_ROWS);
+        buildTable(); schedule();
+        toast(added.length + '개 행을 추가했습니다.' + (missed ? '\n날짜를 읽지 못한 칸 ' + missed + '개는 비워 두었습니다.' : ''));
+      } catch (e) { toast('엑셀 파일을 읽지 못했습니다.'); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ---------- 미리보기(= 인쇄할 모양) ----------
+  var timer = 0;
+  function schedule() { clearTimeout(timer); timer = setTimeout(renderPreview, 150); }   // 입력이 잠깐 멈추면 한 번만 그린다
+  function flush() { if (timer) renderPreview(); }
+  function renderPreview() {
+    clearTimeout(timer); timer = 0;
+    var info = derive(), items = [];
+    state.rows.forEach(function (r, i) {
+      var d = info[i];
+      if (!r.out || d.no === null) return;
+      items.push({ no: d.no, year: r.year.trim(), retention: state.retention, docName: r.doc.trim(), org: state.org.trim(),
+        total: d.total, seq: d.seq, from: d.from, to: d.to, width: d.width === null ? DEFAULT_MM : d.width, display: state.display });
+    });
+    // 쪽 나누기: 한 쪽에 들어가는 만큼 왼쪽부터 채운다(표지 높이 198mm = 한 쪽에 한 줄)
+    var pages = [], used = ROW_MM + 1;
+    items.forEach(function (it) {
+      var need = it.width + GAP_MM;
+      if (used + need > ROW_MM + 0.01) { pages.push([]); used = 0; }
+      pages[pages.length - 1].push(it); used += need;
+    });
+    var box = $('pages'); box.textContent = '';
+    if (!items.length) box.appendChild(el('div', 'empty', '인쇄할 행을 체크하세요.'));
+    pages.forEach(function (list, pi) {
+      var page = el('div', 'page'), inner = el('div', 'page-inner');
+      list.forEach(function (it) { inner.appendChild(buildSpine(it)); });
+      page.appendChild(inner);
+      if (pages.length > 1) page.appendChild(el('div', 'page-no', (pi + 1) + ' / ' + pages.length));
+      box.appendChild(page);
+    });
+    fitNames();
+    $('pvMeta').textContent = 'A4 가로 · 인쇄 ' + items.length + '/' + state.rows.length + '개 · ' + pages.length + '쪽';
+    $('print1').disabled = $('print2').disabled = !items.length;
+    fitZoom();
+    saveDraft();
+  }
+  // 문서명은 가운데 칸(권번호 자리를 뺀 높이·표지 폭)에 꽉 차게 글자 크기를 정한다. 크기는 mm 로 적어 인쇄도 같다.
+  var NAME_MIN_MM = 3, NAME_MAX_MM = 20;
+  function fitNames() {
+    var spines = $('pages').querySelectorAll('.spine');
+    Array.prototype.forEach.call(spines, function (sp) {
+      var main = sp.querySelector('.main'), name = main && main.querySelector('.nameCols, .nameCol');
+      if (!name || !name.textContent.trim()) return;
+      var k = sp.offsetHeight / 198; if (!k) return;   // 화면 1mm 의 크기(확대·축소와 상관없이 비율로 잰다)
+      var cols = name.classList.contains('nameCols') ? Array.prototype.slice.call(name.children) : [name];
+      var vol = main.querySelector('.vol'), gap = Number(main.dataset.gap || 0);
+      var availH = main.clientHeight / k - 8 - (vol ? vol.offsetHeight / k + gap : 0) - 1;   // 위아래 여백 4mm 씩, 1mm 는 여유
+      var availW = main.clientWidth / k - 3;
+      var setSize = function (mm) { cols.forEach(function (c) { c.style.fontSize = mm + 'mm'; }); };
+      setSize(10);
+      var h = name.offsetHeight / k, w = name.offsetWidth / k;
+      if (!h || !w) return;
+      var size = Math.max(NAME_MIN_MM, Math.min(NAME_MAX_MM, 10 * Math.min(availH / h, availW / w)));
+      setSize(Math.floor(size * 10) / 10);
+      if (name.offsetHeight / k > availH || name.offsetWidth / k > availW) {   // 글꼴 모양 때문에 넘치면 한 번 더 줄인다
+        size = size * Math.min(availH / (name.offsetHeight / k), availW / (name.offsetWidth / k)) * 0.98;
+        setSize(Math.max(NAME_MIN_MM, Math.floor(size * 10) / 10));
+      }
+    });
+  }
+  var zoomMode = 'fit';
+  function fitZoom() {
+    var z = 1;
+    if (zoomMode === 'fit') z = Math.max(0.2, Math.min(1, ($('stage').clientWidth - 40) / (297 * 96 / 25.4)));
+    $('pages').style.setProperty('--zoom', String(z));
+  }
+  function print() {
+    flush();
+    if (!$('pages').querySelector('.spine')) { toast('인쇄할 행을 체크하세요.'); return; }
+    window.print();
+  }
+
+  // ---------- 저장(임시 저장·저장한 작업) ----------
+  function isStr(v) { return typeof v === 'string'; }
+  function toStored() { return { v: 4, common: { retention: state.retention, org: state.org.trim() }, rows: state.rows.map(function (r) { return Object.assign({}, r); }), display: normalizePrefs(state.display) }; }
+  function validStored(j) {
+    if (!j || typeof j !== 'object' || !j.common || typeof j.common !== 'object') return false;
+    if (Array.isArray(j.rows)) return j.rows.length > 0 && j.rows.every(function (r) { return r && ['year', 's', 'e', 't', 'doc'].every(function (k) { return isStr(r[k]); }); });
+    // 처음 판 형식: 묶음(groups) 안에 권(vols)
+    return Array.isArray(j.groups) && j.groups.length > 0 && j.groups.every(function (g) {
+      return g && isStr(g.year) && isStr(g.month) && Array.isArray(g.vols) && g.vols.every(function (v) { return v && isStr(v.s) && isStr(v.e) && isStr(v.t); });
+    });
+  }
+  // 예전 저장본은 날짜를 '일'만 적기도 했다. 그때의 연·월로 전체 날짜를 만든다.
+  function oldDate(v, y, mo) { var d = toIso(v, intOf(y, 1900, 2999), intOf(mo, 1, 12)); return d || ''; }
+  function fromStored(st) {
+    var s = { retention: isStr(st.common.retention) && st.common.retention ? st.common.retention : '5년', org: isStr(st.common.org) ? st.common.org : '', display: normalizePrefs(st.display) || readPrefs(), rows: [] };
+    if (Array.isArray(st.rows)) {
+      s.rows = st.rows.slice(0, MAX_ROWS).map(function (r) {
+        var yearly = r.type === 'yearly';
+        return newRow({ year: r.year, s: yearly ? '' : oldDate(r.s, r.year, r.month), e: yearly ? '' : oldDate(r.e, r.year, r.month), t: r.t, no: isStr(r.no) ? r.no : '', doc: r.doc, out: r.out !== false });
+      });
+    } else {
+      st.groups.forEach(function (g, gi) {
+        var yearly = g.type === 'yearly', count = intOf(g.count, 1, 30) || g.vols.length || 1;
+        var manual = (gi === 0 && g.start !== '1') || (gi > 0 && !!g.manual);   // 처음 판의 첫 묶음 시작값 1 은 자동과 같다
+        var doc = isStr(g.documentTitle) ? g.documentTitle : (st.common.docName || DEFAULT_DOC);
+        for (var k = 0; k < count; k++) {
+          var v = g.vols[k] || { s: '', e: '', t: String(DEFAULT_MM) };
+          s.rows.push(newRow({ year: g.year, s: yearly ? '' : oldDate(v.s, g.year, g.month), e: yearly ? '' : oldDate(v.e, g.year, g.month), t: v.t,
+            no: manual && k === 0 ? String(g.start || '') : '', doc: doc, out: g.out !== false }));
+        }
+      });
+    }
+    if (!s.rows.length) s.rows = [newRow()];
+    s.rows.forEach(fixOrder);
+    return s;
+  }
+  function saveDraft() { try { var st = toStored(); st.savedAt = new Date().toISOString(); localStorage.setItem(DRAFT_KEY, JSON.stringify(st)); } catch (e) { /* 저장 불가 환경 */ } }
+  function readDraft() { try { var st = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return validStored(st) ? st : null; } catch (e) { return null; } }
+  function readJobs() { try { var l = JSON.parse(localStorage.getItem(JOBS_KEY) || '[]'); return Array.isArray(l) ? l.filter(function (j) { return j && isStr(j.id) && validStored(j); }) : []; } catch (e) { return []; } }
+  function writeJobs(list) { try { localStorage.setItem(JOBS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } }
+  function nameOf(rows) { var d = rows[0].doc.split('\n')[0].trim() || DEFAULT_DOC; return rows[0].year + ' ' + d + (rows.length > 1 ? ' 외 ' + (rows.length - 1) + '개' : ''); }
+  function jobName(job) { return isStr(job.name) && job.name ? job.name : nameOf(fromStored(job).rows); }
+  function fmtSaved(isoText) {
+    var d = new Date(isoText); if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '.' + (d.getMonth() + 1) + '.' + d.getDate() + '. ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function renderJobs(selectId) {
+    var list = readJobs(), sel = $('jobList'); sel.textContent = '';
+    if (!list.length) { var none = el('option', '', '저장한 작업이 없습니다'); none.value = ''; sel.appendChild(none); }
+    list.forEach(function (job) { var op = el('option', '', jobName(job) + (fmtSaved(job.savedAt) ? ' · ' + fmtSaved(job.savedAt) : '')); op.value = job.id; sel.appendChild(op); });
+    if (selectId) sel.value = selectId;
+    sel.disabled = $('loadJob').disabled = $('deleteJob').disabled = !list.length;
+  }
+  function saveJob() {
+    flush();
+    var job = toStored();
+    job.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7); job.savedAt = new Date().toISOString(); job.name = nameOf(state.rows);
+    var list = readJobs(); list.unshift(job);
+    if (!writeJobs(list)) { toast('저장하지 못했습니다(저장 공간 부족).'); return; }
+    renderJobs(job.id); $('jobsBox').open = true; toast('저장했습니다.');
+  }
+  function loadJob() {
+    var id = $('jobList').value, job = readJobs().filter(function (j) { return j.id === id; })[0];
+    if (!job) { renderJobs(); return; }
+    remember(); applyState(fromStored(job)); saveOrg(state.org); toast('불러왔습니다. (Ctrl+Z 되돌리기)');
+  }
+  function deleteJob() {
+    var id = $('jobList').value, list = readJobs(), job = list.filter(function (j) { return j.id === id; })[0];
+    if (!job || !window.confirm('"' + jobName(job) + '" 저장 작업을 삭제할까요?')) return;
+    writeJobs(list.filter(function (j) { return j.id !== id; })); renderJobs(); toast('삭제했습니다.');
+  }
+
+  // ---------- 표시 항목(이 브라우저의 기본값으로도 기억) ----------
+  function allOnPrefs() { var p = {}; PREF_KEYS.forEach(function (k) { p[k] = true; }); p.footerLabelType = 'school'; p.footerLabel = 'school'; p.order = ORDER_DEFAULT.slice(); return p; }
+  // 없는 값·잘못된 값은 기본값으로(설정이 없던 예전 저장본도 안전). order 는 모든 칸이 한 번씩 다 있어야 쓴다.
+  function normalizePrefs(o) {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    var p = {}; PREF_KEYS.forEach(function (k) { p[k] = o[k] !== false; });
+    p.footerLabelType = FOOTER_TYPES.indexOf(o.footerLabelType) >= 0 ? o.footerLabelType : 'school';
+    p.footerLabel = FOOTER_LABELS[o.footerLabel] ? o.footerLabel : (FOOTER_LABELS[p.footerLabelType] ? p.footerLabelType : 'school');
+    var ord = Array.isArray(o.order) ? o.order.map(function (k) { return k === 'footer' || k === 'organization' ? 'org' : k; })   // 따로 있던 구분명·기관명은 한 묶음으로
+      .filter(function (k, i, a) { return ORDER_DEFAULT.indexOf(k) >= 0 && a.indexOf(k) === i; }) : [];
+    p.order = ord.length === ORDER_DEFAULT.length ? ord : ORDER_DEFAULT.slice();
+    return p;
+  }
+  function readPrefs() { try { return normalizePrefs(JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')) || allOnPrefs(); } catch (e) { return allOnPrefs(); } }
+  function savePrefs() { try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(state.display)); } catch (e) { /* 저장 불가 환경 */ } }
+  // 표시 항목 목록: [순번] [켜기·이름] [줄 안 체크] [▲] [▼]
+  function showPrefs() {
+    var p = state.display, list = $('prefList'); list.textContent = '';
+    var changed = function () { savePrefs(); showPrefs(); schedule(); };
+    var check = function (text, checked, onChange) {   // 줄 안의 작은 체크(권번호·구분명·기관명)
+      var l = el('label', 'opt'), c = document.createElement('input'); c.type = 'checkbox'; c.checked = checked;
+      c.addEventListener('change', function () { onChange(c.checked); changed(); });
+      l.append(c, document.createTextNode(text)); return l;
+    };
+    p.order.forEach(function (key, i) {
+      var li = el('li'), nm = el('label', 'nm'), opt = el('span', 'opts'), isOn;
+      if (key === 'main') {   // 문서명 칸은 늘 있다. 권번호는 이 칸 안에 들어간다
+        isOn = true;
+        nm.append(el('span', 'box-gap'), document.createTextNode(ORDER_NAMES[key]));
+        opt.appendChild(check('권번호', p.volume !== false, function (v) { p.volume = v; }));
+      } else if (key === 'org') {   // 구분명(학교명·기관명·부서명)과 그 아래 기관명은 한 줄로 함께 움직인다
+        var footOn = p.footerLabelType !== 'none';
+        isOn = footOn || p.organization !== false;
+        nm.append(el('span', 'box-gap'), document.createTextNode(ORDER_NAMES[key]));
+        var sel = document.createElement('select');
+        Object.keys(FOOTER_LABELS).forEach(function (k) { var op = el('option', '', FOOTER_LABELS[k]); op.value = k; sel.appendChild(op); });
+        sel.value = p.footerLabel; sel.disabled = !footOn;
+        sel.addEventListener('change', function () { p.footerLabel = sel.value; if (p.footerLabelType !== 'none') p.footerLabelType = sel.value; changed(); });
+        var foot = check('구분명', footOn, function (v) { p.footerLabelType = v ? p.footerLabel : 'none'; });
+        opt.append(foot, sel, check('기관명', p.organization !== false, function (v) { p.organization = v; }));
+      } else {
+        var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = isOn = p[key] !== false;
+        chk.addEventListener('change', function () { p[key] = chk.checked; changed(); });
+        nm.append(chk, document.createTextNode(ORDER_NAMES[key]));
+      }
+      var up = el('button', 'btn btn-icon', '▲'), down = el('button', 'btn btn-icon', '▼');
+      up.type = down.type = 'button'; up.title = '위로'; down.title = '아래로';
+      up.setAttribute('aria-label', ORDER_NAMES[key] + ' 위로'); down.setAttribute('aria-label', ORDER_NAMES[key] + ' 아래로');
+      up.disabled = i === 0; down.disabled = i === p.order.length - 1;
+      var move = function (d) { var j = i + d; p.order.splice(i, 1); p.order.splice(j, 0, key); changed(); var btn = $('prefList').children[j].querySelectorAll('.btn-icon')[d < 0 ? 0 : 1]; if (btn && !btn.disabled) btn.focus(); };
+      up.addEventListener('click', function () { move(-1); }); down.addEventListener('click', function () { move(1); });
+      li.className = isOn ? 'on' : '';
+      li.append(el('span', 'no', String(i + 1)), nm, opt, up, down);
+      list.appendChild(li);
+    });
+  }
+  function storedOrg() { try { return localStorage.getItem(ORG_KEY) || ''; } catch (e) { return ''; } }
+  function saveOrg(v) { try { if (v) localStorage.setItem(ORG_KEY, v); else localStorage.removeItem(ORG_KEY); } catch (e) { /* 저장 불가 환경 */ } }
+
+  function applyState(s) {
+    state = s;
+    var sel = $('retention'); sel.textContent = '';
+    RETENTIONS.concat(RETENTIONS.indexOf(s.retention) < 0 ? [s.retention] : []).forEach(function (r) { var op = el('option', '', r); op.value = r; sel.appendChild(op); });
+    sel.value = s.retention;
+    $('org').value = s.org;
+    var first = s.rows[0];
+    $('bulkYear').value = first.year; $('bulkT').value = first.t; $('bulkDoc').value = first.doc.split('\n')[0];
+    showPrefs(); buildTable(); renderPreview();
+  }
+
+  var toastTimer = 0;
+  function toast(text) {
+    var t = $('toast'); t.textContent = text; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+
+  function init() {
+    $('retention').addEventListener('change', function () { state.retention = this.value; schedule(); });
+    $('org').addEventListener('input', function () { state.org = this.value; saveOrg(this.value.trim()); schedule(); });
+    $('prefsReset').addEventListener('click', function () { state.display = allOnPrefs(); savePrefs(); showPrefs(); schedule(); });
+    $('checkAll').addEventListener('change', function () { var on = this.checked; state.rows.forEach(function (r) { r.out = on; }); buildTable(); schedule(); });
+    $('addRow').addEventListener('click', addRow);
+    $('sample').addEventListener('click', sample);
+    $('clearRows').addEventListener('click', clearRows);
+    $('xlsxDown').addEventListener('click', downloadXlsx);
+    $('xlsxUp').addEventListener('click', function () { $('xlsxFile').click(); });
+    $('xlsxFile').addEventListener('change', function () { uploadXlsx(this.files[0]); this.value = ''; });
+    document.querySelectorAll('[data-bulk]').forEach(function (b) { b.addEventListener('click', function () { bulk(b.dataset.bulk); }); });
+    [['bulkYear', 'year'], ['bulkT', 't'], ['bulkDoc', 'doc']].forEach(function (p) {
+      $(p[0]).addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); bulk(p[1]); } });
+    });
+    $('rows').addEventListener('paste', onPaste);
+    $('print1').addEventListener('click', print);
+    $('print2').addEventListener('click', print);
+    $('saveJob').addEventListener('click', saveJob);
+    $('loadJob').addEventListener('click', loadJob);
+    $('deleteJob').addEventListener('click', deleteJob);
+    $('zoomSeg').addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      zoomMode = b.dataset.zoom;
+      this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      fitZoom();
+    });
+    document.addEventListener('keydown', function (ev) {
+      var k = ev.key.toLowerCase(), editing = /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
+      if ((ev.ctrlKey || ev.metaKey) && k === 's') { ev.preventDefault(); saveJob(); }
+      else if ((ev.ctrlKey || ev.metaKey) && k === 'z' && !editing) { ev.preventDefault(); undo(); }
+      else if ((ev.ctrlKey || ev.metaKey) && k === 'p') { ev.preventDefault(); print(); }
+    });
+    window.addEventListener('resize', fitZoom);
+    window.addEventListener('pagehide', flush);   // 입력 직후 창을 닫거나 다른 도구로 옮겨도 마지막 글자까지 임시 저장
+    document.addEventListener('visibilitychange', function () { if (document.hidden) flush(); });
+
+    renderJobs();
+    var draft = readDraft();
+    applyState(draft ? fromStored(draft) : freshState());
+    history = [];
+  }
+  init();
+})();
+
+</script>
+</body>
+</html>

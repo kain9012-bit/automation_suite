@@ -22,6 +22,7 @@ import {
   Hash,
   LayoutGrid,
   Layers,
+  Library,
   Link2,
   ListChecks,
   Merge,
@@ -106,6 +107,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   empty_folder_cleaner: FolderX,
   gyeodetong_group_register: Users,
   k_edufine_group_register: Users,
+  evidence_spine_label: Library,
   // 간단 도구
   simple_calculators: Calculator,
   simple_draw_tools: Dices,

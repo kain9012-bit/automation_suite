@@ -1,0 +1,13 @@
+{
+  "id": "evidence_spine_label",
+  "name": "증빙서 측면 표지",
+  "top_tab": "업무 자동화",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "문서철 정보를 표에 입력해 두께에 맞춘 측면 표지를 인쇄하거나 PDF로 저장합니다.",
+  "order": 40,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["측면 표지", "책등", "표지", "지출증빙서", "증빙서", "문서철", "라벨", "관리번호", "인쇄"]
+}
