@@ -2163,7 +2163,13 @@ async function exportWithExtraFields() {
   }
 
   try {
-    const buf = await originalFile.arrayBuffer();
+    let buf = await originalFile.arrayBuffer();
+    const head = new Uint8Array(buf, 0, Math.min(2, buf.byteLength));
+    if (!(head[0] === 0x50 && head[1] === 0x4b)) {
+      // .xls(옛 엑셀 형식)는 ExcelJS 가 읽지 못하므로 SheetJS 로 xlsx 로 바꿔서 읽는다.
+      // 값·시트·표시 형식(날짜·천 단위 쉼표 등)은 그대로, 글꼴·색·테두리 같은 서식은 옮겨지지 않는다.
+      buf = XLSX.write(XLSX.read(buf, { type: "array", cellNF: true }), { bookType: "xlsx", type: "array" });
+    }
     const ejWb = new ExcelJS.Workbook();
     await ejWb.xlsx.load(buf);
 
