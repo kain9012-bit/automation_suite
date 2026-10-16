@@ -32,6 +32,7 @@ class HwpToHwpxBatchResult:
     delete_fail_count: int = 0
     fail_count: int = 0
     overwrite_count: int = 0
+    renamed_count: int = 0  # 같은 이름의 HWPX 가 있어 '이름(1).hwpx' 처럼 번호를 붙여 저장한 수
     stopped: bool = False
     results: list[HwpToHwpxResult] = field(default_factory=list)
 
@@ -345,7 +346,7 @@ def convert_hwp_files_to_hwpx(
     emit(f"처리 대상 파일: {len(ordered)}개")
     emit("저장 방식: 원본과 같은 폴더에 같은 이름의 HWPX 생성")
     emit("원본 처리: 변환 성공 시 HWP 삭제")
-    emit("기존 HWPX 처리: 같은 이름이 있으면 덮어쓰기")
+    emit("기존 HWPX 처리: 같은 이름이 있으면 덮어쓰지 않고 '이름(1).hwpx'처럼 번호를 붙여 저장")
     emit(f"한글 창 보이기: {'예' if visible else '아니오'}")
 
     try:
@@ -386,6 +387,8 @@ def convert_hwp_files_to_hwpx(
                 convert_hwp_to_hwpx_via_temp(hwp, src_path, dst_path)
                 if not dst_path.exists() or dst_path.stat().st_size == 0:
                     raise RuntimeError("변환된 HWPX 파일을 확인할 수 없습니다.")
+                if renamed:
+                    batch.renamed_count += 1
 
                 delete_ok, delete_msg = delete_original_hwp(src_path)
                 if delete_ok:
@@ -447,5 +450,5 @@ def convert_hwp_files_to_hwpx(
     emit(f"성공: {batch.success_count}개")
     emit(f"원본 삭제 실패: {batch.delete_fail_count}개")
     emit(f"변환 실패: {batch.fail_count}개")
-    emit(f"기존 HWPX 덮어쓰기: {batch.overwrite_count}개")
+    emit(f"같은 이름이 있어 번호를 붙여 저장: {batch.renamed_count}개")
     return batch

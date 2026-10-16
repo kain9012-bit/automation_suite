@@ -578,7 +578,15 @@ def _(tmp):
 
 @check("6 HWPX: 보안 모듈 없으면 창 보이기 + 안내가 앱까지 전달")
 def _(tmp):
-    _security_cases(tmp, "hwp_to_hwpx_converter")
+    _security_cases(tmp, "hwp_to_hwpx_converter", lambda d: {"confirmed": True})
+
+
+@check("6 HWPX: 원본을 지우는 도구라 확인 없이 부르면 아무것도 바꾸지 않고 거절")
+def _(tmp):
+    srcs = make_files(tmp, ["a.hwp"])
+    code, result, progress, err = run_runner("hwp_to_hwpx_converter", {"inputs": [str(p) for p in srcs]})
+    assert code != 0 or result.get("ok") is False, (code, result)
+    assert (tmp / "a.hwp").exists() and not (tmp / "a.hwpx").exists()
 
 
 # ------------------------------------------------------------------ 7. 중지
@@ -627,7 +635,7 @@ def _(tmp):
     srcs = make_files(tmp, ["a.hwp", "b.hwp", "c.hwp"])
     cancel_file = _cancel_after_first(tmp, "on_open")
     code, result, progress, err = run_runner(
-        "hwp_to_hwpx_converter", {"inputs": [str(p) for p in srcs]}, cancel_file
+        "hwp_to_hwpx_converter", {"inputs": [str(p) for p in srcs], "confirmed": True}, cancel_file
     )
     assert code == 0, err
     assert result.get("stopped") is True and "중지" in result["message"], result

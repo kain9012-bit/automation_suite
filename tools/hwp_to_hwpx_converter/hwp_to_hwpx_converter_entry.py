@@ -290,7 +290,7 @@ class HwpToHwpxConverterPage(QWidget):
         self.chk_visible.setChecked(False)
         option_layout.addWidget(self.chk_visible)
 
-        note = QLabel("기존 같은 이름의 HWPX가 있으면 덮어씁니다. 실패한 파일의 원본 HWP는 삭제하지 않습니다.")
+        note = QLabel("같은 이름의 HWPX가 있으면 덮어쓰지 않고 '이름(1).hwpx'처럼 번호를 붙여 저장합니다. 실패한 파일의 원본 HWP는 삭제하지 않습니다.")
         note.setWordWrap(True)
         note.setStyleSheet(f"font-size:12px; color:{MUTED};")
         option_layout.addWidget(note)
@@ -472,7 +472,7 @@ class HwpToHwpxConverterPage(QWidget):
             "- 변환 실패 파일은 원본 HWP를 삭제하지 않습니다.\n"
         )
         if existing_hwpx_count:
-            message += f"- 기존 같은 이름의 HWPX {existing_hwpx_count}개는 덮어씁니다.\n"
+            message += f"- 같은 이름의 HWPX가 이미 있는 {existing_hwpx_count}개는 번호를 붙여 따로 저장합니다.\n"
         message += "\n계속할까요?"
 
         answer = QMessageBox.question(self, "실행 확인", message)
@@ -514,7 +514,7 @@ class HwpToHwpxConverterPage(QWidget):
                 f"성공: {result.success_count}개\n"
                 f"원본 삭제 실패: {result.delete_fail_count}개\n"
                 f"변환 실패: {result.fail_count}개\n"
-                f"기존 HWPX 덮어쓰기: {result.overwrite_count}개"
+                f"같은 이름이 있어 번호를 붙여 저장: {result.renamed_count}개"
             ),
         )
         if self.chk_open_folder.isChecked() and self.files:

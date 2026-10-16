@@ -246,6 +246,9 @@ def run_hwp_to_pdf(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_hwp_to_hwpx(payload: dict[str, Any]) -> dict[str, Any]:
+    # 변환에 성공하면 원본 .hwp 를 지우므로 화면의 확인 칸을 거쳐야 한다(다른 원본 변경 도구와 같다).
+    if not bool(payload.get("confirmed", False)):
+        raise ValueError("원본 HWP 삭제 작업을 확인한 뒤 다시 실행하세요.")
     inputs = _expand(_paths(payload), {".hwp"}, bool(payload.get("recursive", True)))
     if not inputs:
         raise ValueError("변환할 한글(.hwp) 파일을 찾지 못했습니다.")

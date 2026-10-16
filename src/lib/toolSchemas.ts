@@ -42,8 +42,12 @@ export interface ToolUiSchema {
   outputMode: "file" | "folder" | "hidden";
   outputLabel?: string;
   outputExtension?: string;
+  /** 저장 위치 칸을 비웠을 때의 안내. 도구가 실제로 저장하는 곳과 같게 적는다(기본: 원본과 같은 폴더). */
+  outputPlaceholder?: string;
   fields?: ToolField[];
   destructive?: boolean;
+  /** 원본을 바꾸는 도구의 확인 칸 문구(기본: 원본 파일이 이동되거나 이름이 바뀌는 작업임을 확인했습니다.) */
+  destructiveLabel?: string;
   /**
    * 합치는 순서가 결과를 바꾸는 도구. 목록에서 순서를 바꾸고 한 줄씩 뺄 수 있고,
    * 파일을 다시 고르면 교체가 아니라 뒤에 덧붙인다.
@@ -68,6 +72,7 @@ const defaultSchema: ToolUiSchema = {
 const schemas: Record<string, Partial<ToolUiSchema>> = {
   certificate_pdf_collector: {
     extensions: ["pdf"],
+    outputPlaceholder: "비워 두면 첫 번째 파일이 있는 폴더에 저장합니다.",
     outputLabel: "결과 엑셀 파일",
     outputExtension: "xlsx",
   },
@@ -77,6 +82,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     multiple: false,
     outputLabel: "결과 엑셀 파일",
     outputExtension: "xlsx",
+    outputPlaceholder: "비워 두면 고른 폴더 안에 저장합니다.",
     fields: [
       { key: "recursive", label: "하위 폴더 포함", type: "checkbox", defaultValue: true },
       {
@@ -126,11 +132,15 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     orderable: true,
     outputLabel: "취합할 한글 파일",
     outputExtension: "hwpx",
+    outputPlaceholder: "비워 두면 첫 번째 파일이 있는 폴더에 저장합니다.",
   },
   hwp_to_hwpx_converter: {
     inputMode: "both",
     extensions: ["hwp"],
     outputMode: "hidden",
+    // 변환에 성공하면 원본 .hwp 를 지운다(hwp_to_hwpx_converter_service.delete_original_hwp)
+    destructive: true,
+    destructiveLabel: "변환에 성공한 원본 HWP 파일이 삭제되는 작업임을 확인했습니다.",
     fields: [
       {
         key: "recursive",
@@ -150,6 +160,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     extensions: ["hwp", "hwpx"],
     outputMode: "folder",
     outputLabel: "PDF 저장 폴더",
+    outputPlaceholder: "비워 두면 첫 번째 파일이 있는 폴더에 저장합니다.",
   },
   multi_format_pdf_combiner: {
     // 처리부(ensure_pdf)는 이미지도 PDF로 바꿔 붙일 수 있는데 화면에서 막고 있었다.
@@ -162,6 +173,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     orderable: true,
     outputLabel: "통합 PDF 파일",
     outputExtension: "pdf",
+    outputPlaceholder: "비워 두면 첫 번째 파일이 있는 폴더에 저장합니다.",
   },
   pdf_compress: {
     extensions: ["pdf"],
@@ -171,6 +183,7 @@ const schemas: Record<string, Partial<ToolUiSchema>> = {
     // 파일마다: 비우면 원본 옆에 '이름_압축.pdf'. 전체 합계: 이 폴더 아래 새 폴더에 원래 이름으로.
     outputMode: "folder",
     outputLabel: "저장 폴더",
+    outputPlaceholder: "비워 두면 원본과 같은 폴더에 저장합니다(전체 합계 방식은 첫 번째 파일이 있는 폴더에 새 폴더를 만듭니다).",
     fields: [
       {
         key: "target_mode",

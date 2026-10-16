@@ -11,6 +11,7 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     // 기본·파일마다: 비우면 원본 옆에 '원본이름_용량축소.hwpx'. 전체 합계: 이 폴더 아래 새 폴더에 원래 이름으로.
     outputMode: "folder",
     outputLabel: "저장 폴더",
+    outputPlaceholder: "비워 두면 원본과 같은 폴더에 저장합니다(전체 합계 방식은 첫 번째 파일이 있는 폴더에 새 폴더를 만듭니다).",
     fields: [
       {
         key: "target_mode",
@@ -75,6 +76,7 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     extensions: ["pdf"],
     outputMode: "folder",
     outputLabel: "분리 결과 저장 폴더",
+    outputPlaceholder: "비워 두면 첫 번째 파일이 있는 폴더에 새 폴더를 만들어 저장합니다.",
     fields: [
       {
         key: "filename_fields",
@@ -119,6 +121,7 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     multiple: false,
     outputMode: "hidden",
     destructive: true,
+    destructiveLabel: "빈 폴더가 휴지통을 거치지 않고 바로 삭제되는 작업임을 확인했습니다.",
     fields: [
       {
         key: "include_root",
@@ -135,6 +138,7 @@ export const extraToolSchemas: Record<string, Partial<ToolUiSchema>> = {
     cancellable: true,
     outputMode: "folder",
     outputLabel: "결과 저장 폴더(비우면 다운로드 폴더)",
+    outputPlaceholder: "비워 두면 다운로드 폴더에 저장합니다.",
     fields: [
       {
         key: "board_url",

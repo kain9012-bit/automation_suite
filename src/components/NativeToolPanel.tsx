@@ -625,7 +625,7 @@ export function NativeToolPanel({
                   className="text-input"
                   value={output}
                   onChange={(event) => setOutput(event.target.value)}
-                  placeholder="비워 두면 원본과 같은 폴더에 저장합니다."
+                  placeholder={schema.outputPlaceholder ?? "비워 두면 원본과 같은 폴더에 저장합니다."}
                 />
                 <button className="secondary-button" onClick={chooseOutput}>
                   <Save size={15} />
@@ -645,7 +645,7 @@ export function NativeToolPanel({
             checked={confirmed}
             onChange={(event) => setConfirmed(event.target.checked)}
           />
-          <span>원본 파일이 이동되거나 이름이 바뀌는 작업임을 확인했습니다.</span>
+          <span>{schema.destructiveLabel ?? "원본 파일이 이동되거나 이름이 바뀌는 작업임을 확인했습니다."}</span>
         </label>
       )}
 
