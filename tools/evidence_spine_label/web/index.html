@@ -763,10 +763,20 @@
     if (zoomMode === 'fit') z = Math.max(0.2, Math.min(1, ($('stage').clientWidth - 40) / (297 * 96 / 25.4)));
     $('pages').style.setProperty('--zoom', String(z));
   }
+  // PDF로 저장할 때 파일 이름은 문서 제목을 따른다. 앱 안에서는 앱 화면(JB업무ON)의 제목이 쓰이므로 잠깐 함께 바꾼다.
+  function withTitle(name, run) {
+    var saved = [];
+    [window, window.parent].forEach(function (w) { try { if (w && w.document && saved.every(function (x) { return x[0] !== w.document; })) { saved.push([w.document, w.document.title]); w.document.title = name; } } catch (e) { /* 다른 출처면 건너뛴다 */ } });
+    var done = false, restore = function () { if (done) return; done = true; saved.forEach(function (x) { x[0].title = x[1]; }); };
+    window.addEventListener('afterprint', restore, { once: true });
+    setTimeout(restore, 60000);
+    run();
+  }
   function print() {
     flush();
     if (!$('pages').querySelector('.spine')) { toast('인쇄할 행을 체크하세요.'); return; }
-    window.print();
+    var d = now();
+    withTitle('증빙서_측면표지_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()), function () { window.print(); });
   }
 
   // ---------- 저장(임시 저장·저장한 작업) ----------
