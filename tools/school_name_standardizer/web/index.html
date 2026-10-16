@@ -840,8 +840,35 @@ html, body{
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- ExcelJS (서식 보존 다운로드) -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 <body>
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
 <div class="app">
 <header class="app-header">
 <div class="logo">🏫 학교명 표준화 도구(v1.3)</div>
@@ -861,11 +888,11 @@ html, body{
   내장된 표준학교명 정보를 불러오는 중입니다...
 </p>
 
-<label class="file-label" style="margin-top:10px;">
+<label class="file-label" style="margin-top:10px;" data-tour="file-upload">
 <input accept=".xlsx,.xls" id="targetFileInput" type="file"/>
 <span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
 </label>
-<div class="inline-fields">
+<div class="inline-fields" data-tour="sheet-header">
 <div class="field">
 <label for="targetSheetSelect">시트 선택</label>
 <select disabled="" id="targetSheetSelect">
@@ -881,7 +908,7 @@ html, body{
 </p>
 </div>
 </div>
-<div class="inline-fields">
+<div class="inline-fields" data-tour="columns">
 <div class="field">
 <label for="targetNameColumnSelect">학교명 열 선택</label>
 <select disabled="" id="targetNameColumnSelect">
@@ -898,7 +925,7 @@ html, body{
             </p>
 </div>
 </div>
-<button class="btn primary" disabled="" id="runMatchBtn">
+<button class="btn primary" disabled="" id="runMatchBtn" data-tour="run-match">
           학교명 자동 매칭 실행
         </button>
 <button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
@@ -928,7 +955,7 @@ html, body{
 <span class="value review" id="reviewCount">0</span>
 </div>
 </div>
-<div class="table-wrapper">
+<div class="table-wrapper" data-tour="result-table">
 <table id="resultTable">
 <thead>
 <tr>
@@ -946,7 +973,7 @@ html, body{
 </tbody>
 </table>
 </div>
-<div class="actions">
+<div class="actions" data-tour="result-actions">
 <button class="btn secondary" id="showReviewOnlyBtn" type="button">
           검토 필요 행만 보기
         </button>
@@ -959,7 +986,7 @@ html, body{
       </p>
 </section>
 <!-- 추가 표준학교명 정보 선택 -->
-<section class="card full-width">
+<section class="card full-width" data-tour="extra-export">
 <h2 class="section-title">3. 추가로 붙일 표준학교명 정보 (선택)</h2>
 <p class="section-desc">
         매칭된 표준학교명을 기준으로, 아래에서 선택한 항목(예: 설립구분, 학교급, 교육지원청 등)을
@@ -2267,79 +2294,116 @@ if (exportBtn2) {
 
 buildStandardAliasMapFromConstant();
   </script>
-<div style="position:fixed; top:10px; right:10px; z-index:9999;">
-<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
-    사용가이드
-  </button>
-</div>
-<div id="usageGuideModal" style="
-  display:none;
-  position:fixed;
-  z-index:10000;
-  left:50%;
-  top:50%;
-  transform:translate(-50%, -50%);
-  max-width:720px;
-  width:90%;
-  max-height:80%;
-  background:#ffffff;
-  border-radius:6px;
-  box-shadow:0 18px 45px rgba(15,23,42,0.25);
-  padding:18px 22px;
-  box-sizing:border-box;
-  overflow:auto;
-  font-size:13px;
-  line-height:1.6;
-">
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-<h2 style="margin:0; font-size:16px;">학교명 표준화 도구 사용 가이드</h2>
-<button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
-</div>
-<div class="usage-guide-body">
-<p><strong>이 도구는 자유롭게 입력된 학교명을 교육청 기준의 표준 학교명으로 정리하고, 표준학교명 데이터베이스에 있는 부가 정보를 함께 붙여 주는 도구입니다.</strong></p>
-<ol>
-<li><strong>대상 데이터 파일 업로드</strong><br/>
-      - <em>“대상 데이터 엑셀 선택 (.xlsx, .xls)”</em> 버튼을 눌러 학교명이 포함된 엑셀 파일을 업로드합니다.<br/>
-      - 시트를 선택한 뒤, <strong>헤더 행</strong>과 <strong>학교명 열</strong>, (있다면) <strong>지역(행정구) 열</strong>을 지정합니다.<br/>
-      - 표준학교명은 전북교육청 표준학교명 목록(내장 데이터베이스)과 자동으로 비교됩니다.
-    </li>
-<li><strong>매칭 결과 확인 및 수동 확정</strong><br/>
-      - “매칭 실행” 버튼을 누르면, 각 행에 대해 원본 학교명과 표준학교명이 매칭됩니다.<br/>
-      - 자동으로 확실히 매칭된 행은 <span class="badge auto">자동 매칭</span>, 애매하거나 후보가 여러 개인 행은 <span class="badge review">검토 필요</span>로 표시됩니다.<br/>
-      - “검토 필요” 행 옆의 버튼을 눌러 후보 목록에서 직접 표준학교명을 선택(수동 확정)할 수 있습니다.
-    </li>
-<li><strong>추가로 붙일 표준학교명 정보 선택 (선택)</strong><br/>
-      - 3번 카드에서 <strong>설립구분, 학교급, 교육지원청</strong> 등 표준학교명 데이터베이스에 들어 있는 항목을 체크할 수 있습니다.<br/>
-      - 기본값은 <strong>모든 항목이 체크 해제</strong> 상태이며, 필요한 항목만 골라서 선택합니다.<br/>
-      - 선택한 항목은 엑셀로 내보낼 때 <strong>표준학교명 열의 오른쪽</strong>에 새 열로 함께 추가됩니다.
-    </li>
-<li><strong>엑셀로 결과 다운로드</strong><br/>
-      - 매칭 결과와 추가 항목 선택을 마쳤다면, <strong>“엑셀로 결과 다운로드”</strong> 버튼을 눌러 결과 파일을 저장합니다.<br/>
-      - 2번(매칭 결과) 카드와 3번(추가 정보) 카드에 있는 다운로드 버튼은 모두 동일하게 동작합니다.<br/>
-      - <em>파일명 예시:</em> <code>원본파일명_학교명표준화.xlsx</code> 형식으로 저장되며,<br/>
-        기존 데이터에 <strong>표준학교명 열</strong>과 선택한 <strong>추가 정보 열</strong>이 오른쪽에 붙어서 저장됩니다.
-    </li>
-</ol>
-<p><strong>Tip.</strong> 학교명이 지나치게 축약되어 있거나 별칭으로만 적혀 있는 경우에는 자동 매칭이 어려울 수 있습니다. 이런 값들은 먼저 어느 정도 정리한 뒤 표준화를 수행하면 정확도가 올라갑니다.</p>
-</div>
-</div>
-<script>
-(function() {
-  const btn = document.getElementById('usageGuideBtn');
-  const modal = document.getElementById('usageGuideModal');
-  const closeBtn = modal ? modal.querySelector('.usage-guide-close') : null;
-  if (btn && modal) {
-    btn.addEventListener('click', () => {
-      modal.style.display = 'block';
-    });
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["file-upload", "파일 올리기", "학교명이 들어 있는 엑셀 파일(xlsx, xls)을 고릅니다. 비교할 표준학교명 목록은 도구 안에 들어 있어 따로 올리지 않습니다."],
+    ["sheet-header", "시트와 헤더 행", "파일을 올리면 첫 시트를 읽고 헤더 행을 자동으로 찾아 둡니다. 시트가 여러 개면 ‘시트 선택’에서 바꾸고, 찾은 헤더 행이 틀리면 ‘헤더 행 선택’에서 고칩니다."],
+    ["columns", "학교명 열과 지역 열", "학교명 열과 지역(행정구) 열도 자동으로 골라 두니 맞는지 확인합니다. 지역 열을 고르면 이름이 같은 학교가 여러 곳일 때 같은 지역 학교를 먼저 고릅니다. 지역 열은 없어도 됩니다."],
+    ["run-match", "매칭 실행", "‘학교명 자동 매칭 실행’을 누르면 아래 표에 결과가 나옵니다. 오른쪽 ‘초기화’는 페이지를 새로 불러와 처음 상태로 돌립니다."],
+    ["result-table", "매칭 결과 표", "행마다 매칭된 표준학교명과 상태(자동 매칭·검토 필요·수동 확정)가 나오고, 표 위에 전체·자동 매칭·검토 필요 행 수가 표시됩니다. ‘원본 학교명’ 칸을 고치고 Enter를 누르면 그 행만 다시 매칭하며, 후보가 여러 개인 행은 ‘후보 선택’으로 직접 고릅니다."],
+    ["result-actions", "결과 버튼", "‘검토 필요 행만 보기’는 검토할 행만 추려 보여 주고, 다시 누르면 전체를 봅니다. ‘엑셀로 결과 다운로드’는 원본 파일의 학교명 열 오른쪽에 ‘표준학교명’ 열을 붙여 ‘원본파일명_학교명표준화.xlsx’로 저장합니다."],
+    ["extra-export", "추가 정보와 다운로드", "설립구분, 학교급, 교육지원청처럼 표준학교명 목록에 있는 항목을 체크하면 결과 파일의 표준학교명 열 오른쪽에 열로 함께 붙습니다. 아래 ‘엑셀로 결과 다운로드’는 위 2번 칸의 버튼과 같습니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
   }
-  if (closeBtn && modal) {
-    const close = () => { modal.style.display = 'none'; };
-    closeBtn.addEventListener('click', close);
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) close();
-    });
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
   }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
 })();
 </script>
 </body>

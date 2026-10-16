@@ -188,8 +188,35 @@
       * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     }
   </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 <body>
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
   <div class="app">
     <header>
       <h1><span class="logo-badge">S</span>증빙서 측면 표지 생성 도구(v1.0)</h1>
@@ -199,7 +226,7 @@
     <section class="panel panel-input">
       <div class="panel-head">
         <div class="panel-title">표지 정보 입력</div>
-        <div class="actions">
+        <div class="actions" data-tour="rows-actions">
           <button type="button" class="btn btn-ghost" id="addRow">행 추가</button>
           <button type="button" class="btn btn-ghost" id="sample">샘플</button>
           <button type="button" class="btn btn-ghost" id="xlsxDown">양식 다운로드</button>
@@ -210,7 +237,7 @@
         </div>
       </div>
 
-      <div class="bars">
+      <div class="bars" data-tour="bars">
         <div class="bar">
           <span class="bar-title">공통</span>
           <label class="unit"><span>보존기간</span><select id="retention"></select></label>
@@ -225,7 +252,7 @@
       </div>
 
       <div class="hint">엑셀·한셀에서 복사한 표를 그대로 붙여넣을 수 있습니다 · 인쇄할 행을 체크하세요</div>
-      <div class="table-wrap">
+      <div class="table-wrap" data-tour="rows">
         <table class="rows">
           <colgroup>
             <col style="width:52px" /><col style="width:44px" /><col style="width:84px" /><col style="width:150px" /><col style="width:150px" />
@@ -243,14 +270,14 @@
       <ul class="msgs" id="msgs"></ul>
 
       <div class="more">
-        <details class="box">
+        <details class="box" data-tour="prefs">
           <summary>표시 항목</summary>
           <div class="box-body">
             <ol class="order" id="prefList"></ol>
             <div class="actions"><button type="button" class="btn btn-ghost" id="prefsReset">기본값으로</button></div>
           </div>
         </details>
-        <details class="box" id="jobsBox">
+        <details class="box" id="jobsBox" data-tour="jobs">
           <summary>저장한 작업</summary>
           <div class="box-body">
             <div class="line">
@@ -267,12 +294,12 @@
     <section class="panel panel-preview">
       <div class="panel-head pv-head">
         <div class="panel-title">미리보기<span class="meta" id="pvMeta"></span></div>
-        <div class="actions">
+        <div class="actions" data-tour="pv-actions">
           <div class="seg" id="zoomSeg"><button type="button" data-zoom="fit" class="on">화면 맞춤</button><button type="button" data-zoom="1">실제 크기</button></div>
           <button type="button" class="btn btn-primary" id="print2">인쇄 / PDF 저장</button>
         </div>
       </div>
-      <div class="stage" id="stage"><div class="pages" id="pages"></div></div>
+      <div class="stage" id="stage" data-tour="pv-stage"><div class="pages" id="pages"></div></div>
     </section>
   </div>
 
@@ -927,6 +954,7 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
   }
 
+
   function init() {
     $('retention').addEventListener('change', function () { state.retention = this.value; schedule(); });
     $('org').addEventListener('input', function () { state.org = this.value; saveOrg(this.value.trim()); schedule(); });
@@ -972,6 +1000,118 @@
   init();
 })();
 
+</script>
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["rows-actions", "표지 버튼", "행 추가, 샘플, 엑셀 양식 다운로드·업로드, 전체 지우기가 있습니다. 잘못 지웠을 때는 Ctrl+Z로 되돌립니다. 맨 오른쪽 ‘인쇄 / PDF 저장’은 미리보기 위의 버튼과 같습니다."],
+    ["bars", "공통과 한꺼번에 넣기", "보존기간과 기관명은 모든 표지에 똑같이 들어가고, 기관명은 다음에 열어도 기억합니다. 생산연도·두께·문서명이 모두 같으면 여기에 쓰고 ‘적용’을 눌러 모든 행에 한 번에 넣습니다."],
+    ["rows", "표지 정보 입력", "한 줄이 표지 한 장입니다. 시작일·종료일은 칸을 누르면 달력이 열리고, 두께(mm)만큼 표지 폭이 정해집니다. 관리번호는 비워 두면 위 행 다음 번호가 붙고, 권번호는 생산연도·문서명이 같은 행이 이어지면 (3-1)처럼 자동으로 붙습니다. 엑셀·한셀에서 복사한 표를 붙여넣을 수 있고, 왼쪽 체크를 끈 행은 인쇄하지 않습니다."],
+    ["prefs", "표시 항목", "눌러서 펼치면 표지에 넣을 칸을 켜고 끄고, ▲▼로 위아래 순서를 바꿉니다. 구분명은 학교명·기관명·부서명 중에서 고릅니다. 고른 설정은 다음에 열어도 기억합니다."],
+    ["jobs", "저장한 작업", "눌러서 펼친 뒤 ‘현재 작업 저장’(Ctrl+S)으로 표지 정보와 설정을 저장해 두고, 나중에 불러와 이어서 씁니다."],
+    ["pv-actions", "인쇄 / PDF 저장", "보기 크기(화면 맞춤·실제 크기)를 바꾸고, 인쇄하거나 PDF로 저장합니다. 인쇄 창의 배율은 기본값(100%)으로 두어야 표지가 실제 크기로 나옵니다. PDF 파일 이름은 ‘증빙서_측면표지_날짜’로 정해집니다."],
+    ["pv-stage", "미리보기", "실제로 인쇄될 모양입니다. A4 가로 한 장에 표지가 두께만큼 왼쪽부터 채워지고, 문서명 글자 크기는 칸에 맞게 자동으로 정해집니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
+  }
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
+  }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
+})();
 </script>
 </body>
 </html>

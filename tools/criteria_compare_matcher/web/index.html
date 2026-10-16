@@ -34,64 +34,6 @@
       color:var(--text);
     }
 
-    /* 사용가이드 버튼(우상단 고정) */
-    .guide-fab{
-      position:fixed;
-      top:10px;
-      right:10px;
-      z-index:9999;
-    }
-    .guide-fab button{
-      padding:6px 14px;
-      font-size:12px;
-      cursor:pointer;
-      border-radius:6px;
-      border:none;
-      background:#0054a6;
-      color:#ffffff;
-      box-shadow:0 2px 4px rgba(0,0,0,0.18);
-      font-weight:500;
-    }
-
-    /* 가이드 모달 */
-    .modal{
-      display:none;
-      position:fixed;
-      z-index:10000;
-      left:50%;
-      top:50%;
-      transform:translate(-50%, -50%);
-      max-width:760px;
-      width:92%;
-      max-height:80%;
-      background:#ffffff;
-      border-radius:6px;
-      box-shadow:0 18px 45px rgba(15,23,42,0.25);
-      padding:18px 22px;
-      overflow:auto;
-      font-size:13px;
-      line-height:1.6;
-    }
-    .modal-header{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:8px;
-    }
-    .modal-header h2{
-      margin:0;
-      font-size:16px;
-    }
-    .modal-close{
-      padding:4px 12px;
-      font-size:12px;
-      cursor:pointer;
-      border-radius:6px;
-      border:1px solid #cbd5e1;
-      background:#f9fafb;
-      color:#334155;
-    }
-
     /* 앱 컨테이너 */
     .app{
       width:100%;
@@ -380,45 +322,36 @@
       margin-top:10px;
     }
   </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 
 <body>
-  <!-- 우상단 사용가이드 버튼 -->
-  <div class="guide-fab">
-    <button id="usageGuideBtn" type="button">사용가이드</button>
-  </div>
-
-  <!-- 사용가이드 모달 -->
-  <div id="usageGuideModal" class="modal" role="dialog" aria-modal="true">
-    <div class="modal-header">
-      <h2>사용가이드</h2>
-      <button class="modal-close" id="usageGuideClose" type="button">닫기</button>
-    </div>
-    <div style="color:#334155;">
-      <b>목적</b><br/>
-      - 기준 데이터와 비교 데이터를 선택한 “매칭 키(1개 이상)”로 비교하여, 기준 데이터에 <b>중복값(O/X)</b> 열을 추가합니다.<br/><br/>
-
-      <b>사용 절차</b><br/>
-      1) 기준/비교 파일 업로드<br/>
-      2) 각 파일의 <b>시트 선택</b> (기본: 첫 번째 시트)<br/>
-      3) 자동으로 잡힌 <b>열 제목이 있는 줄</b>이 맞는지 확인 (필요 시 숫자 수정 후 [적용])<br/>
-      4) 기준/비교에서 매칭 키를 1개 이상 선택 (권장: 2개 이상)<br/>
-      5) [실행] → <span class="mono">기준파일명_매칭표시.xlsx</span> 다운로드<br/><br/>
-
-      <b>서식 보존</b><br/>
-      - 기준 데이터(.xlsx)는 <b>ExcelJS</b>로 원본을 불러와 <b>서식을 최대한 유지</b>한 채 열만 추가합니다.<br/>
-      - 새로 추가되는 “중복값” 열은 서식 없이 값(O/X)만 기록됩니다.<br/><br/>
-
-      <b>오프라인 사용</b><br/>
-      - 내부망에서도 사용 가능<br/>
-      - 외부 네트워크 접근 없음(인터넷 비연결/차단 환경) → 데이터가 외부로 전송되지 않음<br/>
-      - 로컬에서만 처리되어 개인정보 노출 위험 최소화<br/><br/>
-
-      <b>문의</b><br/>
-      - 전북특별자치도교육청 정책기획과 빅데이터팀(063-239-3176)
-    </div>
-  </div>
-
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
   <div class="app">
     <header class="app-header">
       <h1>
@@ -430,7 +363,7 @@
 
     <main class="layout">
       <!-- 왼쪽: 업로드/설정 -->
-      <section class="card">
+      <section class="card" data-tour="upload">
         <div class="card-title">1. 파일 업로드 및 설정</div>
         <p class="card-desc">기준/비교 파일과 시트를 선택한 뒤, “열 제목이 있는 줄”과 매칭 키를 설정합니다.</p>
 
@@ -500,7 +433,7 @@
 
       <!-- 오른쪽: 키 선택/실행 -->
       <section class="card">
-        <div class="table-header-row">
+        <div class="table-header-row" data-tour="run-actions">
           <h2>2. 매칭 키 선택 및 실행</h2>
           <div class="actions">
             <div class="btn-row">
@@ -514,7 +447,7 @@
 
         <p class="card-desc">각 데이터에서 매칭 키를 1개 이상 선택하세요. (권장: 2개 이상)</p>
 
-        <div class="key-grid">
+        <div class="key-grid" data-tour="match-keys">
           <div class="keybox">
             <h3>기준 데이터 매칭 키</h3>
             <div id="baseCols" class="checklist"></div>
@@ -529,7 +462,7 @@
           ※ .xlsm(매크로 포함) 파일은 저장 과정에서 매크로가 유지되지 않을 수 있습니다. 가능하면 .xlsx 권장
         </div>
 
-        <div style="margin-top:12px; border-top:1px solid #e5e7eb; padding-top:10px;">
+        <div data-tour="summary" style="margin-top:12px; border-top:1px solid #e5e7eb; padding-top:10px;">
           <div class="card-title" style="font-size:16px;">요약</div>
           <pre class="mono" id="summary" style="background:#f9fafb;border:1px solid var(--border);border-radius:6px;padding:10px;white-space:pre-wrap;margin-top:6px;">- 기준 데이터: (미로드)
 - 비교 데이터: (미로드)
@@ -543,14 +476,6 @@
 
 <script>
 (() => {
-  // guide modal
-  const usageBtn = document.getElementById("usageGuideBtn");
-  const modal = document.getElementById("usageGuideModal");
-  const closeBtn = document.getElementById("usageGuideClose");
-  usageBtn.addEventListener("click", () => { modal.style.display = "block"; });
-  closeBtn.addEventListener("click", () => { modal.style.display = "none"; });
-  window.addEventListener("keydown", (e) => { if(e.key === "Escape") modal.style.display = "none"; });
-
   // library checks
   const hasXLSX = typeof XLSX !== "undefined";
   const hasExcelJS = typeof ExcelJS !== "undefined";
@@ -1047,6 +972,115 @@
   });
 
   updateUIAfterReset();
+})();
+</script>
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["upload", "파일 올리기와 설정", "‘기준 파일 선택’에는 O/X를 표시할 파일을, ‘비교 파일 선택’에는 견줄 파일을 올립니다. 시트가 여러 개면 ‘시트 선택’에서 고르고, 자동으로 잡힌 ‘열 제목이 있는 줄’이 틀리면 숫자를 고친 뒤 ‘적용’을 누릅니다. 기준 파일은 서식을 최대한 유지한 채 ‘중복값’ 열만 덧붙여집니다."],
+    ["run-actions", "실행과 초기화", "양쪽에서 매칭 키를 하나 이상 고르면 ‘실행’을 누를 수 있습니다. 비교 데이터에 같은 값이 있으면 O, 없으면 X를 ‘중복값’ 열에 적어 ‘기준파일명_매칭표시.xlsx’로 내려받습니다. ‘중지’는 실행을 멈추고, ‘초기화’는 올린 파일과 설정을 모두 비웁니다."],
+    ["match-keys", "매칭 키 선택", "파일을 올리면 열 제목이 체크 목록으로 나옵니다. 기준·비교 양쪽에서 같은 뜻의 열을 하나 이상 고릅니다(두 개 이상 권장). 고른 열은 각 파일의 열 순서대로 짝지어 비교하며, 띄어쓰기와 영문 대소문자는 가리지 않습니다."],
+    ["summary", "요약", "올린 파일 이름과 행 수, 선택 시트, 열 제목이 있는 줄, 고른 키, 다운로드 파일명이 표시됩니다. 실행 전에 맞는지 확인합니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
+  }
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
+  }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
 })();
 </script>
 </body>

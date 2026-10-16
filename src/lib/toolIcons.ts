@@ -20,6 +20,7 @@ import {
   FolderSearch,
   FolderX,
   Hash,
+  IdCard,
   LayoutGrid,
   Layers,
   Library,
@@ -108,6 +109,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   gyeodetong_group_register: Users,
   k_edufine_group_register: Users,
   evidence_spine_label: Library,
+  meeting_nameplate: IdCard,
   // 간단 도구
   simple_calculators: Calculator,
   simple_draw_tools: Dices,

@@ -1562,8 +1562,35 @@ select:disabled {
   width: 100%;
 }
 </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 <body>
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
 <div class="app">
 <header class="app-header">
 <div class="logo">🧹 엑셀 데이터 품질 점검 도구(v1.2)</div>
@@ -1575,12 +1602,12 @@ select:disabled {
 <p class="section-desc">
           품질을 점검할 엑셀 파일을 업로드한 뒤 <strong>시트</strong>와 <strong>헤더 행</strong>을 선택하세요.
         </p>
-<label class="file-label" style="margin-top:10px;">
+<label class="file-label" style="margin-top:10px;" data-tour="file">
 <input accept=".xlsx,.xls" id="fileInput" type="file"/>
 <span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
 </label>
 <p class="hint small muted mt-8"></p>
-<div class="inline-fields">
+<div class="inline-fields" data-tour="sheet-header">
 <div class="field">
 <label for="sheetSelect">시트 선택</label>
 <select disabled="" id="sheetSelect">
@@ -1610,7 +1637,7 @@ select:disabled {
         </p>
 <section class="summary-section" id="summarySection">
 <h2>파일 요약</h2>
-<div class="summary-cards">
+<div class="summary-cards" data-tour="summary">
 <div class="card">
 <div class="card-title">파일명</div>
 <div class="card-value" id="fileName">-</div>
@@ -1624,7 +1651,7 @@ select:disabled {
 <div class="card-value" id="colCount">-</div>
 </div>
 </div>
-<div class="summary-actions">
+<div class="summary-actions" data-tour="exports">
 <button class="primary-btn" id="exportIssueRowsBtn">이슈가 있는 행만 엑셀로 내보내기</button>
 <button class="primary-btn" id="exportIssueSummaryBtn">열별 이슈 요약 엑셀로 내보내기</button>
 <button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
@@ -1633,7 +1660,7 @@ select:disabled {
         품질 진단 결과를 바탕으로, 이슈가 있는 행과 열별 이슈 요약을 별도 엑셀 파일로 저장할 수 있습니다.
       </p>
 </section>
-<section class="detail-section" id="detailSection">
+<section class="detail-section" id="detailSection" data-tour="detail">
 <h2>열별 품질 진단</h2>
 <div class="table-wrapper">
 <table id="resultTable">
@@ -2681,83 +2708,114 @@ function renderResultTable(columnStats) {
   
   });
 </script>
-<div style="position:fixed; top:10px; right:10px; z-index:9999;">
-<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
-    사용가이드
-  </button>
-</div>
-<div id="usageGuideModal" style="
-  display:none;
-  position:fixed;
-  z-index:10000;
-  left:50%;
-  top:50%;
-  transform:translate(-50%, -50%);
-  max-width:720px;
-  width:90%;
-  max-height:80%;
-  background:#ffffff;
-  border-radius:6px;
-  box-shadow:0 18px 45px rgba(15,23,42,0.25);
-  padding:18px 22px;
-  box-sizing:border-box;
-  overflow:auto;
-  font-size:13px;
-  line-height:1.6;
-">
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-<h2 style="margin:0; font-size:16px;">데이터 품질 점검 도구 사용 가이드</h2>
-<button class="usage-guide-close" style="padding:4px 12px; font-size:12px; cursor:pointer; border-radius:6px; border:1px solid #cbd5e1; background:#f9fafb; color:#334155;" type="button">닫기</button>
-</div>
-<div class="usage-guide-body">
-<p><strong>이 도구는 엑셀 데이터의 품질(결측치, 타입 오류 등)을 자동으로 점검하고 리포트를 만들어 줍니다.</strong></p>
-<ol>
-<li><strong>파일 불러오기</strong><br/>
-    - 품질을 점검할 엑셀 파일을 선택합니다.<br/>
-    - 여러 시트가 있는 경우, 분석할 시트를 선택할 수 있습니다.
-  </li>
-<li><strong>헤더(열 이름) 행 확인</strong><br/>
-    - 자동으로 감지된 헤더 행 번호를 확인합니다.<br/>
-    - 열 이름이 제대로 잡히지 않았다면 행 번호를 조정한 뒤 다시 분석합니다.
-  </li>
-<li><strong>품질 진단 실행</strong><br/>
-    - “품질 진단” 또는 이에 해당하는 분석 버튼을 눌러 점검을 실행합니다.<br/>
-    - 각 열에 대해 다음과 같은 정보를 확인할 수 있습니다.<br/>
-      · 결측값 비율<br/>
-      · 추정 데이터 타입(숫자/날짜/텍스트)<br/>
-      · 타입 오류 개수, 날짜 형식 오류 개수 등
-  </li>
-<li><strong>이슈 행/요약 리포트 활용</strong><br/>
-    - “이슈 행만 엑셀로 내보내기”: 품질 이슈가 있는 행만 따로 저장합니다.<br/>
-    - “열별 이슈 요약 내보내기”: 열 단위로 품질 상태를 정리한 리포트를 생성합니다.<br/>
-    - <em>파일명 예시:</em> <code>원본명_품질진단.xlsx</code> 으로 저장됩니다.
-  </li>
-<li><strong>결측치 처리용 엑셀 만들기</strong><br/>
-    - “결측 행만 내보내기”: 결측치가 있는 행만 모은 엑셀을 생성합니다.<br/>
-    - “결측 행 제거 후 내보내기”: 결측치가 있는 행을 제거한 버전을 만듭니다.<br/>
-    - 이 파일들을 활용해 후속 정제 작업을 진행할 수 있습니다.
-  </li>
-</ol>
-<p><strong>Tip.</strong> 품질 진단 리포트는 데이터 상태를 한눈에 보여주는 요약 보고서입니다. 분석이나 보고서 작성 전에 먼저 품질 진단을 통해 데이터 신뢰도를 확인하세요.</p>
-</div>
-</div>
-<script>
-(function() {
-  const btn = document.getElementById('usageGuideBtn');
-  const modal = document.getElementById('usageGuideModal');
-  const closeBtn = modal ? modal.querySelector('.usage-guide-close') : null;
-  if (btn && modal) {
-    btn.addEventListener('click', () => {
-      modal.style.display = 'block';
-    });
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["file", "엑셀 파일 선택", "‘엑셀 파일 선택 (.xlsx, .xls)’을 눌러 점검할 파일을 고릅니다. 고르면 첫 번째 시트를 바로 진단해 아래에 결과를 보여 줍니다."],
+    ["sheet-header", "시트와 헤더 행", "시트가 여러 개면 ‘시트 선택’에서 바꿉니다. ‘헤더 행 선택’은 열 이름이 있는 행입니다. 처음에는 ‘학교명’·‘학교코드’가 든 행이나 내용이 있는 첫 행으로 잡히고, 잘못 잡혔으면 바로 고르면 다시 진단합니다."],
+    ["summary", "파일 요약", "파일명, 헤더 행 아래 데이터의 행 개수, 열 개수가 나옵니다."],
+    ["exports", "내려받기와 초기화", "‘이슈가 있는 행만 엑셀로 내보내기’는 문제 있는 행에 ‘품질_이슈’ 열을 붙여 저장하고, ‘열별 이슈 요약 엑셀로 내보내기’는 아래 표 내용을 ‘원래이름_품질진단’ 파일로 저장합니다. ‘초기화’는 화면을 처음 상태로 되돌립니다."],
+    ["detail", "열별 품질 진단", "열마다 추정 타입(숫자·날짜·텍스트), 빈칸(결측값) 비율, 고유값 개수, 이슈를 보여 줍니다. 빈칸이 10% 이상이거나, 숫자 열에 숫자가 아닌 값, 날짜 열에 형식이 다른 값이 있으면 이슈로 표시합니다. 진단이 끝나면 아래에 ‘상세 이슈 목록’이 나와, 고른 열 기준으로 결측치 있는 행만 또는 그 행을 지운 엑셀을 원래 서식대로 내려받을 수 있습니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
   }
-  if (closeBtn && modal) {
-    const close = () => { modal.style.display = 'none'; };
-    closeBtn.addEventListener('click', close);
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) close();
-    });
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
   }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
 })();
 </script>
 </body>

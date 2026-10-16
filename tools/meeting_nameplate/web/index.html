@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>회의 명패 생성 도구(v1.0)</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style id="pageStyle">@page { size:A4 landscape; margin:5mm; }</style>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --text:#222222;
+      --ink:#111827;
+      --muted:#6b7280;
+      --label:#374151;
+      --brand:#0056b8;
+      --brand-dark:#00479a;
+      --brand-soft:#e4effb;
+      --brand-line:#b7cff0;
+      --border:#d4dbe8;
+      --line:#eef2f7;
+      --radius:6px;
+      --shadow-soft:0 10px 24px rgba(15,23,42,.06);
+      --bad-bg:#fef3f2;
+      --bad-text:#b42318;
+      --bad-line:#f3b6b0;
+      --head-bg:#f8fafc;
+      --stage:#e9edf2;
+      --h:36px;
+      --cell-h:32px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;background:var(--bg);color:var(--text);}
+    button,input,select,textarea{font-family:inherit;}
+
+    .app{max-width:1400px;margin:0 auto;padding:24px 16px 32px;}
+    header{text-align:center;margin-bottom:16px;}
+    header h1{font-size:24px;font-weight:600;letter-spacing:-0.02em;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--ink);}
+    header p{margin-top:4px;font-size:13px;color:var(--muted);}
+    .logo-badge{width:32px;height:32px;border-radius:6px;background:var(--brand);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;}
+
+    .panel{background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-soft);padding:16px;min-width:0;}
+    .panel + .panel{margin-top:16px;}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:12px;}
+    .panel-title{font-size:18px;font-weight:600;color:var(--ink);white-space:nowrap;}
+    .meta{margin-left:8px;font-size:12px;font-weight:400;color:var(--muted);}
+
+    /* 입력칸·버튼: 모두 같은 높이·모양 */
+    input[type="text"],input[type="number"],input[type="date"],select,textarea{
+      width:100%;height:var(--h);padding:0 10px;border:1px solid var(--border);border-radius:var(--radius);
+      background:#fff;color:var(--ink);font-size:13px;outline:none;
+    }
+    input:focus,select:focus,textarea:focus{border-color:#8ab4f8;box-shadow:0 0 0 2px rgba(0,86,184,.12);}
+    input:disabled,select:disabled{background:var(--head-bg);color:#9ca3af;}
+    input.bad,select.bad,textarea.bad{border-color:var(--bad-text);background:var(--bad-bg);}
+    input[type="number"]{-moz-appearance:textfield;}
+    input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    input[type="checkbox"]{width:15px;height:15px;margin:0;accent-color:var(--brand);cursor:pointer;vertical-align:middle;}
+
+    .actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+    .btn{height:var(--h);padding:0 14px;border-radius:var(--radius);font-size:13px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+    .btn-primary{background:var(--brand);color:#fff;border:1px solid var(--brand);font-weight:600;}
+    .btn-primary:hover{background:var(--brand-dark);}
+    .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--border);}
+    .btn-ghost:hover{background:var(--head-bg);}
+    .btn-danger{background:#fff;color:var(--bad-text);border:1px solid var(--bad-line);}
+    .btn-danger:hover{background:var(--bad-bg);}
+    .btn:disabled{opacity:.45;cursor:not-allowed;}
+    .btn-icon{width:var(--cell-h);height:var(--cell-h);padding:0;font-size:14px;color:var(--muted);background:#fff;border:1px solid var(--border);}
+    .btn-icon:hover{background:var(--head-bg);color:var(--ink);}
+    .btn-icon.del:hover{background:var(--bad-bg);color:var(--bad-text);border-color:var(--bad-line);}
+    .spacer{flex:1 1 auto;}
+
+    /* 공통·일괄 적용 칸: 줄마다 같은 너비의 머리말로 칸 시작선을 맞춘다 */
+    .bars{margin-top:12px;border:1px solid var(--brand-line);border-radius:var(--radius);background:#f3f8fe;}
+    /* 두 줄이 같은 칸 틀을 쓴다: [머리말][칸1][칸2][칸3]. 칸마다 라벨 너비가 같아 입력칸 시작선이 위아래로 맞는다 */
+    .bar{display:grid;grid-template-columns:104px repeat(2,minmax(0,280px)) minmax(0,420px);align-items:center;gap:8px 20px;padding:10px 12px;}
+    .bar + .bar{border-top:1px solid var(--brand-line);}
+    .bar-title{font-size:12px;font-weight:700;color:var(--brand);white-space:nowrap;}
+    .unit{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:6px;min-width:0;}
+    .unit > span{font-size:12px;font-weight:600;color:var(--label);white-space:nowrap;}
+    .unit > :nth-child(2){grid-column:2 / span 2;}
+    .unit > :nth-child(2):not(:last-child){grid-column:2;}
+    @media(max-width:1000px){.bar{grid-template-columns:minmax(0,1fr);}}
+
+    .hint{margin-top:12px;font-size:12px;color:var(--muted);}
+
+    /* 표지 정보 표 */
+    .table-wrap{margin-top:6px;border:1px solid var(--border);border-radius:var(--radius);overflow-x:auto;background:#fff;}
+    table.rows{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed;font-size:13px;}
+    table.rows th{height:38px;padding:0 6px;background:var(--head-bg);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--label);text-align:left;white-space:nowrap;}
+    table.rows th.c,table.rows td.c{text-align:center;}
+    table.rows td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle;}
+    table.rows tr:last-child td{border-bottom:0;}
+    table.rows th:first-child,table.rows td:first-child{padding-left:12px;}
+    table.rows th:last-child,table.rows td:last-child{padding-right:12px;}
+    table.rows input[type="text"],table.rows input[type="number"],table.rows input[type="date"],table.rows select{height:var(--cell-h);padding:0 8px;}
+    input[type="date"]{cursor:pointer;}
+    input[type="date"]:not(:valid),input[type="date"][value=""]{color:var(--muted);}
+    table.rows textarea{height:var(--cell-h);min-height:var(--cell-h);padding:6px 8px;line-height:18px;resize:none;overflow:hidden;display:block;}
+    table.rows tr.off td{background:#fafbfc;}
+    table.rows tr.off td:not(:first-child){opacity:.5;}
+    .no{color:var(--muted);}
+    .volno{font-weight:600;color:var(--ink);}
+    table.rows th.in{padding-left:15px;}   /* 머리글을 입력칸 글자 시작선에 맞춘다 */
+    .ops{display:flex;gap:4px;justify-content:center;}
+
+    .msgs{list-style:none;margin-top:10px;padding:8px 12px;border:1px solid var(--bad-line);border-radius:var(--radius);background:var(--bad-bg);color:var(--bad-text);font-size:12px;line-height:1.7;}
+    .msgs:empty{display:none;}
+
+    /* 표시 항목·저장한 작업 (접어 두는 칸) */
+    .more{margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;}
+    @media(max-width:900px){.more{grid-template-columns:minmax(0,1fr);}}
+    details.box{border:1px solid var(--border);border-radius:var(--radius);background:#fff;}
+    details.box > summary{height:40px;padding:0 12px;display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--ink);background:var(--head-bg);border-radius:var(--radius);}
+    details.box > summary::-webkit-details-marker{display:none;}
+    details.box > summary::before{content:"▶";font-size:10px;color:var(--muted);width:12px;}
+    details.box[open] > summary::before{content:"▼";}
+    details.box[open] > summary{border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;}
+    .box-body{padding:12px;display:grid;gap:10px;}
+    /* 표시 항목: 위에서 아래로 = 표지 위에서 아래로. ▲▼ 로 순서를 바꾼다 */
+    .order{list-style:none;display:grid;gap:6px;}
+    .order li{display:grid;grid-template-columns:22px minmax(0,1fr) auto 30px 30px;align-items:center;gap:8px;height:var(--h);padding:0 6px 0 10px;
+      border:1px solid var(--border);border-radius:var(--radius);background:#fff;font-size:13px;color:var(--ink);}
+    .order li.on{border-color:var(--brand-line);background:var(--brand-soft);}
+    .order li.on .nm{color:var(--brand);font-weight:600;}
+    .order .no{font-size:12px;text-align:center;}
+    .order .nm{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;min-width:0;}
+    .order .opt{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--label);cursor:pointer;}
+    .order .opts{display:flex;align-items:center;gap:8px;}
+    .order .opts select + .opt{margin-left:8px;}
+    .order .box-gap{width:15px;flex:0 0 15px;}   /* 체크가 없는 줄도 이름 시작선을 맞춘다 */
+    .order select{height:28px;width:96px;padding:0 6px;font-size:12px;}
+    .order .btn-icon{width:30px;height:28px;font-size:11px;}
+    .line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;}
+    .line > span{font-size:12px;font-weight:600;color:var(--label);white-space:nowrap;}
+    .line.lbl{grid-template-columns:auto minmax(0,1fr) auto;}
+
+    /* 미리보기 = 인쇄 모양 */
+    .seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;height:var(--h);}
+    .seg button{border:0;background:#fff;padding:0 12px;font-size:12px;color:var(--ink);cursor:pointer;}
+    .seg button + button{border-left:1px solid var(--border);}
+    .seg button.on{background:var(--brand-soft);color:var(--brand);font-weight:600;}
+    .stage{background:var(--stage);border-radius:var(--radius);padding:20px;overflow:auto;}
+    .pages{zoom:var(--zoom,1);width:max-content;margin:0 auto;}
+    .page{position:relative;width:297mm;height:210mm;padding:6mm 2mm 6mm 5mm;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18);overflow:hidden;}
+    .page + .page{margin-top:8mm;}
+    .page-no{position:absolute;right:4mm;bottom:1.5mm;font-size:3mm;line-height:1;color:#9ca3af;font-weight:600;}
+    .page-inner{margin:0 -2mm 0 0;font-size:0;line-height:0;}
+    .item{display:inline-block;vertical-align:top;margin:0 2mm 0 0;position:relative;top:var(--print-nudge-y, 0mm);break-inside:avoid;page-break-inside:avoid;}
+    .empty{padding:48px 16px;text-align:center;font-size:13px;color:var(--muted);}
+
+    .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);background:var(--ink);color:#fff;font-size:13px;padding:10px 18px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .18s, transform .18s;z-index:80;white-space:pre-line;text-align:center;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+
+    /* ---------- 명패 도구 ---------- */
+    .bar.three{grid-template-columns:104px repeat(3,minmax(0,280px));}
+    .unit.wide{grid-column:2 / span 2;}
+    .opts{display:flex;align-items:center;gap:16px;height:var(--h);}
+    .opt{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);cursor:pointer;white-space:nowrap;}
+
+    /* 양식 패널: 왼쪽 설정 | 오른쪽 양식 화면·칸 목록 */
+    .tpl{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;align-items:start;}
+    @media(max-width:1000px){.tpl{grid-template-columns:minmax(0,1fr);}}
+    .tpl-side{display:grid;gap:10px;padding:12px;border:1px solid var(--brand-line);border-radius:var(--radius);background:#f3f8fe;}
+    .field-row{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;gap:8px;min-height:var(--h);}
+    .field-row[hidden]{display:none;}
+    .field-row > span{font-size:12px;font-weight:600;color:var(--label);white-space:nowrap;}
+    .field-row .pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;}
+    .field-row .pair{display:grid;grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);gap:6px;align-items:center;}
+    .field-row .pair span{font-size:12px;color:var(--muted);text-align:center;}
+    .field-row .static{font-size:13px;color:var(--ink);}
+    .side-sep{border-top:1px solid var(--brand-line);margin:2px 0;}
+    .side-info{font-size:12px;line-height:1.6;color:var(--muted);}
+
+    .editor-wrap{background:var(--stage);border-radius:var(--radius);padding:20px;overflow:hidden;}
+    .editor{position:relative;margin:0 auto;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18);zoom:var(--ez,1);}
+    .editor svg{display:block;}
+    .editor .cellhit{position:absolute;cursor:pointer;}
+    .editor .cellhit:hover{outline:0.4mm dashed rgba(0,86,184,.6);outline-offset:-0.4mm;background:rgba(0,86,184,.05);}
+    .editor .slotbox{position:absolute;outline:0.35mm dashed rgba(0,86,184,.55);outline-offset:0.4mm;cursor:pointer;}
+    .editor .slotbox.sel{outline:0.6mm solid var(--brand);background:rgba(0,86,184,.08);}
+    .editor .slotbox b{position:absolute;left:-1.6mm;top:-1.6mm;transform:translate(-50%,-50%);min-width:5mm;height:5mm;padding:0 1mm;border-radius:2.5mm;background:var(--brand);color:#fff;font:600 3.2mm/5mm "Malgun Gothic",sans-serif;text-align:center;}
+    .editor-hint{margin-top:10px;font-size:12px;color:var(--muted);}
+
+    table.fields{width:100%;margin-top:10px;border:1px solid var(--border);border-radius:var(--radius);border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:13px;overflow:hidden;}
+    table.fields th{height:38px;padding:0 8px;background:var(--head-bg);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;color:var(--label);text-align:left;white-space:nowrap;}
+    table.fields th.c,table.fields td.c{text-align:center;}
+    table.fields th.in{padding-left:17px;}   /* 머리글을 입력칸 글자 시작선에 맞춘다 */
+    table.fields th.sel{padding-left:21px;}  /* 선택칸은 글자가 4px 더 안쪽에서 시작한다 */
+    table.fields td{height:43px;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+    table.fields tr:last-child td{border-bottom:0;}
+    table.fields tbody tr{cursor:pointer;}
+    table.fields tr.sel td{background:var(--brand-soft);}
+    table.fields input[type="text"],table.fields select{height:var(--cell-h);padding:0 8px;}
+    table.fields .badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--brand);color:#fff;font-size:12px;font-weight:600;}
+    table.fields .sample{display:block;overflow:hidden;text-overflow:ellipsis;white-space:pre;color:var(--ink);}
+    table.fields .sample.none{color:var(--muted);}
+    table.fields .font{display:block;margin-top:2px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    table.fields td.empty{height:64px;text-align:center;color:var(--muted);cursor:default;}
+
+    /* 미리보기 쪽: 여백 5mm 를 뺀 영역에 명패를 격자로 놓는다(인쇄도 같은 배치) */
+    .pages{zoom:var(--zoom,1);width:max-content;margin:0 auto;}
+    .sheet{position:relative;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18);padding:5mm;overflow:hidden;}
+    .sheet + .sheet{margin-top:8mm;}
+    .sheet-grid{display:grid;gap:2mm;justify-content:start;align-content:start;}
+    .sheet .page-no{position:absolute;right:4mm;bottom:1.2mm;font-size:3mm;line-height:1;color:#9ca3af;font-weight:600;}
+
+    /* 명패: 접는 양면이면 위(180도 회전)·아래 두 면, 아니면 한 면 */
+    .plate{position:relative;background:#fff;color:#000;}
+    .face{position:relative;overflow:hidden;background:#fff;}
+    .face.rot{transform:rotate(180deg);}
+    .face svg{display:block;}
+    .fold{position:absolute;left:0;right:0;height:0;border-top:0.3mm dashed #666;transform:translateY(-50%);pointer-events:none;}
+    .cut{position:absolute;inset:0;border:0.25mm solid #444;pointer-events:none;}
+
+    @media print {
+      html, body { height:auto; margin:0; padding:0; background:#fff; }
+      header, .panel-input, .panel-tpl, .pv-head, .msgs, .toast, .page-no { display:none !important; }
+      .app, .panel.panel-preview, .stage { display:block; max-width:none; width:auto; height:auto; margin:0; padding:0; border:0; box-shadow:none; background:none; overflow:visible; }
+      .pages { zoom:1 !important; width:auto; margin:0; }
+      .sheet { padding:0; margin:0 !important; box-shadow:none; overflow:visible; width:auto !important; height:auto !important; break-after:page; page-break-after:always; }
+      .sheet:last-child { break-after:auto; page-break-after:auto; }
+      * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
+  </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
+</head>
+<body>
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
+  <div class="app">
+    <header>
+      <h1><span class="logo-badge">N</span>회의 명패 생성 도구(v1.0)</h1>
+      <p>명단을 입력하고 한글(hwpx) 명패 양식을 불러와 칸마다 넣을 항목을 고르면, 실제 크기로 인쇄하거나 PDF로 저장합니다.</p>
+    </header>
+
+    <section class="panel panel-input">
+      <div class="panel-head">
+        <div class="panel-title">1. 명단 입력</div>
+        <div class="actions" data-tour="rows-actions">
+          <button type="button" class="btn btn-ghost" id="addRow">행 추가</button>
+          <button type="button" class="btn btn-ghost" id="sample">샘플</button>
+          <button type="button" class="btn btn-ghost" id="xlsxDown">양식 다운로드</button>
+          <button type="button" class="btn btn-ghost" id="xlsxUp">엑셀 업로드</button>
+          <input type="file" id="xlsxFile" accept=".xlsx,.xls" hidden />
+          <button type="button" class="btn btn-danger" id="clearRows">전체 지우기</button>
+          <button type="button" class="btn btn-primary" id="print1">인쇄 / PDF 저장</button>
+        </div>
+      </div>
+
+      <div class="bars" data-tour="bars">
+        <div class="bar three">
+          <span class="bar-title">공통</span>
+          <label class="unit wide"><span>회의명</span><input id="org" type="text" placeholder="예: 2026학년도 ○○운영위원회" autocomplete="off" /></label>
+        </div>
+        <div class="bar three">
+          <span class="bar-title">모든 행에 적용</span>
+          <div class="unit"><span>직급</span><input id="bulkPos" type="text" /><button type="button" class="btn btn-ghost" data-bulk="position">적용</button></div>
+          <div class="unit"><span>소속기관</span><input id="bulkAff" type="text" /><button type="button" class="btn btn-ghost" data-bulk="affil">적용</button></div>
+        </div>
+      </div>
+
+      <div class="hint">엑셀·한셀에서 복사한 표를 그대로 붙여넣을 수 있습니다 · 인쇄할 행을 체크하세요</div>
+      <div class="table-wrap" data-tour="rows">
+        <table class="rows">
+          <colgroup><col style="width:52px" /><col style="width:44px" /><col /><col /><col /><col style="width:88px" /></colgroup>
+          <thead>
+            <tr>
+              <th class="c"><input type="checkbox" id="checkAll" aria-label="모든 행 인쇄" /></th>
+              <th class="c">번호</th><th class="in">성명</th><th class="in">직급</th><th class="in">소속기관</th><th class="c">작업</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <div class="more">
+        <details class="box" id="jobsBox" data-tour="jobs">
+          <summary>저장한 작업</summary>
+          <div class="box-body">
+            <div class="line">
+              <select id="jobList"></select>
+              <button type="button" class="btn btn-ghost" id="loadJob">불러오기</button>
+              <button type="button" class="btn btn-danger" id="deleteJob">삭제</button>
+            </div>
+            <div class="actions"><button type="button" class="btn btn-ghost" id="saveJob">현재 작업 저장</button></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel panel-tpl">
+      <div class="panel-head">
+        <div class="panel-title">2. 양식</div>
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="tplImport" data-tour="tpl-import">한글 양식 불러오기</button>
+          <input type="file" id="tplFile" accept=".hwpx,.hwp" hidden />
+        </div>
+      </div>
+      <div class="tpl">
+        <div class="tpl-side" data-tour="tpl-side">
+          <div class="field-row"><span>양식</span><div class="pick"><select id="tplList" aria-label="양식"></select><button type="button" class="btn btn-danger" id="tplDelete">삭제</button></div></div>
+          <div class="field-row" id="sizeRow"><span>크기</span><select id="preset" aria-label="크기"></select></div>
+          <div class="field-row" id="customRow"><span></span><div class="pair">
+            <input id="cw" type="text" inputmode="decimal" aria-label="가로(mm)" /><span>×</span>
+            <input id="ch" type="text" inputmode="decimal" aria-label="높이(mm)" />
+          </div></div>
+          <div class="field-row" id="fixedRow"><span>크기</span><span class="static" id="fixedSize"></span></div>
+          <div class="side-sep"></div>
+          <div class="field-row"><span>출력 방식</span><select id="mode" aria-label="출력 방식"></select></div>
+          <div class="field-row"><span>선</span><span class="opts" id="lineOpts"></span></div>
+          <div class="side-info" id="sizeInfo"></div>
+        </div>
+        <div>
+          <div class="editor-wrap" id="editorWrap" data-tour="tpl-editor"><div class="editor" id="editor"></div></div>
+          <div class="editor-hint">칸을 누르면 그 칸에 넣을 항목을 고를 수 있습니다. 글자가 칸보다 길면 한 줄에 들어가도록 자동으로 줄어듭니다.</div>
+          <table class="fields" data-tour="tpl-fields">
+            <colgroup><col style="width:64px" /><col /><col style="width:150px" /><col style="width:190px" /><col style="width:96px" /><col style="width:124px" /><col style="width:64px" /></colgroup>
+            <thead><tr><th class="c">번호</th><th>양식에 적힌 글자</th><th class="sel">넣을 항목</th><th class="sel">글꼴</th><th class="in">크기(pt)</th><th class="sel">글자 사이</th><th class="c">작업</th></tr></thead>
+            <tbody id="fieldRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-preview">
+      <div class="panel-head pv-head">
+        <div class="panel-title">3. 미리보기<span class="meta" id="pvMeta"></span></div>
+        <div class="actions" data-tour="pv-actions">
+          <div class="seg" id="orientSeg"><button type="button" data-orient="auto" class="on">용지 자동</button><button type="button" data-orient="landscape">가로</button><button type="button" data-orient="portrait">세로</button></div>
+          <div class="seg" id="zoomSeg"><button type="button" data-zoom="fit" class="on">화면 맞춤</button><button type="button" data-zoom="1">실제 크기</button></div>
+          <button type="button" class="btn btn-primary" id="print2">인쇄 / PDF 저장</button>
+        </div>
+      </div>
+      <ul class="msgs" id="msgs"></ul>
+      <div class="stage" id="stage" data-tour="pv-stage"><div class="pages" id="pages"></div></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- 저장 이름 ----------
+  var DRAFT_KEY = 'meetingNameplateDraft';
+  var JOBS_KEY = 'meetingNameplateSavedJobs';
+  var PREFS_KEY = 'meetingNameplatePrefs';
+  var DB_NAME = 'meetingNameplate', DB_STORE = 'templates';   // 불러온 한글 양식(그림 포함)은 용량이 커서 IndexedDB 에 둔다
+
+  var MAX_ROWS = 300, MARGIN = 5, GAP = 2, PAGE_SAFE = 1;   // A4 여백 5mm, 명패 사이 2mm, 쪽 높이 반올림 여유 1mm
+  var HU = 25.4 / 7200, PT = 25.4 / 72;                       // 한글 단위(HWPUNIT)·pt → mm
+  var PRESETS = [
+    { id: 'small', label: '소형 170×73', w: 170, h: 73 },
+    { id: 'mid', label: '중형 200×80', w: 200, h: 80 },
+    { id: 'large', label: '대형 253×85', w: 253, h: 85 },
+    { id: 'custom', label: '사용자 지정' }
+  ];
+  var MODES = [['fold', '접는 양면'], ['single', '단면'], ['two', '양면 2장']];
+  // 칸마다 고를 수 있는 글꼴: 이 PC에 깔린 것만 보여 준다(없는 글꼴로 인쇄하면 다른 글꼴로 바뀌므로)
+  var FONT_CANDIDATES = ['맑은 고딕', '굴림', '돋움', '바탕', '궁서', 'HY헤드라인M', 'HY견고딕', 'HY중고딕', 'HY그래픽M', 'HY견명조', 'HY신명조', 'HY궁서B',
+    '휴먼명조', '휴먼고딕', '휴먼옛체', '함초롬돋움', '함초롬바탕', '한컴 고딕', '한컴산뜻돋움', '나눔고딕', '나눔명조', '나눔바른고딕', '나눔스퀘어', '나눔스퀘어라운드',
+    'Pretendard', 'Noto Sans KR', 'KoPub돋움체 Medium', 'KoPub바탕체 Medium'];
+  var NAVY = '#1f3f73';
+  var FIELDS = { name: '성명', position: '직급', affil: '소속기관', org: '회의명' };
+  var FIELD_OPTS = [['name', '성명'], ['position', '직급'], ['affil', '소속기관'], ['org', '회의명'], ['keep', '양식 글자 그대로'], ['none', '넣지 않음']];
+  var GAP_OPTS = [[0, '입력한 대로'], [1, '한 칸씩'], [2, '두 칸씩'], [3, '세 칸씩']];
+  var COLS = ['name', 'position', 'affil'];
+  var COL_LABELS = { name: '성명', position: '직급', affil: '소속기관' };
+  var COL_ALIASES = { name: ['성명', '이름', 'name'], position: ['직급', '직위', '직책', 'position'], affil: ['소속기관', '소속', '기관', '부서', '학교', 'affil'] };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var node = document.createElement(tag); if (cls) node.className = cls; if (text !== undefined) node.textContent = text; return node; }
+  function clean(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+  function fmt(n) { return String(Math.round(n * 1000) / 1000); }
+  function fmt1(n) { return String(Math.round(n * 10) / 10); }
+  function isStr(v) { return typeof v === 'string'; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function today() { var d = new Date(); return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function chars(s) { return Array.from(s); }
+
+  // ---------- 상태 ----------
+  // state = { org, tpl, preset, cw, ch, mode, rows:[{name, position, affil, out}] }
+  // prefs = { fold, cut, orient, builtin:{ [양식 id]: { [칸 열쇠]: {field,size,gap,font} } } }
+  var state = null, prefs = null;
+  function newRow(seed) { var r = { name: '', position: '', affil: '', out: true }; Object.keys(seed || {}).forEach(function (k) { if (seed[k] !== undefined) r[k] = seed[k]; }); return r; }
+  function freshState() { return { org: '', tpl: 'b-top', preset: 'small', cw: '170', ch: '73', mode: 'fold', rows: [newRow()] }; }
+  function defaultPrefs() { return { fold: true, cut: true, orient: 'auto', builtin: {} }; }
+  function normPrefs(o) {
+    var p = defaultPrefs();
+    if (!o || typeof o !== 'object') return p;
+    ['fold', 'cut'].forEach(function (k) { if (typeof o[k] === 'boolean') p[k] = o[k]; });
+    if (['auto', 'landscape', 'portrait'].indexOf(o.orient) >= 0) p.orient = o.orient;
+    if (o.builtin && typeof o.builtin === 'object') p.builtin = o.builtin;
+    return p;
+  }
+  function normState(o) {
+    if (!o || typeof o !== 'object' || !Array.isArray(o.rows)) return null;
+    var s = freshState();
+    ['org', 'cw', 'ch', 'tpl'].forEach(function (k) { if (isStr(o[k])) s[k] = o[k]; });
+    if (PRESETS.some(function (p) { return p.id === o.preset; })) s.preset = o.preset;
+    if (MODES.some(function (m) { return m[0] === o.mode; })) s.mode = o.mode;
+    s.rows = o.rows.slice(0, MAX_ROWS).filter(function (r) { return r && typeof r === 'object'; })
+      .map(function (r) { return newRow({ name: isStr(r.name) ? r.name : '', position: isStr(r.position) ? r.position : '', affil: isStr(r.affil) ? r.affil : '', out: r.out !== false }); });
+    if (!s.rows.length) s.rows = [newRow()];
+    return s;
+  }
+
+  // =====================================================================
+  // 양식 모형 (한글 표와 기본 양식이 같은 모양을 쓴다)
+  //   tpl = { id, name, kind:'hwpx'|'builtin', w, h, cells:[cell], slots:[slot] }
+  //   cell = { x, y, w, h, pad:[l,r,t,b], va, fill, grad, img, imgMode, b:{l,r,t,b:{type,w,color}}, paras:[para] }
+  //   para = { align, ml, mr, ls:{type,val}, runs:[run] }   run = { t, lead, trail, font, size(pt), color, bold, italic, ratio, sp, ul } 또는 { pic:{w,h,src} }
+  //   slot = { key, ci, pi, ri, sample, field, size, size0, gap, gap0, field0, font(''=양식 글꼴), added }
+  // =====================================================================
+
+  // ---------- 한글(hwpx) 읽기 ----------
+  function kids(node, name) { var out = []; if (!node) return out; for (var c = node.firstElementChild; c; c = c.nextElementSibling) if (c.localName === name) out.push(c); return out; }
+  function kid(node, name) { return kids(node, name)[0] || null; }
+  function all(node, name) { return node ? Array.prototype.slice.call(node.getElementsByTagNameNS('*', name)) : []; }
+  function num(node, attr, def) { var v = node ? parseFloat(node.getAttribute(attr)) : NaN; return isFinite(v) ? v : def; }
+  function color(v) { return v && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null; }
+  function mmOf(w) { var m = /([\d.]+)\s*mm/.exec(w || ''); return m ? parseFloat(m[1]) : 0.12; }
+
+  function readHeader(doc) {
+    var H = { fonts: {}, chars: {}, paras: {}, fills: {} };
+    all(doc, 'fontface').forEach(function (ff) {
+      if (ff.getAttribute('lang') !== 'HANGUL') return;
+      kids(ff, 'font').forEach(function (f) { H.fonts[f.getAttribute('id')] = f.getAttribute('face'); });
+    });
+    all(doc, 'charPr').forEach(function (c) {
+      var ref = kid(c, 'fontRef'), ratio = kid(c, 'ratio'), sp = kid(c, 'spacing'), rel = kid(c, 'relSz'), ul = kid(c, 'underline');
+      H.chars[c.getAttribute('id')] = {
+        font: H.fonts[ref ? ref.getAttribute('hangul') : '0'] || '맑은 고딕',
+        size: num(c, 'height', 1000) / 100 * num(rel, 'hangul', 100) / 100,
+        color: color(c.getAttribute('textColor')) || '#000000',
+        bold: !!kid(c, 'bold'), italic: !!kid(c, 'italic'),
+        ratio: num(ratio, 'hangul', 100), sp: num(sp, 'hangul', 0),
+        ul: !!(ul && ul.getAttribute('type') && ul.getAttribute('type') !== 'NONE')
+      };
+    });
+    all(doc, 'paraPr').forEach(function (p) {
+      // 문단 여백·줄 간격은 hp:switch 안에 새 방식(hp:case)과 옛 방식(hp:default)이 함께 있다. 한글과 같은 hp:case 값을 쓴다.
+      var pick = function (name) {
+        var cs = all(p, 'case'), i, n;
+        for (i = 0; i < cs.length; i++) { n = all(cs[i], name)[0]; if (n) return n; }
+        n = kid(p, name); if (n) return n;
+        return all(p, name)[0] || null;
+      };
+      var margin = pick('margin'), ls = pick('lineSpacing'), align = kid(p, 'align');
+      H.paras[p.getAttribute('id')] = {
+        align: (align && align.getAttribute('horizontal')) || 'JUSTIFY',
+        ml: margin ? num(kid(margin, 'left'), 'value', 0) * HU : 0, mr: margin ? num(kid(margin, 'right'), 'value', 0) * HU : 0,
+        ls: { type: ls ? ls.getAttribute('type') : 'PERCENT', val: num(ls, 'value', 160) }
+      };
+    });
+    all(doc, 'borderFill').forEach(function (b) {
+      var side = function (n) { var s = kid(b, n); return s ? { type: s.getAttribute('type') || 'NONE', w: mmOf(s.getAttribute('width')), color: color(s.getAttribute('color')) || '#000000' } : { type: 'NONE', w: 0, color: '#000000' }; };
+      var f = { b: { l: side('leftBorder'), r: side('rightBorder'), t: side('topBorder'), b: side('bottomBorder') }, fill: null, grad: null, img: null, imgMode: 'TOTAL' };
+      var brush = kid(b, 'fillBrush');
+      if (brush) {
+        var win = kid(brush, 'winBrush'), grad = kid(brush, 'gradation'), img = kid(brush, 'imgBrush');
+        if (win) { var c = color(win.getAttribute('faceColor')); if (c && num(win, 'alpha', 0) < 255) f.fill = c; }
+        if (grad) f.grad = { angle: num(grad, 'angle', 0), type: grad.getAttribute('type') || 'LINEAR', colors: kids(grad, 'color').map(function (c) { return color(c.getAttribute('value')); }).filter(Boolean) };
+        if (img) { var im = kid(img, 'img'); if (im && im.getAttribute('binaryItemIDRef')) { f.img = im.getAttribute('binaryItemIDRef'); f.imgMode = img.getAttribute('mode') || 'TOTAL'; } }
+      }
+      H.fills[b.getAttribute('id')] = f;
+    });
+    return H;
+  }
+
+  // 표 안 글자: hp:t 의 글자와 탭·줄바꿈
+  function runText(t) {
+    var s = '';
+    for (var n = t.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 3) s += n.nodeValue;
+      else if (n.nodeType === 1) { var l = n.localName; if (l === 'lineBreak') s += '\n'; else if (l === 'tab' || l === 'nbSpace' || l === 'fwSpace') s += ' '; }
+    }
+    return s;
+  }
+
+  // 표 한 개 → 양식. 칸 크기는 같은 열·행의 칸 너비·높이로 격자를 풀어 구한다.
+  function readTable(tbl, H, bins, flags) {
+    var rowCnt = num(tbl, 'rowCnt', 1), colCnt = num(tbl, 'colCnt', 1);
+    var inM = kid(tbl, 'inMargin'), defPad = ['left', 'right', 'top', 'bottom'].map(function (k) { return num(inM, k, 141) * HU; });
+    var raw = [];
+    kids(tbl, 'tr').forEach(function (tr) {
+      kids(tr, 'tc').forEach(function (tc) {
+        var addr = kid(tc, 'cellAddr'), span = kid(tc, 'cellSpan'), sz = kid(tc, 'cellSz'), cm = kid(tc, 'cellMargin'), sub = kid(tc, 'subList');
+        raw.push({ tc: tc, c: num(addr, 'colAddr', 0), r: num(addr, 'rowAddr', 0), cs: num(span, 'colSpan', 1), rs: num(span, 'rowSpan', 1),
+          w: num(sz, 'width', 0) * HU, h: num(sz, 'height', 0) * HU, sub: sub,
+          pad: tc.getAttribute('hasMargin') === '1' && cm ? ['left', 'right', 'top', 'bottom'].map(function (k) { return num(cm, k, 141) * HU; }) : defPad.slice(),
+          bf: tc.getAttribute('borderFillIDRef') });
+      });
+    });
+    var solve = function (n, key, spanKey, sizeKey) {
+      var size = []; for (var i = 0; i < n; i++) size.push(null);
+      for (var round = 0; round < n + 2; round++) {
+        var moved = false;
+        raw.forEach(function (c) {
+          var unknown = [], known = 0;
+          for (var i = c[key]; i < Math.min(n, c[key] + c[spanKey]); i++) { if (size[i] === null) unknown.push(i); else known += size[i]; }
+          if (unknown.length === 1) { size[unknown[0]] = Math.max(0, c[sizeKey] - known); moved = true; }
+        });
+        if (!moved) break;
+      }
+      raw.forEach(function (c) {   // 남은 칸은 고르게 나눈다
+        var unknown = [], known = 0;
+        for (var i = c[key]; i < Math.min(n, c[key] + c[spanKey]); i++) { if (size[i] === null) unknown.push(i); else known += size[i]; }
+        unknown.forEach(function (i) { size[i] = Math.max(0, c[sizeKey] - known) / unknown.length; });
+      });
+      return size.map(function (v) { return v || 0; });
+    };
+    var cols = solve(colCnt, 'c', 'cs', 'w'), rows = solve(rowCnt, 'r', 'rs', 'h');
+    var sum = function (a, from, to) { var s = 0; for (var i = from; i < to; i++) s += a[i] || 0; return s; };
+    var cells = raw.map(function (c) {
+      var bf = H.fills[c.bf] || { b: { l: { type: 'NONE' }, r: { type: 'NONE' }, t: { type: 'NONE' }, b: { type: 'NONE' } } };
+      var cell = { x: sum(cols, 0, c.c), y: sum(rows, 0, c.r), w: sum(cols, c.c, c.c + c.cs), h: sum(rows, c.r, c.r + c.rs), pad: c.pad,
+        va: (c.sub && c.sub.getAttribute('vertAlign')) || 'CENTER', fill: bf.fill || null, grad: bf.grad || null, img: null, imgMode: bf.imgMode, b: bf.b, paras: [] };
+      if (bf.img && bins[bf.img]) cell.img = bins[bf.img];
+      if (c.sub && c.sub.getAttribute('textDirection') === 'VERTICAL') flags.vertical = true;
+      kids(c.sub, 'p').forEach(function (p) {
+        var pp = H.paras[p.getAttribute('paraPrIDRef')] || { align: 'JUSTIFY', ml: 0, mr: 0, ls: { type: 'PERCENT', val: 160 } };
+        var para = { align: pp.align, ml: pp.ml, mr: pp.mr, ls: pp.ls, runs: [], base: null };
+        kids(p, 'run').forEach(function (run) {
+          var cp = H.chars[run.getAttribute('charPrIDRef')] || { font: '맑은 고딕', size: 10, color: '#000000', bold: false, italic: false, ratio: 100, sp: 0, ul: false };
+          if (!para.base) para.base = cp;
+          for (var n = run.firstElementChild; n; n = n.nextElementSibling) {
+            var l = n.localName;
+            if (l === 't') {
+              var text = runText(n); if (!text) continue;
+              var last = para.runs[para.runs.length - 1];
+              if (last && !last.pic && last.cp === run.getAttribute('charPrIDRef')) last.t += text;   // 같은 글자 모양이 쪼개진 것은 합친다
+              else para.runs.push(Object.assign({ t: text, cp: run.getAttribute('charPrIDRef') }, cp));
+            } else if (l === 'pic') {
+              var im = all(n, 'img')[0], psz = kid(n, 'sz') || kid(n, 'curSz'), pos = kid(n, 'pos'), ref = im && im.getAttribute('binaryItemIDRef');
+              if (ref && bins[ref] && psz) {
+                var pic = { w: num(psz, 'width', 0) * HU, h: num(psz, 'height', 0) * HU, src: bins[ref], float: !(pos && pos.getAttribute('treatAsChar') === '1') };
+                if (pic.float) { pic.x = num(pos, 'horzOffset', 0) * HU; pic.y = num(pos, 'vertOffset', 0) * HU; }
+                para.runs.push({ pic: pic });
+              }
+            } else if (l === 'tbl' || l === 'rect' || l === 'ellipse' || l === 'container' || l === 'line' || l === 'polygon' || l === 'curve' || l === 'arc' || l === 'equation' || l === 'textart' || l === 'ole') flags.objects = true;
+          }
+        });
+        if (!para.base) para.base = { font: '맑은 고딕', size: 10, color: '#000000', bold: false, italic: false, ratio: 100, sp: 0, ul: false };
+        cell.paras.push(para);
+      });
+      return cell;
+    });
+    var tw = sum(cols, 0, colCnt), th = sum(rows, 0, rowCnt);
+    // 칸마다 실제 글자를 앞뒤 빈칸과 본문으로 나눈다(빈칸은 양식대로 둔다)
+    cells.forEach(function (cell) {
+      cell.paras.forEach(function (p) {
+        p.runs.forEach(function (r) {
+          if (r.pic) return;
+          var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(r.t);
+          r.lead = m[1]; r.core = m[2]; r.trail = m[3];
+          delete r.cp;
+        });
+      });
+    });
+    return { w: tw, h: th, cells: cells };
+  }
+
+  // 표 모양 서명: 칸 배치·테두리·문단 수가 같으면 같은 양식(이름만 다른 복사본)으로 본다
+  function signature(t) {
+    return JSON.stringify(t.cells.map(function (c) { return [fmt1(c.x), fmt1(c.y), fmt1(c.w), fmt1(c.h), c.fill, c.b.l.type, c.b.r.type, c.b.t.type, c.b.b.type, c.paras.length]; }));
+  }
+  function tableText(t) { return t.cells.map(function (c) { return c.paras.map(function (p) { return p.runs.map(function (r) { return r.pic ? '[그림]' : r.t; }).join(''); }).join('\n'); }).join('|'); }
+
+  function parseHwpx(buf, fileName) {
+    return JSZip.loadAsync(buf).then(function (zip) {
+      var head = zip.file('Contents/header.xml');
+      if (!head) throw new Error('notHwpx');
+      var secs = Object.keys(zip.files).filter(function (n) { return /^Contents\/section\d+\.xml$/i.test(n); })
+        .sort(function (a, b) { return parseInt(a.replace(/\D/g, ''), 10) - parseInt(b.replace(/\D/g, ''), 10); });
+      var hpf = zip.file('Contents/content.hpf');
+      return Promise.all([head.async('string'), hpf ? hpf.async('string') : Promise.resolve('')].concat(secs.map(function (n) { return zip.file(n).async('string'); })))
+        .then(function (texts) {
+          var xml = function (s) { return new DOMParser().parseFromString(s, 'application/xml'); };
+          var H = readHeader(xml(texts[0]));
+          // 그림(BinData): content.hpf 목록의 id → 파일
+          var items = texts[1] ? all(xml(texts[1]), 'item') : [], bins = {}, jobs = [];
+          items.forEach(function (it) {
+            var href = it.getAttribute('href') || '', type = it.getAttribute('media-type') || '', f = zip.file(href) || zip.file('Contents/' + href);
+            if (!f || !/^image\//.test(type)) return;
+            jobs.push(f.async('base64').then(function (b64) { bins[it.getAttribute('id')] = 'data:' + type + ';base64,' + b64; }));
+          });
+          return Promise.all(jobs).then(function () {
+            var flags = {}, tables = [];
+            texts.slice(2).forEach(function (s) {
+              all(xml(s), 'tbl').forEach(function (tbl) {
+                for (var a = tbl.parentNode; a; a = a.parentNode) if (a.localName === 'tbl') return;   // 표 안의 표는 건너뛴다
+                tables.push(readTable(tbl, H, bins, flags));
+              });
+            });
+            if (!tables.length) throw new Error('noTable');
+            var seen = {}, out = [];
+            tables.forEach(function (t) { var s = signature(t); if (!seen[s]) { seen[s] = 1; out.push(t); } });
+            var base = fileName.replace(/\.[^.]+$/, '');
+            out.forEach(function (t, i) {
+              t.id = 'h-' + uid(); t.kind = 'hwpx'; t.name = base + (out.length > 1 ? ' (' + (i + 1) + ')' : '');
+              t.slots = defaultSlots(t);
+            });
+            // 같은 사람을 두 장 연달아 둔 문서면(앞·뒤로 끼우는 명패) '양면 2장'이 맞다
+            var twoUp = tables.length > 1 && tableText(tables[0]) === tableText(tables[1]);
+            return { templates: out, twoUp: twoUp, flags: flags };
+          });
+        });
+    });
+  }
+
+  // ---------- 칸에 넣을 항목: 처음 값 짐작 ----------
+  var RE_POS = /^(위원장|부위원장|위원|간사|회장|부회장|총무|감사|의장|부의장|교육감|부교육감|교육장|국장|과장|팀장|실장|센터장|관장|원장|원감|교장|교감|교사|장학관|장학사|연구관|연구사|주무관|사무관|서기관|이사장|이사|대표|단장|부단장)$/;
+  var RE_ORG = /(위원회|협의회|협의체|심의회|운영회|회의|간담회|토론회|설명회|연수|워크숍|포럼|총회)$/;
+  var RE_AFFIL = /(교육청|교육지원청|학교|유치원|대학교|대학|청|시청|군청|도청|구청|센터|연구원|연구소|재단|공단|협회|본부|사무소|과|팀|실|국)$/;
+  var HOLDERS = { '성명': 'name', '이름': 'name', '직급': 'position', '직위': 'position', '직책': 'position', '소속기관': 'affil', '소속': 'affil', '기관': 'affil', '기관명': 'affil', '회의명': 'org' };
+  function gapOf(s) {   // '최  지  윤' → 2
+    var m = /^\S( +)\S(?:( +)\S)*$/.exec(s); if (!m) return 0;
+    var gaps = s.match(/ +/g) || [];
+    return gaps.every(function (g) { return g.length === gaps[0].length; }) && gaps[0].length <= 3 ? gaps[0].length : 0;
+  }
+  function defaultSlots(t) {
+    var slots = [];
+    t.cells.forEach(function (c, ci) {
+      c.paras.forEach(function (p, pi) {
+        p.runs.forEach(function (r, ri) {
+          if (r.pic || !r.core) return;
+          slots.push({ key: ci + '.' + pi + '.' + ri, ci: ci, pi: pi, ri: ri, sample: r.core, size: r.size, size0: r.size, gap: gapOf(r.core), gap0: gapOf(r.core), field: 'keep', font: '' });
+        });
+      });
+    });
+    var used = {};
+    slots.forEach(function (s) {   // {{성명}} 같은 자리표시나 '성명' 글자
+      var k = s.sample.replace(/^[{[<(]+|[}\]>)]+$/g, '').replace(/\s+/g, '');
+      if (HOLDERS[k] && !used[HOLDERS[k]]) { s.field = HOLDERS[k]; used[s.field] = 1; }
+    });
+    var guess = function (re, f) {
+      slots.forEach(function (s) { if (s.field === 'keep' && !used[f] && re.test(s.sample.replace(/\s+/g, ''))) { s.field = f; used[f] = 1; } });
+    };
+    guess(RE_POS, 'position'); guess(RE_ORG, 'org');   // 직급·회의명은 낱말로 먼저 가린다('위  원  장'만 있는 양식에서 성명으로 잘못 고르지 않게)
+    if (!used.name) {   // 남은 것 중 가장 큰 글자가 성명
+      var big = slots.filter(function (s) { return s.field === 'keep'; }).sort(function (a, b) { return b.size - a.size; })[0];
+      if (big) { big.field = 'name'; used.name = 1; }
+    }
+    guess(RE_AFFIL, 'affil');
+    slots.forEach(function (s) { s.field0 = s.field; });
+    return slots;
+  }
+
+  // ---------- 기본 양식 ----------
+  // 표 모양으로 만든다. 'b-top': 위 띠(회의명) + 직급·성명 / 소속기관, 'b-bottom': 소속기관 / 직급·성명 + 아래 띠(회의명)
+  var BUILTINS = [['b-top', '기본 양식 1 (위쪽 띠)'], ['b-bottom', '기본 양식 2 (아래쪽 띠)']];
+  function noBorder() { var n = { type: 'NONE', w: 0, color: '#000000' }; return { l: n, r: n, t: n, b: n }; }
+  function textRun(t, font, size, color, bold) { var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(t); return { t: t, lead: m[1], core: m[2], trail: m[3], font: font, size: size, color: color, bold: bold, italic: false, ratio: 100, sp: 0, ul: false }; }
+  function builtin(id, W, H, font) {
+    var band = H * 0.2, body = H - band, toPt = function (mm) { return Math.round(mm / PT * 2) / 2; };
+    var bandCell = function (y) {
+      return { x: 0, y: y, w: W, h: band, pad: [3, 3, 0.5, 0.5], va: 'CENTER', fill: NAVY, grad: null, img: null, b: noBorder(),
+        paras: [{ align: 'CENTER', ml: 0, mr: 0, ls: { type: 'PERCENT', val: 100 }, runs: [textRun('○○위원회', font, toPt(band * 0.5), '#ffffff', true)] }] };
+    };
+    var bodyCell = function (y, affilFirst) {
+      var nameP = { align: 'CENTER', ml: 0, mr: 0, ls: { type: 'PERCENT', val: 130 }, runs: [textRun('위원장', font, toPt(body * 0.2), '#000000', true), textRun(' ', font, toPt(body * 0.2), '#000000', true), textRun('홍길동', font, toPt(body * 0.4), '#000000', true)] };
+      var affP = { align: 'CENTER', ml: 0, mr: 0, ls: { type: 'PERCENT', val: 130 }, runs: [textRun('○○학교', font, toPt(body * 0.13), '#333333', false)] };
+      return { x: 0, y: y, w: W, h: body, pad: [W * 0.05, W * 0.05, 1, 1], va: 'CENTER', fill: null, grad: null, img: null, b: noBorder(), paras: affilFirst ? [affP, nameP] : [nameP, affP] };
+    };
+    var cells = id === 'b-bottom' ? [bodyCell(0, true), bandCell(body)] : [bandCell(0), bodyCell(band, false)];
+    cells.forEach(function (c) { c.paras.forEach(function (p) { if (!p.base) p.base = p.runs[0]; }); });
+    var t = { id: id, kind: 'builtin', name: BUILTINS.filter(function (b) { return b[0] === id; })[0][1], w: W, h: H, cells: cells };
+    var slots = defaultSlots(t), saved = (prefs.builtin && prefs.builtin[id]) || {};
+    slots.forEach(function (s) {
+      if (s.sample === '○○학교') s.field = s.field0 = 'affil';
+      var o = saved[s.key];
+      if (o) { if (FIELDS[o.field] || o.field === 'keep' || o.field === 'none') s.field = o.field; if (isFinite(o.size) && o.size > 0) s.size = o.size; if (o.gap >= 0 && o.gap <= 3) s.gap = o.gap; if (isStr(o.font)) s.font = o.font; }
+    });
+    t.slots = slots;
+    return t;
+  }
+
+  // ---------- 양식 목록 ----------
+  var imported = [];   // 불러온 한글 양식
+  function currentTpl() {
+    var t = imported.filter(function (x) { return x.id === state.tpl; })[0];
+    if (t) return t;
+    var b = BUILTINS.some(function (x) { return x[0] === state.tpl; }) ? state.tpl : 'b-top';
+    var sz = currentSize();
+    return builtin(b, sz.w, sz.h, '맑은 고딕');
+  }
+
+  // ---------- IndexedDB ----------
+  var dbp = null;
+  function db() {
+    if (dbp) return dbp;
+    dbp = new Promise(function (res) {
+      try {
+        var rq = indexedDB.open(DB_NAME, 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore(DB_STORE, { keyPath: 'id' }); };
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { res(null); };
+      } catch (e) { res(null); }
+    });
+    return dbp;
+  }
+  function dbDo(mode, fn) {
+    return db().then(function (d) {
+      if (!d) return null;
+      return new Promise(function (res) {
+        try {
+          var tx = d.transaction(DB_STORE, mode), st = tx.objectStore(DB_STORE), out = fn(st);
+          tx.oncomplete = function () { res(out && out.result !== undefined ? out.result : true); };
+          tx.onerror = tx.onabort = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function dbAll() { return dbDo('readonly', function (st) { return st.getAll(); }); }
+  function dbPut(t) { return dbDo('readwrite', function (st) { st.put(JSON.parse(JSON.stringify(t))); }); }
+  function dbDel(id) { return dbDo('readwrite', function (st) { st.delete(id); }); }
+  var saveTplTimer = 0;
+  function saveSlots(t) {
+    if (t.kind === 'builtin') {
+      var o = {}; t.slots.forEach(function (s) { o[s.key] = { field: s.field, size: s.size, gap: s.gap, font: s.font || '' }; });
+      prefs.builtin[t.id] = o; savePrefs(); return;
+    }
+    clearTimeout(saveTplTimer);
+    saveTplTimer = setTimeout(function () { dbPut(t).then(function (ok) { if (!ok) toast('양식 설정을 저장하지 못했습니다.'); }); }, 300);
+  }
+
+  // =====================================================================
+  // 그리기: 양식 한 면을 SVG(mm)로. 글자는 칸 안쪽 너비·높이에 맞게 줄인다.
+  // =====================================================================
+  var NS = 'http://www.w3.org/2000/svg';
+  var ctx = document.createElement('canvas').getContext('2d');
+  function family(font) { return '"' + String(font).replace(/"/g, '') + '","맑은 고딕","Malgun Gothic","Apple SD Gothic Neo",sans-serif'; }
+  function measure(text, run) { ctx.font = (run.italic ? 'italic ' : '') + (run.bold ? 'bold ' : '') + '100px ' + family(run.font); return ctx.measureText(text).width / 100; }
+  var fontOk = {}, fontList = null;
+  function hasFont(name) {   // 깔린 글꼴이면 고정폭·명조 대신 그 글꼴 폭으로 재진다
+    if (fontOk[name] !== undefined) return fontOk[name];
+    var probe = '가나다라마바사아 ABCabc 123', bases = ['monospace', 'serif'];
+    fontOk[name] = bases.some(function (b) {
+      ctx.font = '72px ' + b; var w0 = ctx.measureText(probe).width;
+      ctx.font = '72px "' + name + '",' + b; return Math.abs(ctx.measureText(probe).width - w0) > 0.5;
+    });
+    return fontOk[name];
+  }
+  function installedFonts() { if (!fontList) fontList = FONT_CANDIDATES.filter(hasFont); return fontList; }
+  function svgEl(tag, a) { var e = document.createElementNS(NS, tag); Object.keys(a || {}).forEach(function (k) { if (a[k] !== null && a[k] !== undefined) e.setAttribute(k, a[k]); }); return e; }
+
+  function slotMap(t) { var m = {}; t.slots.forEach(function (s, i) { m[s.key] = { s: s, i: i }; }); return m; }
+  function fieldValue(field, row) { return field === 'org' ? clean(state.org) : clean(row ? row[field] : ''); }
+  function spaced(v, gap) { return gap > 0 && v.length > 1 && !/\s/.test(v) ? chars(v).join(new Array(gap + 1).join(' ')) : v; }
+  // 칸 글자: 항목이 정해진 글자는 명단 값으로 바꾼다. sample=true 면 값이 없을 때 양식 글자를 보여 준다(양식 화면용).
+  function resolveRun(run, slot, row, sample) {
+    if (!slot) return run.t;
+    var s = slot.s;
+    if (s.field === 'keep') return run.t;
+    if (s.field === 'none') return '';
+    var v = fieldValue(s.field, row);
+    if (!v && sample) v = s.added ? FIELDS[s.field] : s.sample;
+    if (!v) return '';
+    return run.lead + spaced(v, s.gap) + run.trail;
+  }
+
+  function layoutCell(cell, ci, map, row, sample) {
+    var ix = cell.x + cell.pad[0], iy = cell.y + cell.pad[2], iw = Math.max(1, cell.w - cell.pad[0] - cell.pad[1]), ih = Math.max(1, cell.h - cell.pad[2] - cell.pad[3]);
+    var lines = [];
+    cell.paras.forEach(function (p, pi) {
+      var cur = { p: p, items: [] }; lines.push(cur);
+      p.runs.forEach(function (r, ri) {
+        if (r.pic) { if (r.pic.float) cur.floats = (cur.floats || []).concat([r.pic]); else cur.items.push({ pic: r.pic, w: r.pic.w, asc: r.pic.h, desc: 0 }); return; }
+        var sl = map[ci + '.' + pi + '.' + ri], text = resolveRun(r, sl, row, sample);
+        if (!text) return;
+        if (sl && sl.s.font) r = Object.assign({}, r, { font: sl.s.font });   // 칸마다 고른 글꼴
+        var size = (sl ? sl.s.size : r.size) * PT;
+        text.split('\n').forEach(function (part, k) {
+          if (k > 0) { cur = { p: p, items: [], cont: true }; lines.push(cur); }
+          if (!part) return;
+          var n = chars(part).length, ls = size * r.sp / 100;
+          cur.items.push({ run: r, text: part, size: size, ls: ls, n: n, w: measure(part, r) * size * r.ratio / 100 + n * ls, asc: size * 0.85, desc: size * 0.15, slot: sl ? sl.i : -1 });
+        });
+      });
+    });
+    // 줄 앞뒤의 빈칸만 남은 글자는 뺀다(직급을 비우면 성명 앞 빈칸이 남지 않게)
+    lines.forEach(function (L) {
+      while (L.items.length && !L.items[0].pic && !L.items[0].text.trim()) L.items.shift();
+      while (L.items.length && !L.items[L.items.length - 1].pic && !L.items[L.items.length - 1].text.trim()) L.items.pop();
+      if (L.items.length && !L.items[0].pic) { var a = L.items[0]; var t0 = a.text.replace(/^\s+/, ''); if (t0 !== a.text) { var k = a.w / a.n; a.n = chars(t0).length; a.w = k * a.n; a.text = t0; } }
+      var base = L.p.base || {}, bs = (base.size || 10) * PT;
+      L.w = L.items.reduce(function (s, it) { return s + it.w; }, 0);
+      L.asc = L.items.length ? Math.max.apply(null, L.items.map(function (it) { return it.asc; })) : bs * 0.85;
+      L.desc = L.items.length ? Math.max.apply(null, L.items.map(function (it) { return it.desc; })) : bs * 0.15;
+      L.avail = Math.max(1, iw - L.p.ml - L.p.mr);
+      L.k = L.w > L.avail ? L.avail / L.w : 1;   // 칸보다 긴 줄은 그 줄만 줄인다
+    });
+    var gapOf = function (L, k) { var h = (L.asc + L.desc) * k, ls = L.p.ls; if (ls.type === 'FIXED') return Math.max(0, ls.val * HU - h); if (ls.type === 'BETWEEN_LINES') return ls.val * HU; if (ls.type === 'AT_LEAST') return Math.max(0, ls.val * HU - h); return h * Math.max(0, ls.val - 100) / 100; };
+    var height = function (kAll) { return lines.reduce(function (s, L, i) { var k = L.k * kAll; return s + (L.asc + L.desc) * k + (i < lines.length - 1 ? gapOf(L, k) : 0); }, 0); };
+    var kAll = 1, H0 = height(1);
+    if (H0 > ih) kAll = ih / H0;   // 칸 높이를 넘으면 모두 같은 비율로 줄인다
+    var total = height(kAll), y = iy + (cell.va === 'TOP' ? 0 : cell.va === 'BOTTOM' ? ih - total : (ih - total) / 2);
+    var out = [];
+    lines.forEach(function (L, i) {
+      var k = L.k * kAll, w = L.w * k, x0 = ix + L.p.ml, extra = 0, nChars = 0;
+      L.items.forEach(function (it) { nChars += it.pic ? 1 : it.n; });
+      var al = L.p.align;
+      if (al === 'CENTER') x0 += (L.avail - w) / 2;
+      else if (al === 'RIGHT') x0 += L.avail - w;
+      else if ((al === 'DISTRIBUTE' || al === 'DISTRIBUTE_SPACE') && nChars > 1 && w < L.avail) extra = (L.avail - w) / (nChars - 1);
+      var base = y + L.asc * k, x = x0;
+      L.items.forEach(function (it) {
+        if (it.pic) { out.push({ pic: it.pic, x: x, y: base - it.pic.h * k, w: it.pic.w * k, h: it.pic.h * k }); x += it.w * k + extra; return; }
+        var size = it.size * k, ls = it.ls * k + extra, w2 = it.w * k + it.n * extra;
+        out.push({ run: it.run, text: it.text, x: x, y: base, size: size, ls: ls, w: w2 - extra, top: base - it.asc * k, h: (it.asc + it.desc) * k, slot: it.slot });
+        x += w2;
+      });
+      (L.floats || []).forEach(function (pic) { out.push({ pic: pic, x: ix + pic.x, y: iy + pic.y, w: pic.w, h: pic.h }); });
+      y += (L.asc + L.desc) * k + (i < lines.length - 1 ? gapOf(L, k) : 0);
+    });
+    return out;
+  }
+
+  // 테두리: 칸 가장자리에 선 중심을 맞춘다. 이중선은 가는 선·굵은 선으로 나눠 긋는다.
+  function drawEdge(svg, x1, y1, x2, y2, s, out) {
+    if (!s || s.type === 'NONE' || !(s.w > 0)) return;
+    var w = s.w, horiz = y1 === y2, parts;
+    switch (s.type) {
+      case 'DOUBLE_SLIM': parts = [[-w / 3, w / 3], [w / 3, w / 3]]; break;
+      case 'SLIM_THICK': parts = [[-w * 0.34, w * 0.22], [w * 0.4, w * 0.45]]; break;
+      case 'THICK_SLIM': parts = [[-w * 0.4, w * 0.45], [w * 0.34, w * 0.22]]; break;
+      case 'SLIM_THICK_SLIM': parts = [[-w * 0.4, w * 0.18], [0, w * 0.3], [w * 0.4, w * 0.18]]; break;
+      default: parts = [[0, w]];
+    }
+    var dash = { DASH: [3 * w, 1.5 * w], LONG_DASH: [6 * w, 2 * w], DOT: [w, w], DASH_DOT: [3 * w, w, w, w], DASH_DOT_DOT: [3 * w, w, w, w, w, w] }[s.type];
+    parts.forEach(function (p) {
+      var off = p[0] * out;
+      svg.appendChild(svgEl('line', { x1: fmt(x1 + (horiz ? 0 : off)), y1: fmt(y1 + (horiz ? off : 0)), x2: fmt(x2 + (horiz ? 0 : off)), y2: fmt(y2 + (horiz ? off : 0)),
+        stroke: s.color, 'stroke-width': fmt(Math.max(0.05, p[1])), 'stroke-dasharray': dash ? dash.map(fmt).join(' ') : null }));
+    });
+  }
+
+  var gradSeq = 0;
+  function faceSvg(t, row, opts) {
+    opts = opts || {};
+    var W = t.w, H = t.h, map = slotMap(t);
+    var svg = svgEl('svg', { xmlns: NS, viewBox: '0 0 ' + fmt(W) + ' ' + fmt(H), width: fmt(W) + 'mm', height: fmt(H) + 'mm', 'shape-rendering': 'geometricPrecision' });
+    var defs = svgEl('defs'); svg.appendChild(defs);
+    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: fmt(W), height: fmt(H), fill: '#ffffff' }));
+    t.cells.forEach(function (c) {   // 칸 바탕
+      if (c.grad && c.grad.colors.length > 1) {
+        var id = 'g' + (++gradSeq), a = (c.grad.angle || 0) * Math.PI / 180;
+        var g = svgEl('linearGradient', { id: id, x1: fmt(0.5 - Math.sin(a) / 2), y1: fmt(0.5 - Math.cos(a) / 2), x2: fmt(0.5 + Math.sin(a) / 2), y2: fmt(0.5 + Math.cos(a) / 2) });
+        c.grad.colors.forEach(function (col, i) { g.appendChild(svgEl('stop', { offset: fmt(i / (c.grad.colors.length - 1)), 'stop-color': col })); });
+        defs.appendChild(g);
+        svg.appendChild(svgEl('rect', { x: fmt(c.x), y: fmt(c.y), width: fmt(c.w), height: fmt(c.h), fill: 'url(#' + id + ')' }));
+      } else if (c.fill) svg.appendChild(svgEl('rect', { x: fmt(c.x), y: fmt(c.y), width: fmt(c.w), height: fmt(c.h), fill: c.fill }));
+      if (c.img) svg.appendChild(svgEl('image', { x: fmt(c.x), y: fmt(c.y), width: fmt(c.w), height: fmt(c.h), href: c.img, preserveAspectRatio: c.imgMode === 'TOTAL' || c.imgMode === 'FIT' ? 'none' : 'xMidYMid meet' }));
+    });
+    t.cells.forEach(function (c) {   // 테두리
+      drawEdge(svg, c.x, c.y, c.x + c.w, c.y, c.b.t, -1);
+      drawEdge(svg, c.x, c.y + c.h, c.x + c.w, c.y + c.h, c.b.b, 1);
+      drawEdge(svg, c.x, c.y, c.x, c.y + c.h, c.b.l, -1);
+      drawEdge(svg, c.x + c.w, c.y, c.x + c.w, c.y + c.h, c.b.r, 1);
+    });
+    var boxes = [];
+    t.cells.forEach(function (c, ci) {   // 글자·그림
+      layoutCell(c, ci, map, row, opts.sample).forEach(function (it) {
+        if (it.pic) { svg.appendChild(svgEl('image', { x: fmt(it.x), y: fmt(it.y), width: fmt(it.w), height: fmt(it.h), href: it.pic.src, preserveAspectRatio: 'none' })); return; }
+        var r = it.run, k = r.ratio / 100;
+        var tx = svgEl('text', { transform: 'translate(' + fmt(it.x) + ' ' + fmt(it.y) + ')' + (k !== 1 ? ' scale(' + fmt(k) + ' 1)' : ''), 'font-size': fmt(it.size),
+          'font-family': family(r.font), 'font-weight': r.bold ? 'bold' : null, 'font-style': r.italic ? 'italic' : null, fill: r.color, 'text-decoration': r.ul ? 'underline' : null });
+        tx.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+        tx.style.whiteSpace = 'pre';
+        if (it.ls) tx.style.letterSpacing = fmt(it.ls / k) + 'px';
+        tx.textContent = it.text;
+        svg.appendChild(tx);
+        if (it.slot >= 0) {
+          var b = boxes.filter(function (x) { return x.slot === it.slot; })[0];
+          if (b) { var r2 = Math.max(b.x + b.w, it.x + it.w); b.x = Math.min(b.x, it.x); b.w = r2 - b.x; b.y = Math.min(b.y, it.top); b.h = Math.max(b.h, it.h); }
+          else boxes.push({ slot: it.slot, x: it.x, y: it.top, w: it.w, h: it.h });
+        }
+      });
+    });
+    return { svg: svg, boxes: boxes };
+  }
+
+  function buildFace(t, row, rot) {
+    var face = el('div', 'face' + (rot ? ' rot' : ''));
+    face.style.width = fmt(t.w) + 'mm'; face.style.height = fmt(t.h) + 'mm';
+    face.appendChild(faceSvg(t, row).svg);
+    return face;
+  }
+  function buildPlate(t, row) {
+    var plate = el('div', 'plate'), W = t.w, H = t.h;
+    plate.style.width = fmt(W) + 'mm';
+    if (state.mode === 'fold') {
+      plate.style.height = fmt(2 * H) + 'mm';
+      plate.append(buildFace(t, row, true), buildFace(t, row, false));   // 위쪽 면은 180도 돌려 접었을 때 양쪽에서 바로 읽힌다
+      if (prefs.fold) { var f = el('div', 'fold'); f.style.top = fmt(H) + 'mm'; plate.appendChild(f); }
+    } else {
+      plate.style.height = fmt(H) + 'mm';
+      plate.appendChild(buildFace(t, row, false));
+    }
+    if (prefs.cut) plate.appendChild(el('div', 'cut'));
+    return plate;
+  }
+
+  // ---------- 규격(기본 양식) ----------
+  var lastGood = { w: 170, h: 73 };
+  function currentSize() {
+    var p = PRESETS.filter(function (x) { return x.id === state.preset; })[0];
+    if (p && p.w) return { w: p.w, h: p.h, ok: true };
+    var w = parseFloat(state.cw), h = parseFloat(state.ch);
+    var ok = isFinite(w) && isFinite(h) && w >= 30 && w <= 287 && h >= 15 && h <= 200;
+    return ok ? { w: w, h: h, ok: true } : { w: lastGood.w, h: lastGood.h, ok: false };
+  }
+
+  // ---------- A4 배치: 가로·세로 중 한 쪽에 더 많이 들어가는 쪽(같으면 가로) ----------
+  function plan(W, TH, group) {
+    var opts = [{ o: 'landscape', pw: 297, ph: 210 }, { o: 'portrait', pw: 210, ph: 297 }];
+    opts.forEach(function (L) {
+      L.uw = L.pw - 2 * MARGIN; L.uh = L.ph - 2 * MARGIN - PAGE_SAFE;
+      L.cols = Math.floor((L.uw + GAP) / (W + GAP)); L.rows = Math.floor((L.uh + GAP) / (TH + GAP));
+      L.fits = L.cols >= 1 && L.rows >= 1;
+      if (!L.fits) { L.cols = 1; L.rows = 1; }
+      L.per = L.cols * L.rows;
+      L.eff = group > 1 && L.per >= group ? L.per - (L.per % group) : L.per;   // 양면 2장: 한 사람의 두 장이 쪽 사이에서 갈라지지 않게
+    });
+    if (prefs.orient === 'landscape') return opts[0];
+    if (prefs.orient === 'portrait') return opts[1];
+    if (opts[0].fits !== opts[1].fits) return opts[0].fits ? opts[0] : opts[1];
+    return opts[1].eff > opts[0].eff ? opts[1] : opts[0];
+  }
+
+  // ---------- 명단 표 ----------
+  var rowEls = [];
+  function buildTable() {
+    var body = $('rows'); body.textContent = ''; rowEls = [];
+    state.rows.forEach(function (r, i) { body.appendChild(buildRow(r, i)); });
+    refresh();
+  }
+  function cell(child, cls) { var td = el('td', cls || ''); if (child) td.appendChild(child); return td; }
+  function textInput(value, key, ph) { var i = document.createElement('input'); i.type = 'text'; i.value = value; i.dataset.key = key; i.autocomplete = 'off'; i.spellcheck = false; if (ph) i.placeholder = ph; return i; }
+  function buildRow(r, i) {
+    var tr = el('tr'), x = { tr: tr };
+    var chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = r.out; chk.setAttribute('aria-label', (i + 1) + '행 인쇄');
+    chk.addEventListener('change', function () { r.out = chk.checked; tr.classList.toggle('off', !r.out); syncCheckAll(); schedule(); });
+    x.num = el('span', 'no', String(i + 1));
+    COLS.forEach(function (k) {
+      x[k] = textInput(r[k], k, i === 0 ? { name: '예: 홍길동', position: '예: 위원장', affil: '예: ○○초등학교' }[k] : '');
+      x[k].addEventListener('input', function () { r[k] = x[k].value; refresh(); schedule(); if (i === firstRowIndex()) scheduleEditor(); });
+    });
+    var copy = el('button', 'btn btn-icon', '⧉'); copy.type = 'button'; copy.title = '행 복제'; copy.setAttribute('aria-label', (i + 1) + '행 복제');
+    copy.addEventListener('click', function () { remember(); state.rows.splice(i + 1, 0, Object.assign({}, r)); buildTable(); schedule(); focusCell(i + 1, 'name'); toast((i + 2) + '행에 복제했습니다.'); });
+    var del = el('button', 'btn btn-icon del', '×'); del.type = 'button'; del.title = '행 삭제'; del.setAttribute('aria-label', (i + 1) + '행 삭제');
+    del.addEventListener('click', function () {
+      if (state.rows.length < 2) { toast('행이 하나뿐이라 지울 수 없습니다.'); return; }
+      remember(); state.rows.splice(i, 1); buildTable(); schedule(); toast((i + 1) + '행을 지웠습니다. (Ctrl+Z 되돌리기)');
+    });
+    var ops = el('div', 'ops'); ops.append(copy, del);
+    tr.append(cell(chk, 'c'), cell(x.num, 'c'), cell(x.name), cell(x.position), cell(x.affil), cell(ops, 'c'));
+    tr.classList.toggle('off', !r.out);
+    tr.addEventListener('keydown', onCellKey);
+    rowEls[i] = x;
+    return tr;
+  }
+  // Enter: 오른쪽 칸 → 줄 끝이면 다음 줄 첫 칸, 마지막 줄 끝이면 새 줄
+  function onCellKey(ev) {
+    if (ev.key !== 'Enter' || ev.isComposing || ev.shiftKey) return;
+    var target = ev.target; if (!target.dataset || !target.dataset.key) return;
+    ev.preventDefault();
+    var list = Array.prototype.slice.call($('rows').querySelectorAll('[data-key]')), at = list.indexOf(target);
+    if (list[at + 1]) list[at + 1].focus(); else addRow();
+  }
+  function focusCell(i, key) { var x = rowEls[i]; if (x && x[key]) { x[key].focus(); x[key].select(); } }
+  function hasContent(r) { return !!(clean(r.name) || clean(r.position) || clean(r.affil)); }
+  function firstRowIndex() { for (var i = 0; i < state.rows.length; i++) if (hasContent(state.rows[i])) return i; return 0; }
+  function refresh() { rowEls.forEach(function (x, i) { x.num.textContent = String(i + 1); }); syncCheckAll(); }
+  function syncCheckAll() {
+    var n = state.rows.filter(function (r) { return r.out; }).length, box = $('checkAll');
+    box.checked = n === state.rows.length; box.indeterminate = n > 0 && n < state.rows.length;
+  }
+  // 새 줄은 마지막 줄의 직급·소속기관을 이어받는다(성명만 새로 쓰면 된다)
+  function addRow() {
+    if (state.rows.length >= MAX_ROWS) { toast('행은 ' + MAX_ROWS + '개까지 만들 수 있습니다.'); return; }
+    var last = state.rows[state.rows.length - 1];
+    remember(); state.rows.push(newRow({ position: last ? last.position : '', affil: last ? last.affil : '' })); buildTable(); schedule();
+    focusCell(state.rows.length - 1, 'name');
+  }
+  // 표 붙여넣기(엑셀·한셀): 붙여넣은 칸부터 오른쪽·아래로 채우고 모자란 행은 만든다. 첫 줄이 머리글이면 뺀다.
+  function onPaste(ev) {
+    var target = ev.target; if (!target.dataset || !target.dataset.key) return;
+    var text = (ev.clipboardData && ev.clipboardData.getData('text/plain')) || '';
+    if (!/[\t\n]/.test(text.replace(/\r?\n$/, ''))) return;
+    ev.preventDefault();
+    var lines = text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n').map(function (l) { return l.split('\t'); });
+    if (lines.length && lines[0].some(function (c) { return headKey(c); }) && lines[0].every(function (c) { return !clean(c) || headKey(c); })) lines.shift();
+    if (!lines.length) return;
+    var tr = target.closest('tr'), r0 = Array.prototype.indexOf.call($('rows').children, tr), c0 = COLS.indexOf(target.dataset.key);
+    remember();
+    while (state.rows.length < Math.min(MAX_ROWS, r0 + lines.length)) state.rows.push(newRow());
+    var cells = 0;
+    lines.forEach(function (vals, ri) {
+      var r = state.rows[r0 + ri]; if (!r) return;
+      vals.forEach(function (v, ci) { var key = COLS[c0 + ci]; if (key) { r[key] = clean(v); cells++; } });
+    });
+    buildTable(); schedule(); scheduleEditor();
+    toast(lines.length + '명 · ' + cells + '칸을 붙여넣었습니다.');
+  }
+  function headKey(c) {
+    var h = String(c).replace(/\s+/g, '').toLowerCase();
+    return COLS.filter(function (k) { return COL_ALIASES[k].some(function (a) { return a.toLowerCase() === h; }); })[0] || null;
+  }
+  function bulk(key) {
+    var input = key === 'position' ? $('bulkPos') : $('bulkAff'), v = clean(input.value);
+    remember();
+    state.rows.forEach(function (r) { r[key] = v; });
+    buildTable(); schedule(); scheduleEditor();
+    toast(COL_LABELS[key] + '을(를) ' + state.rows.length + '개 행에 ' + (v ? '적용' : '비움') + '했습니다.');
+  }
+
+  // ---------- 되돌리기 ----------
+  var history = [];
+  function remember() { history.push(JSON.stringify(state.rows)); if (history.length > 30) history.shift(); }
+  function undo() {
+    if (!history.length) { toast('되돌릴 작업이 없습니다.'); return; }
+    state.rows = JSON.parse(history.pop()); buildTable(); schedule(); scheduleEditor(); toast('되돌렸습니다.');
+  }
+  function hasInput() { return state.rows.length > 1 || state.rows.some(hasContent); }
+  function sample() {
+    if (hasInput() && !window.confirm('입력한 명단을 샘플로 바꿀까요?')) return;
+    remember();
+    state.rows = [
+      newRow({ name: '홍길동', position: '위원장', affil: '○○초등학교' }), newRow({ name: '김철수', position: '부위원장', affil: '○○중학교' }),
+      newRow({ name: '남궁민수', position: '위원', affil: '○○교육지원청' }), newRow({ name: '박민', position: '간사', affil: '행정실' })
+    ];
+    if (!clean(state.org)) { state.org = '2026학년도 ○○초등학교운영위원회'; $('org').value = state.org; }
+    buildTable(); schedule(); scheduleEditor(); toast('샘플을 불러왔습니다.');
+  }
+  function clearRows() {
+    if (!window.confirm('입력한 명단을 모두 지울까요?')) return;
+    remember(); state.rows = [newRow()]; buildTable(); schedule(); scheduleEditor(); toast('지웠습니다. (Ctrl+Z 되돌리기)');
+  }
+
+  // ---------- 엑셀 ----------
+  function xlsxReady() { if (window.XLSX && XLSX.utils) return true; toast('엑셀 기능을 불러오지 못했습니다.'); return false; }
+  function downloadXlsx() {
+    if (!xlsxReady()) return;
+    var rows = state.rows.filter(hasContent);
+    var aoa = [COLS.map(function (k) { return COL_LABELS[k]; })].concat((rows.length ? rows : [newRow({ name: '홍길동', position: '위원장', affil: '○○초등학교' })]).map(function (r) { return COLS.map(function (k) { return r[k]; }); }));
+    var ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 24 }];
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '명단');
+    XLSX.writeFile(wb, '회의명패_명단양식.xlsx');
+  }
+  function uploadXlsx(file) {
+    if (!file || !xlsxReady()) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) { toast('엑셀 파일(.xlsx, .xls)만 올릴 수 있습니다.'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var wb = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+        var aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '', raw: false })
+          .filter(function (row) { return row.some(function (c) { return clean(c); }); });
+        if (!aoa.length) { toast('추가할 명단이 없습니다.'); return; }
+        var map = {};
+        aoa[0].forEach(function (h, i) { var k = headKey(h); if (k && map[k] === undefined) map[k] = i; });
+        var body = Object.keys(map).length ? aoa.slice(1) : aoa;   // 머리글이 없으면 성명·직급·소속기관 순서로 읽는다
+        if (!Object.keys(map).length) COLS.forEach(function (k, i) { map[k] = i; });
+        var added = body.map(function (vals) { var r = newRow(); COLS.forEach(function (k) { if (map[k] !== undefined) r[k] = clean(vals[map[k]]); }); return r; }).filter(hasContent);
+        if (!added.length) { toast('추가할 명단이 없습니다.'); return; }
+        remember();
+        state.rows = (hasInput() ? state.rows : []).concat(added).slice(0, MAX_ROWS);
+        buildTable(); schedule(); scheduleEditor(); toast(added.length + '명을 추가했습니다.');
+      } catch (e) { toast('엑셀 파일을 읽지 못했습니다.'); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ---------- 한글 양식 불러오기 ----------
+  function importTpl(file) {
+    if (!file) return;
+    if (/\.hwp$/i.test(file.name)) { toast('hwp 파일은 한글에서 [다른 이름으로 저장] → 파일 형식 "한글 표준 문서(*.hwpx)"로 저장한 뒤 불러오세요.'); return; }
+    if (!/\.hwpx$/i.test(file.name)) { toast('한글 hwpx 파일만 불러올 수 있습니다.'); return; }
+    if (!window.JSZip) { toast('한글 파일을 읽는 기능을 불러오지 못했습니다.'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      parseHwpx(reader.result, file.name).then(function (res) {
+        imported = imported.concat(res.templates);
+        res.templates.forEach(function (t) { dbPut(t); });
+        state.tpl = res.templates[0].id; selSlot = -1;
+        var notes = [res.templates.length > 1 ? '양식 ' + res.templates.length + '개를 불러왔습니다.' : '양식을 불러왔습니다.'];
+        if (res.twoUp && state.mode !== 'two') { state.mode = 'two'; $('mode').value = 'two'; notes.push('같은 명패를 두 장씩 넣은 양식이라 출력 방식을 "양면 2장"으로 맞췄습니다.'); }
+        var orgSlot = res.templates[0].slots.filter(function (s) { return s.field === 'org'; })[0];
+        if (orgSlot && !clean(state.org)) { state.org = orgSlot.sample; $('org').value = state.org; notes.push('회의명은 양식에 적힌 대로 넣었습니다.'); }
+        if (res.flags.objects) notes.push('표 밖의 그리기 개체·글상자는 가져오지 않습니다.');
+        renderTplList(); showTplSide(); renderEditor(); schedule();
+        toast(notes.join('\n'));
+      }).catch(function (e) {
+        toast(e && e.message === 'noTable' ? '이 문서에서 표를 찾지 못했습니다. 명패 양식이 표로 되어 있어야 합니다.' : '한글 파일을 읽지 못했습니다.');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  function deleteTpl() {
+    var t = currentTpl(); if (t.kind !== 'hwpx') return;
+    if (!window.confirm('"' + t.name + '" 양식을 삭제할까요?')) return;
+    imported = imported.filter(function (x) { return x.id !== t.id; });
+    dbDel(t.id);
+    state.tpl = imported.length ? imported[imported.length - 1].id : 'b-top'; selSlot = -1;
+    renderTplList(); showTplSide(); renderEditor(); schedule(); toast('삭제했습니다.');
+  }
+  function renderTplList() {
+    var sel = $('tplList'); sel.textContent = '';
+    var g1 = el('optgroup'); g1.label = '기본 양식';
+    BUILTINS.forEach(function (b) { var op = el('option', '', b[1]); op.value = b[0]; g1.appendChild(op); });
+    sel.appendChild(g1);
+    if (imported.length) {
+      var g2 = el('optgroup'); g2.label = '불러온 한글 양식';
+      imported.forEach(function (t) { var op = el('option', '', t.name); op.value = t.id; g2.appendChild(op); });
+      sel.appendChild(g2);
+    }
+    if (!imported.some(function (t) { return t.id === state.tpl; }) && !BUILTINS.some(function (b) { return b[0] === state.tpl; })) state.tpl = 'b-top';
+    sel.value = state.tpl;
+  }
+  function showTplSide() {
+    var t = currentTpl(), b = t.kind === 'builtin';
+    $('tplDelete').disabled = b;
+    $('sizeRow').hidden = !b;
+    $('customRow').hidden = !b || state.preset !== 'custom';
+    $('fixedRow').hidden = b;
+    $('fixedSize').textContent = fmt1(t.w) + ' × ' + fmt1(t.h) + 'mm (한글 양식 크기)';
+  }
+
+  // ---------- 양식 화면 · 칸 목록 ----------
+  var selSlot = -1, editorTimer = 0;
+  // 글자를 칠 때는 양식 그림만 다시 그린다(칸 목록을 다시 만들면 입력하던 칸에서 커서가 빠진다)
+  function scheduleEditor() { clearTimeout(editorTimer); editorTimer = setTimeout(drawFace, 120); }
+  function editorRow() { var i = firstRowIndex(); return hasContent(state.rows[i] || {}) ? state.rows[i] : null; }
+  function renderEditor() { var t = drawFace(); renderFields(t); }
+  function drawFace() {
+    clearTimeout(editorTimer);
+    var t = currentTpl(), ed = $('editor'); ed.textContent = '';
+    ed.style.width = fmt(t.w) + 'mm'; ed.style.height = fmt(t.h) + 'mm';
+    var res = faceSvg(t, editorRow(), { sample: true });
+    ed.appendChild(res.svg);
+    t.cells.forEach(function (c, ci) {   // 칸을 누르면 그 칸의 항목을 고른다(빈 칸이면 새로 넣는다)
+      var hit = el('div', 'cellhit');
+      hit.style.left = fmt(c.x) + 'mm'; hit.style.top = fmt(c.y) + 'mm'; hit.style.width = fmt(c.w) + 'mm'; hit.style.height = fmt(c.h) + 'mm';
+      hit.title = '이 칸에 넣을 항목 고르기';
+      hit.addEventListener('click', function () { pickCell(t, ci); });
+      ed.appendChild(hit);
+    });
+    res.boxes.forEach(function (b) {
+      var box = el('div', 'slotbox' + (b.slot === selSlot ? ' sel' : ''));
+      box.style.left = fmt(b.x) + 'mm'; box.style.top = fmt(b.y) + 'mm'; box.style.width = fmt(b.w) + 'mm'; box.style.height = fmt(b.h) + 'mm';
+      box.appendChild(el('b', '', String(b.slot + 1)));
+      box.addEventListener('click', function (ev) { ev.stopPropagation(); selectSlot(b.slot, true); });
+      ed.appendChild(box);
+    });
+    fitEditor();
+    return t;
+  }
+  function fitEditor() {
+    var ed = $('editor'), wrap = $('editorWrap'); if (!ed.firstChild) return;
+    ed.style.setProperty('--ez', '1');
+    var avail = wrap.clientWidth - 40, w = ed.offsetWidth;
+    ed.style.setProperty('--ez', String(w > 0 ? Math.min(2, avail / w) : 1));
+  }
+  function pickCell(t, ci) {
+    var mine = t.slots.map(function (s, i) { return { s: s, i: i }; }).filter(function (x) { return x.s.ci === ci; });
+    if (mine.length) { var at = mine.map(function (x) { return x.i; }).indexOf(selSlot); selectSlot(mine[(at + 1) % mine.length].i, true); return; }
+    // 빈 칸: 첫 문단 글자 모양으로 새 글자를 넣는다. 크기는 칸 높이의 절반쯤에서 시작한다.
+    var c = t.cells[ci]; if (!c.paras.length) c.paras.push({ align: 'CENTER', ml: 0, mr: 0, ls: { type: 'PERCENT', val: 100 }, runs: [], base: null });
+    var p = c.paras[0], base = p.base || { font: '맑은 고딕', size: 10, color: '#000000', bold: false, italic: false, ratio: 100, sp: 0, ul: false };
+    var used = {}; t.slots.forEach(function (s) { used[s.field] = 1; });
+    var field = ['name', 'position', 'affil', 'org'].filter(function (f) { return !used[f]; })[0] || 'name';
+    var ih = c.h - c.pad[2] - c.pad[3], size = Math.max(6, Math.round(ih * 0.55 / PT));
+    var run = Object.assign({}, base, { t: FIELDS[field], lead: '', core: FIELDS[field], trail: '' });
+    delete run.cp;
+    p.runs.push(run);
+    if (p.align === 'JUSTIFY' || p.align === 'LEFT') p.align = 'CENTER';
+    var s = { key: ci + '.0.' + (p.runs.length - 1), ci: ci, pi: 0, ri: p.runs.length - 1, sample: '', size: size, size0: size, gap: 0, gap0: 0, field: field, field0: field, font: '', added: true };
+    t.slots.push(s);
+    saveTplModel(t);
+    selSlot = t.slots.length - 1;
+    renderEditor(); schedule();
+  }
+  // 칸에 글자를 더하거나 뺀 것은 양식 모양까지 저장해야 한다(기본 양식은 다시 만들어지므로 칸 추가를 막는다)
+  function saveTplModel(t) { if (t.kind === 'hwpx') saveSlots(t); }
+  function selectSlot(i, scroll) {
+    selSlot = i;
+    document.querySelectorAll('#editor .slotbox').forEach(function (b) { b.classList.toggle('sel', b.querySelector('b').textContent === String(i + 1)); });
+    document.querySelectorAll('#fieldRows tr').forEach(function (tr) { tr.classList.toggle('sel', tr.dataset.i === String(i)); });
+    var tr = document.querySelector('#fieldRows tr[data-i="' + i + '"]');
+    if (tr && scroll) { var sel = tr.querySelector('select'); if (sel) sel.focus({ preventScroll: true }); tr.scrollIntoView({ block: 'nearest' }); }
+  }
+  function renderFields(t) {
+    var body = $('fieldRows'); body.textContent = '';
+    if (!t.slots.length) { var tr0 = el('tr'), td0 = el('td', 'empty', '양식에 글자가 없습니다. 위 양식에서 항목을 넣을 칸을 누르세요.'); td0.colSpan = 7; tr0.appendChild(td0); body.appendChild(tr0); return; }
+    t.slots.forEach(function (s, i) {
+      var tr = el('tr' + ''), run = t.cells[s.ci].paras[s.pi].runs[s.ri];
+      tr.dataset.i = String(i); if (i === selSlot) tr.className = 'sel';
+      tr.addEventListener('click', function (ev) { if (!/^(SELECT|INPUT|BUTTON|OPTION)$/.test(ev.target.tagName)) selectSlot(i, false); });
+      var no = el('span', 'badge', String(i + 1));
+      var smp = el('div'), st = el('span', 'sample' + (s.added ? ' none' : ''), s.added ? '(빈 칸)' : s.sample);
+      smp.append(st, el('span', 'font', run.font + ' · ' + fmt1(s.size0) + 'pt' + (run.bold ? ' · 굵게' : '') + (hasFont(run.font) ? '' : ' · 이 PC에 없는 글꼴')));
+      var changed = function () { saveSlots(t); drawFace(); schedule(); sync(); };
+      var fsel = document.createElement('select'); fsel.setAttribute('aria-label', (i + 1) + '번 칸에 넣을 항목');
+      FIELD_OPTS.forEach(function (o) { if (s.added && o[0] === 'keep') return; var op = el('option', '', o[1]); op.value = o[0]; fsel.appendChild(op); });
+      fsel.value = s.field;
+      fsel.addEventListener('focus', function () { selectSlot(i, false); });
+      fsel.addEventListener('change', function () { s.field = fsel.value; changed(); });
+      var fontSel = document.createElement('select'); fontSel.setAttribute('aria-label', (i + 1) + '번 글꼴');
+      var op0 = el('option', '', run.font + ' (양식)'); op0.value = ''; fontSel.appendChild(op0);
+      installedFonts().forEach(function (f) { if (f === run.font) return; var op = el('option', '', f); op.value = f; fontSel.appendChild(op); });
+      if (s.font && !fontSel.querySelector('option[value="' + s.font.replace(/"/g, '') + '"]')) { var opx = el('option', '', s.font + ' (이 PC에 없음)'); opx.value = s.font; fontSel.appendChild(opx); }
+      fontSel.value = s.font || '';
+      fontSel.addEventListener('focus', function () { selectSlot(i, false); });
+      fontSel.addEventListener('change', function () { s.font = fontSel.value; changed(); });
+      var size = document.createElement('input'); size.type = 'text'; size.inputMode = 'decimal'; size.value = fmt1(s.size); size.setAttribute('aria-label', (i + 1) + '번 글자 크기(pt)');
+      size.addEventListener('focus', function () { selectSlot(i, false); });
+      size.addEventListener('input', function () {
+        var v = parseFloat(size.value), ok = isFinite(v) && v >= 4 && v <= 400;
+        size.classList.toggle('bad', !ok);
+        if (ok) { s.size = v; saveSlots(t); scheduleEditor(); schedule(); sync(); }
+      });
+      size.addEventListener('keydown', function (ev) {   // ↑↓ 로 1pt(Shift 10pt)씩
+        if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+        ev.preventDefault();
+        var v = Math.min(400, Math.max(4, (parseFloat(size.value) || s.size) + (ev.key === 'ArrowUp' ? 1 : -1) * (ev.shiftKey ? 10 : 1)));
+        size.value = fmt1(v); s.size = v; size.classList.remove('bad'); saveSlots(t); scheduleEditor(); schedule(); sync();
+      });
+      var gsel = document.createElement('select'); gsel.setAttribute('aria-label', (i + 1) + '번 글자 사이');
+      GAP_OPTS.forEach(function (o) { var op = el('option', '', o[1]); op.value = String(o[0]); gsel.appendChild(op); });
+      gsel.value = String(s.gap);
+      gsel.addEventListener('focus', function () { selectSlot(i, false); });
+      gsel.addEventListener('change', function () { s.gap = parseInt(gsel.value, 10) || 0; changed(); });
+      var ops = el('div', 'ops'), btn;
+      if (s.added) {
+        btn = el('button', 'btn btn-icon del', '×'); btn.title = '이 칸에서 빼기'; btn.setAttribute('aria-label', (i + 1) + '번 칸에서 빼기');
+        btn.addEventListener('click', function () { removeAdded(t, i); });
+      } else {
+        btn = el('button', 'btn btn-icon', '↺'); btn.title = '양식 처음 값으로'; btn.setAttribute('aria-label', (i + 1) + '번 처음 값으로');
+        btn.addEventListener('click', function () { s.field = s.field0; s.size = s.size0; s.gap = s.gap0; s.font = ''; saveSlots(t); renderEditor(); schedule(); });
+      }
+      btn.type = 'button'; ops.appendChild(btn);
+      // 고른 값에 따라 바뀌는 것만 그 자리에서 고친다
+      var sync = function () {
+        gsel.disabled = s.field === 'keep' || s.field === 'none';
+        if (!s.added) btn.disabled = s.field === s.field0 && s.size === s.size0 && s.gap === s.gap0 && !s.font;
+      };
+      sync();
+      tr.append(cell(no, 'c'), cell(smp), cell(fsel), cell(fontSel), cell(size), cell(gsel), cell(ops, 'c'));
+      body.appendChild(tr);
+    });
+  }
+  function removeAdded(t, i) {
+    var s = t.slots[i], p = t.cells[s.ci].paras[s.pi];
+    p.runs.splice(s.ri, 1);
+    t.slots.splice(i, 1);
+    t.slots.forEach(function (x) { if (x.ci === s.ci && x.pi === s.pi && x.ri > s.ri) { x.ri -= 1; x.key = x.ci + '.' + x.pi + '.' + x.ri; } });
+    selSlot = -1; saveTplModel(t); renderEditor(); schedule();
+  }
+
+  // ---------- 미리보기(= 인쇄할 모양) ----------
+  var timer = 0;
+  function schedule() { clearTimeout(timer); timer = setTimeout(renderPreview, 150); }
+  function flush() { if (timer) renderPreview(); }
+  function renderPreview() {
+    clearTimeout(timer); timer = 0;
+    var sz = currentSize(); if (sz.ok) lastGood = { w: sz.w, h: sz.h };
+    var t = currentTpl(), W = t.w, H = t.h, TH = state.mode === 'fold' ? 2 * H : H;
+    var plates = state.rows.filter(function (r) { return r.out && hasContent(r); }), items = [];
+    plates.forEach(function (r) { items.push(r); if (state.mode === 'two') items.push(r); });
+    var L = plan(W, TH, state.mode === 'two' ? 2 : 1);
+    $('pageStyle').textContent = '@page { size:A4 ' + L.o + '; margin:' + MARGIN + 'mm; }';
+    var box = $('pages'); box.textContent = '';
+    var pages = items.length ? Math.ceil(items.length / L.eff) : 0;
+    if (!items.length) box.appendChild(el('div', 'empty', state.rows.some(hasContent) ? '인쇄할 행을 체크하세요.' : '명단을 입력하세요.'));
+    for (var pg = 0; pg < pages; pg++) {
+      var sheet = el('div', 'sheet'), grid = el('div', 'sheet-grid');
+      sheet.style.width = L.pw + 'mm'; sheet.style.height = L.ph + 'mm';
+      grid.style.width = L.uw + 'mm'; grid.style.height = L.uh + 'mm';
+      grid.style.gridTemplateColumns = 'repeat(' + L.cols + ', ' + fmt(W) + 'mm)'; grid.style.gridAutoRows = fmt(TH) + 'mm';
+      items.slice(pg * L.eff, (pg + 1) * L.eff).forEach(function (r) { grid.appendChild(buildPlate(t, r)); });
+      sheet.appendChild(grid);
+      if (pages > 1) sheet.appendChild(el('div', 'page-no', (pg + 1) + ' / ' + pages));
+      box.appendChild(sheet);
+    }
+    var o = L.o === 'landscape' ? '가로' : '세로';
+    $('pvMeta').textContent = 'A4 ' + o + ' · 명패 ' + plates.length + '개' + (state.mode === 'two' ? '(출력 ' + items.length + '장)' : '') + ' · 쪽당 ' + L.eff + (state.mode === 'two' ? '장' : '개') + ' · ' + pages + '쪽';
+    $('sizeInfo').textContent = state.mode === 'fold' ? '출력물 ' + fmt1(W) + ' × ' + fmt1(TH) + 'mm, 가운데를 접으면 ' + fmt1(W) + ' × ' + fmt1(H) + 'mm'
+      : state.mode === 'two' ? '출력물 ' + fmt1(W) + ' × ' + fmt1(H) + 'mm, 한 사람당 같은 면 2장(앞·뒤)' : '출력물 ' + fmt1(W) + ' × ' + fmt1(H) + 'mm, 한 사람당 1장';
+    var msgs = [];
+    var custom = t.kind === 'builtin' && state.preset === 'custom';
+    var cwBad = custom && !(parseFloat(state.cw) >= 30 && parseFloat(state.cw) <= 287), chBad = custom && !(parseFloat(state.ch) >= 15 && parseFloat(state.ch) <= 200);
+    $('cw').classList.toggle('bad', cwBad); $('ch').classList.toggle('bad', chBad);
+    if (cwBad || chBad) msgs.push('사용자 지정 크기는 가로 30~287mm, 높이 15~200mm로 입력해 주세요. (지금은 ' + fmt1(W) + '×' + fmt1(H) + 'mm로 보여 줍니다)');
+    if (!t.slots.some(function (s) { return s.field === 'name'; })) msgs.push('성명을 넣을 칸이 없습니다. 2. 양식에서 성명을 넣을 칸을 골라 주세요.');
+    if (!L.fits) msgs.push('이 크기(' + fmt1(W) + '×' + fmt1(TH) + 'mm)는 A4 인쇄 영역보다 커서 잘립니다.' + (t.kind === 'builtin' ? ' 규격을 줄이거나 출력 방식을 바꿔 주세요.' : ' 출력 방식을 바꾸거나 한글에서 양식 크기를 줄여 주세요.'));
+    var mbox = $('msgs'); mbox.textContent = ''; msgs.forEach(function (m) { mbox.appendChild(el('li', '', m)); });
+    $('print1').disabled = $('print2').disabled = !items.length;
+    fitZoom();
+    saveDraft();
+  }
+  var zoomMode = 'fit';
+  function fitZoom() {
+    var z = 1, first = $('pages').querySelector('.sheet');
+    if (zoomMode === 'fit' && first) z = Math.max(0.2, Math.min(1, ($('stage').clientWidth - 40) / first.offsetWidth));
+    $('pages').style.setProperty('--zoom', String(z));
+  }
+  // PDF로 저장할 때 파일 이름은 문서 제목을 따른다. 앱 안에서는 앱 화면(JB업무ON)의 제목이 쓰이므로 잠깐 함께 바꾼다.
+  function withTitle(name, run) {
+    var saved = [];
+    [window, window.parent].forEach(function (w) { try { if (w && w.document && saved.every(function (s) { return s[0] !== w.document; })) { saved.push([w.document, w.document.title]); w.document.title = name; } } catch (e) { /* 다른 출처면 건너뛴다 */ } });
+    var done = false, restore = function () { if (done) return; done = true; saved.forEach(function (s) { s[0].title = s[1]; }); };
+    window.addEventListener('afterprint', restore, { once: true });
+    setTimeout(restore, 60000);
+    run();
+  }
+  function print() {
+    flush();
+    if (!$('pages').querySelector('.plate')) { toast('인쇄할 명단이 없습니다.'); return; }
+    var name = (clean(state.org) || '회의') + '_명패_' + today();
+    withTitle(name.replace(/[\\/:*?"<>|]/g, ' '), function () { window.print(); });
+  }
+
+  // ---------- 저장 ----------
+  function toStored() { return { v: 2, state: { org: state.org, tpl: state.tpl, preset: state.preset, cw: state.cw, ch: state.ch, mode: state.mode, rows: state.rows.map(function (r) { return Object.assign({}, r); }) }, prefs: { fold: prefs.fold, cut: prefs.cut, orient: prefs.orient } }; }
+  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(toStored())); } catch (e) { /* 저장 불가 환경 */ } }
+  function readDraft() { try { var o = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return o && normState(o.state) ? o : null; } catch (e) { return null; } }
+  function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* 저장 불가 환경 */ } }
+  function readPrefs() { try { return normPrefs(JSON.parse(localStorage.getItem(PREFS_KEY) || 'null')); } catch (e) { return defaultPrefs(); } }
+  function readJobs() { try { var l = JSON.parse(localStorage.getItem(JOBS_KEY) || '[]'); return Array.isArray(l) ? l.filter(function (j) { return j && isStr(j.id) && normState(j.state); }) : []; } catch (e) { return []; } }
+  function writeJobs(list) { try { localStorage.setItem(JOBS_KEY, JSON.stringify(list)); return true; } catch (e) { return false; } }
+  function fmtSaved(iso) { var d = new Date(iso); return isNaN(d.getTime()) ? '' : d.getFullYear() + '.' + (d.getMonth() + 1) + '.' + d.getDate() + '. ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function renderJobs(selectId) {
+    var list = readJobs(), sel = $('jobList'); sel.textContent = '';
+    if (!list.length) { var none = el('option', '', '저장한 작업이 없습니다'); none.value = ''; sel.appendChild(none); }
+    list.forEach(function (j) { var op = el('option', '', j.name + (fmtSaved(j.savedAt) ? ' · ' + fmtSaved(j.savedAt) : '')); op.value = j.id; sel.appendChild(op); });
+    if (selectId) sel.value = selectId;
+    sel.disabled = $('loadJob').disabled = $('deleteJob').disabled = !list.length;
+  }
+  function saveJob() {
+    flush();
+    var job = toStored(), n = state.rows.filter(hasContent).length;
+    job.id = uid(); job.savedAt = new Date().toISOString();
+    job.name = (clean(state.org) || '회의 명패') + ' · ' + n + '명';
+    var list = readJobs(); list.unshift(job);
+    if (!writeJobs(list)) { toast('저장하지 못했습니다(저장 공간 부족).'); return; }
+    renderJobs(job.id); $('jobsBox').open = true; toast('저장했습니다.');
+  }
+  function loadJob() {
+    var id = $('jobList').value, job = readJobs().filter(function (j) { return j.id === id; })[0];
+    if (!job) { renderJobs(); return; }
+    remember();
+    var p = normPrefs(job.prefs); prefs.fold = p.fold; prefs.cut = p.cut; prefs.orient = p.orient; savePrefs();
+    var s = normState(job.state);
+    if (s.tpl.indexOf('h-') === 0 && !imported.some(function (t) { return t.id === s.tpl; })) { s.tpl = 'b-top'; toast('불러왔습니다. 이 작업에 쓴 한글 양식이 삭제되어 기본 양식으로 보여 줍니다.'); }
+    else toast('불러왔습니다.');
+    applyState(s);
+  }
+  function deleteJob() {
+    var id = $('jobList').value, list = readJobs(), job = list.filter(function (j) { return j.id === id; })[0];
+    if (!job || !window.confirm('"' + job.name + '" 저장 작업을 삭제할까요?')) return;
+    writeJobs(list.filter(function (j) { return j.id !== id; })); renderJobs(); toast('삭제했습니다.');
+  }
+
+  function showLineOpts() {
+    var lo = $('lineOpts'); lo.textContent = '';
+    [['fold', '가운데 접는선'], ['cut', '바깥 절취선']].forEach(function (p) {
+      var l = el('label', 'opt'), c = document.createElement('input'); c.type = 'checkbox'; c.checked = prefs[p[0]];
+      c.disabled = p[0] === 'fold' && state.mode !== 'fold';
+      c.addEventListener('change', function () { prefs[p[0]] = c.checked; savePrefs(); schedule(); });
+      l.append(c, document.createTextNode(p[1])); lo.appendChild(l);
+    });
+    document.querySelectorAll('#orientSeg button').forEach(function (b) { b.classList.toggle('on', b.dataset.orient === prefs.orient); });
+  }
+
+
+
+  function fillSelect(id, list) { var s = $(id); s.textContent = ''; list.forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; s.appendChild(op); }); }
+  function applyState(s) {
+    state = s;
+    $('org').value = s.org; $('preset').value = s.preset; $('mode').value = s.mode;
+    $('cw').value = s.cw; $('ch').value = s.ch;
+    selSlot = -1;
+    renderTplList(); showTplSide(); showLineOpts(); buildTable(); renderEditor(); renderPreview();
+  }
+
+  var toastTimer = 0;
+  function toast(text) {
+    var t = $('toast'); t.textContent = text; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200 + Math.max(0, text.length - 30) * 40);
+  }
+
+  function init() {
+    fillSelect('preset', PRESETS.map(function (p) { return [p.id, p.label]; })); fillSelect('mode', MODES);
+    $('org').addEventListener('input', function () { state.org = this.value; schedule(); scheduleEditor(); });
+    $('mode').addEventListener('change', function () { state.mode = this.value; showLineOpts(); schedule(); });
+    $('preset').addEventListener('change', function () {
+      state.preset = this.value;
+      if (state.preset === 'custom') { var sz = lastGood; if (!state.cw) state.cw = String(sz.w); if (!state.ch) state.ch = String(sz.h); $('cw').value = state.cw; $('ch').value = state.ch; }
+      showTplSide(); renderEditor(); schedule();
+    });
+    ['cw', 'ch'].forEach(function (id) { $(id).addEventListener('input', function () { state[id] = this.value; scheduleEditor(); schedule(); }); });
+    $('tplList').addEventListener('change', function () { state.tpl = this.value; selSlot = -1; showTplSide(); renderEditor(); schedule(); });
+    $('tplImport').addEventListener('click', function () { $('tplFile').click(); });
+    $('tplFile').addEventListener('change', function () { importTpl(this.files[0]); this.value = ''; });
+    $('tplDelete').addEventListener('click', deleteTpl);
+    $('checkAll').addEventListener('change', function () { var on = this.checked; state.rows.forEach(function (r) { r.out = on; }); buildTable(); schedule(); });
+    $('addRow').addEventListener('click', addRow);
+    $('sample').addEventListener('click', sample);
+    $('clearRows').addEventListener('click', clearRows);
+    $('xlsxDown').addEventListener('click', downloadXlsx);
+    $('xlsxUp').addEventListener('click', function () { $('xlsxFile').click(); });
+    $('xlsxFile').addEventListener('change', function () { uploadXlsx(this.files[0]); this.value = ''; });
+    document.querySelectorAll('[data-bulk]').forEach(function (b) { b.addEventListener('click', function () { bulk(b.dataset.bulk); }); });
+    [['bulkPos', 'position'], ['bulkAff', 'affil']].forEach(function (p) {
+      $(p[0]).addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); bulk(p[1]); } });
+    });
+    $('rows').addEventListener('paste', onPaste);
+    $('print1').addEventListener('click', print);
+    $('print2').addEventListener('click', print);
+    $('saveJob').addEventListener('click', saveJob);
+    $('loadJob').addEventListener('click', loadJob);
+    $('deleteJob').addEventListener('click', deleteJob);
+    $('zoomSeg').addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      zoomMode = b.dataset.zoom; this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); fitZoom();
+    });
+    $('orientSeg').addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      prefs.orient = b.dataset.orient; savePrefs(); showLineOpts(); schedule();
+    });
+    document.addEventListener('keydown', function (ev) {
+      var k = ev.key.toLowerCase(), editing = /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
+      if ((ev.ctrlKey || ev.metaKey) && k === 's') { ev.preventDefault(); saveJob(); }
+      else if ((ev.ctrlKey || ev.metaKey) && k === 'z' && !editing) { ev.preventDefault(); undo(); }
+      else if ((ev.ctrlKey || ev.metaKey) && k === 'p') { ev.preventDefault(); print(); }
+    });
+    window.addEventListener('resize', function () { fitZoom(); fitEditor(); });
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) flush(); });
+
+    renderJobs();
+    var draft = readDraft();
+    prefs = readPrefs();
+    if (draft) { var p = normPrefs(draft.prefs); prefs.fold = p.fold; prefs.cut = p.cut; prefs.orient = p.orient; }
+    var s = draft ? normState(draft.state) : freshState();
+    // 불러온 한글 양식을 먼저 읽고 화면을 그린다
+    dbAll().then(function (list) {
+      imported = (list || []).filter(function (t) { return t && t.kind === 'hwpx' && Array.isArray(t.cells) && Array.isArray(t.slots); })
+        .sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+      applyState(s);
+      history = [];
+      window.__nameplateReady = true;
+    });
+  }
+  init();
+})();
+
+</script>
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["rows-actions", "명단 버튼", "행 추가, 샘플 명단, 엑셀 명단 양식 다운로드·업로드, 전체 지우기가 있습니다. 잘못 지웠을 때는 Ctrl+Z로 되돌립니다. 맨 오른쪽 ‘인쇄 / PDF 저장’은 미리보기 위의 버튼과 같습니다."],
+    ["bars", "회의명과 한꺼번에 넣기", "회의명은 모든 명패에 똑같이 들어갑니다. 직급이나 소속기관이 모두 같으면 여기에 쓰고 ‘적용’을 눌러 모든 행에 한 번에 넣습니다."],
+    ["rows", "명단 입력", "성명·직급·소속기관을 한 줄에 한 사람씩 입력합니다. Enter를 누르면 다음 칸으로 가고, 엑셀·한셀에서 복사한 표를 그대로 붙여넣을 수 있습니다. 왼쪽 체크를 끈 행은 인쇄하지 않습니다."],
+    ["jobs", "저장한 작업", "눌러서 펼친 뒤 ‘현재 작업 저장’(Ctrl+S)으로 명단과 설정을 저장해 두고, 다음 회의 때 불러와 고쳐 씁니다."],
+    ["tpl-import", "한글 양식 불러오기", "평소 쓰던 명패 한글 파일(hwpx)을 불러옵니다. 표로 만든 양식의 칸 크기·색·테두리·글꼴을 그대로 가져오고, 다음에 열어도 목록에 남아 있습니다. hwp 파일은 한글에서 hwpx로 저장한 뒤 불러옵니다."],
+    ["tpl-side", "양식과 출력 방식", "쓸 양식을 고릅니다. 출력 방식은 접는 양면(가운데를 접어 세우는 명패), 단면, 양면 2장(앞·뒤로 끼우는 명패) 중에서 고르고, 접는선·절취선을 넣을지 정합니다."],
+    ["tpl-editor", "양식 화면", "첫 번째 사람으로 채운 모습입니다. 칸을 누르면 그 칸의 항목을 고를 수 있고, 빈 칸을 누르면 그 칸에 새 항목을 넣습니다. 번호는 아래 목록의 번호와 같습니다."],
+    ["tpl-fields", "칸마다 넣을 항목", "칸마다 성명·직급·소속기관·회의명 중 무엇을 넣을지, 글꼴·크기(pt)·글자 사이를 정합니다. 크기 칸에서 ↑↓를 누르면 1pt(Shift는 10pt)씩 바뀌고, ↺는 양식 처음 값으로 되돌립니다. 칸보다 긴 글자는 자동으로 줄어듭니다."],
+    ["pv-actions", "인쇄 / PDF 저장", "용지 방향(자동·가로·세로)과 보기 크기를 바꾸고, 인쇄하거나 PDF로 저장합니다. 인쇄 창의 배율은 기본값(100%)으로 두어야 실제 크기로 나옵니다. PDF 파일 이름은 ‘회의명_명패_날짜’로 정해집니다."],
+    ["pv-stage", "미리보기", "실제로 인쇄될 모양입니다. A4 한 장에 명패가 몇 개 들어가는지, 모두 몇 쪽인지 위쪽에 표시됩니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
+  }
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
+  }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
+})();
+</script>
+</body>
+</html>

@@ -28,13 +28,6 @@
     body{margin:0;font-family:"Pretendard","Malgun Gothic",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);}
     .mono{font-family:ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;}
 
-    .guide-btn{position:fixed;right:14px;top:14px;z-index:9999;}
-    .guide-btn button{padding:6px 14px;font-size:12px;cursor:pointer;border-radius:6px;border:none;background:var(--brand);color:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:800;}
-    #guideModal{display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.28);padding:18px;overflow:auto;}
-    #guideModal .panel{max-width:920px;margin:40px auto;background:#fff;border-radius:6px;box-shadow:0 18px 45px rgba(15,23,42,0.25);padding:18px 22px;}
-    #guideModal .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-    #guideModal h2{margin:0;font-size:16px;font-weight:900;}
-    #guideClose{border:none;background:transparent;font-size:22px;cursor:pointer;line-height:1;}
 
     .top{max-width:1240px;margin:0 auto;padding:18px 18px 10px;text-align:center;}
     .title{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;}
@@ -87,74 +80,36 @@
     .warn{margin-top:10px;padding:10px 12px;border:1px solid var(--warnbd);background:var(--warnbg);color:#92400e;border-radius:6px;font-size:12px;white-space:pre-line;}
     .footer{margin-top:16px;text-align:center;color:var(--muted);font-size:12px;}
   </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 
 <body>
-  <div class="guide-btn"><button id="guideOpen" type="button">사용가이드</button></div>
-
-  <div id="guideModal" role="dialog" aria-modal="true">
-    <div class="panel">
-      <div class="head">
-        <h2>사용가이드</h2>
-        <button id="guideClose" type="button">×</button>
-      </div>
-<div style="color:#334155;font-size:13px;line-height:1.65;">
-  <p><b>이 도구는</b> 연도별 학교 데이터를 <b>학교명</b> 기준으로 취합하여, 연도별 값이 나란히 비교되도록 엑셀을 생성합니다. (로컬 처리)</p>
-
-  <p><b>1) 사용 전 준비(중요)</b></p>
-  <ul>
-    <li>본 도구는 학교코드가 아닌 <b>‘학교명’</b>으로 매칭합니다.</li>
-    <li>학교명이 조금이라도 다르면(띄어쓰기/약칭/오탈자/부설 표기 등) <b>다른 학교로 인식</b>될 수 있습니다.</li>
-    <li>가능하면 먼저 <b>표준 학교명으로 정리(표준화)</b>한 뒤 사용하면 정확도가 크게 올라갑니다.
-      <div style="margin-top:4px;color:#64748b;font-size:12px;">
-        예: “효천초”, “전주효천초” → "전주효천초등학교" 표준학교명으로 통일
-      </div>
-    </li>
-  </ul>
-
-  <p><b>2) 모드 안내</b></p>
-  <ul>
-    <li><b>모드 A(여러 파일)</b>: 연도별 파일을 여러 개 올려 비교 취합</li>
-    <li><b>모드 B(한 파일·시트 비교)</b>: 한 파일 안의 여러 시트를 연도별 자료로 보고 비교 취합
-      <div style="margin-top:4px;color:#64748b;font-size:12px;">
-        시트명(또는 파일명)에 2024 같은 연도가 있으면 자동 인식되며, 필요 시 연도 칸에서 수정할 수 있습니다.
-      </div>
-    </li>
-  </ul>
-
-  <p><b>3) 사용 절차</b></p>
-  <ol>
-    <li>모드를 선택하고, 파일(또는 단일 파일)을 추가합니다.</li>
-    <li>각 데이터의 <b>연도 / 시트 / 열 제목 줄 / 학교명 열</b>이 맞는지 확인합니다.</li>
-    <li><b>고정 항목 / 비교 항목</b>을 체크합니다.</li>
-    <li><b>[실행(취합)]</b>을 눌러 결과 엑셀(.xlsx)을 다운로드합니다.</li>
-  </ol>
-
-  <p><b>4) 항목 선택 규칙</b></p>
-  <ul>
-    <li><b>고정 항목(1번만 생성)</b>: 학교급/설립/지역처럼 연도와 무관하게 1개만 있으면 되는 항목
-      <div style="margin-top:4px;color:#64748b;font-size:12px;">
-        값은 최신 연도 값 우선, 최신이 비어있으면 다른 연도 값으로 보충합니다.
-      </div>
-    </li>
-    <li><b>비교 항목(연도별 열 생성)</b>: 실적치처럼 연도별로 비교할 항목
-      <div style="margin-top:4px;color:#64748b;font-size:12px;">
-        결과 열 이름: 항목명_연도 (예: 만족도_2024, 만족도_2025)
-      </div>
-    </li>
-    <li>어떤 항목이 특정 연도에만 존재하면 <b>그 연도 열만 생성</b>됩니다(불필요한 빈 열 생성 방지).</li>
-  </ul>
-
-  <p><b>5) 유의사항</b></p>
-  <ul>
-    <li>동일 학교가 여러 번 나오면 마지막 행 값이 사용될 수 있습니다.</li>
-    <li>열 제목에 숨은 공백(NBSP 등)이 있어도 자동 정규화하여 인식합니다.</li>
-    <li>본 도구는 서버 업로드 없이 <b>브라우저(로컬)</b>에서만 처리됩니다.</li>
-  </ul>
-      </div>
-    </div>
-  </div>
-
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
   <div class="top">
     <div class="title">
       <div class="badge">Y</div>
@@ -171,7 +126,7 @@
 
       <div id="libWarn" class="warn" style="display:none;"></div>
 
-      <div class="row">
+      <div class="row" data-tour="mode">
         <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);font-weight:900;">
           <input type="radio" name="mode" value="files" id="modeFiles" checked />
           모드 A: 여러 파일
@@ -182,7 +137,7 @@
         </label>
       </div>
 
-      <div id="modeA" class="row mt10">
+      <div id="modeA" class="row mt10" data-tour="add-files">
         <input id="fileInputMulti" type="file" accept=".xlsx,.xlsm,.csv" multiple style="display:none;" />
         <button id="addBtnMulti" class="btn-primary" type="button">연도별 파일 추가</button>
         <div class="muted" id="fileHintMulti" style="font-size:12px;">선택된 파일 없음</div>
@@ -195,7 +150,7 @@
         <div class="muted" style="font-size:12px;">※ 시트명/파일명에 2024 같은 연도가 있으면 자동 인식</div>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap" data-tour="data-table">
         <table>
           <thead>
             <tr>
@@ -223,7 +178,7 @@
       <h3>2. 항목 선택 및 요약</h3>
       <p>고정 항목은 1번만 생성, 비교 항목은 연도별 열(항목명_연도)로 생성됩니다. (검색/추천 없음)</p>
 
-      <div class="row mt10">
+      <div class="row mt10" data-tour="run-row">
         <button id="run" class="btn-primary" disabled>실행(취합)</button>
         <button id="cancel" class="btn" disabled>중지</button>
         <button id="reset" class="btn" type="button">초기화</button>
@@ -231,7 +186,7 @@
       </div>
 
       <div class="split">
-        <div class="box">
+        <div class="box" data-tour="fixed-cols">
           <h4>고정 항목(1번만)</h4>
           <div class="tools">
             <button type="button" id="fixedAll">전체 선택</button>
@@ -241,7 +196,7 @@
           <div class="muted" style="margin-top:8px;font-size:12px;">값은 <b>최신 연도</b>를 우선 사용합니다.</div>
         </div>
 
-        <div class="box">
+        <div class="box" data-tour="cmp-cols">
           <h4>비교 항목(연도별 열)</h4>
           <div class="tools">
             <button type="button" id="cmpAll">전체 선택</button>
@@ -251,7 +206,7 @@
         </div>
       </div>
 
-      <div class="summary mono" id="summary">- 데이터: (없음)
+      <div class="summary mono" data-tour="summary" id="summary">- 데이터: (없음)
 - 연도: (없음)
 - 선택 시트: (없음)
 - 학교명 열: (미설정)
@@ -263,16 +218,6 @@
 
 <script>
 window.addEventListener("DOMContentLoaded", () => {
-  // ===== Guide =====
-  const guideOpen = document.getElementById("guideOpen");
-  const guideModal = document.getElementById("guideModal");
-  const guideClose = document.getElementById("guideClose");
-  guideModal.style.display = "none";
-  guideOpen.addEventListener("click", () => guideModal.style.display = "block");
-  guideClose.addEventListener("click", () => guideModal.style.display = "none");
-  guideModal.addEventListener("click", (e) => { if (e.target === guideModal) guideModal.style.display = "none"; });
-  window.addEventListener("keydown", (e) => { if (e.key === "Escape") guideModal.style.display = "none"; });
-
   // ===== Lib check =====
   const libWarn = document.getElementById("libWarn");
   if (typeof XLSX === "undefined" || typeof ExcelJS === "undefined") {
@@ -915,5 +860,117 @@ const fixCols = [...fixedCols].filter(c => allCols.includes(c));
 });
 </script>
 
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["mode", "모드 고르기", "‘모드 A: 여러 파일’은 연도별 파일을 여러 개 올려 비교하고, ‘모드 B: 한 파일(시트 비교)’은 한 파일 안의 시트를 연도별 자료로 보고 비교합니다. 모드를 바꾸면 추가한 데이터와 선택이 모두 지워집니다."],
+    ["add-files", "파일 추가", "‘연도별 파일 추가’로 xlsx·xlsm·csv 파일을 여러 개 한꺼번에 고릅니다. 모드 B에서는 이 자리에 ‘단일 파일 선택(시트 비교)’ 버튼이 나옵니다. 학교는 학교코드가 아닌 학교명으로 맞추므로 학교명을 미리 통일해 두면 정확합니다."],
+    ["data-table", "데이터 목록", "추가한 파일(시트)마다 한 줄씩 나옵니다. 연도는 파일명이나 시트명에 있는 2024 같은 숫자로 채워지니 맞는지 보고 고칩니다. 시트, 열 제목 줄(자동으로 찾은 행 표시, 숫자를 바꾸고 ‘적용’), 학교명 열을 확인하고 필요 없는 줄은 ‘×’로 지웁니다."],
+    ["run-row", "실행과 다운로드", "데이터가 2개 이상이고 항목을 하나 이상 고르면 ‘실행(취합)’을 누를 수 있고, 끝나면 ‘학교데이터_연도비교_20260130.xlsx’가 내려받아집니다. 진행 상황은 위 목록 아래 막대와 글로 나옵니다. ‘중지’는 실행 중에 멈추고, ‘초기화’는 추가한 데이터와 선택을 모두 지웁니다."],
+    ["fixed-cols", "고정 항목", "학교급·설립처럼 연도와 상관없이 한 번만 넣을 항목에 체크합니다. 값은 최신 연도 것을 쓰고, 비어 있으면 다른 연도 값으로 채웁니다. 한쪽에서 체크하면 비교 항목에서는 빠집니다."],
+    ["cmp-cols", "비교 항목", "연도별로 나란히 볼 항목에 체크합니다. 처음에는 모든 항목이 여기에 체크되어 있고, 결과 열 이름은 ‘항목명_연도’가 됩니다. 그 항목이 있는 연도의 열만 만듭니다."],
+    ["summary", "요약", "데이터 개수, 연도, 선택한 시트, 고정 항목과 비교 항목이 정리되어 나옵니다. 실행하기 전에 여기서 한 번 더 확인합니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
+  }
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
+  }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
+    }
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
+    }
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
+})();
+</script>
 </body>
 </html>

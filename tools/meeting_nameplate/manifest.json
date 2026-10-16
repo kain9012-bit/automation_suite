@@ -1,0 +1,13 @@
+{
+  "id": "meeting_nameplate",
+  "name": "회의 명패",
+  "top_tab": "업무 자동화",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "명단을 입력하고 한글(hwpx) 명패 양식을 불러와 칸마다 넣을 항목을 고르면, 명패를 실제 크기로 인쇄하거나 PDF로 저장합니다.",
+  "order": 41,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": ["명패", "회의 명패", "이름표", "좌석", "위원회", "한글 양식", "hwpx", "인쇄"]
+}

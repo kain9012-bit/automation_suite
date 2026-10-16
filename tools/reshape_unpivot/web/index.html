@@ -691,13 +691,35 @@ html, body{
   }
 
 </style>
+<style id="jb-tour-style">
+  /* 사용가이드(JB업무ON 처음 사용 안내와 같은 방식): 오른쪽 위 버튼 → 영역을 하나씩 짚어 설명 */
+  .jbt-top{position:fixed;top:10px;right:10px;z-index:9999;}
+  #usageGuideBtn{margin:0;padding:6px 14px;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;font-size:12px;line-height:normal;cursor:pointer;border-radius:6px;border:none;background:#0054a6;color:#ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.18);font-weight:500;width:auto;height:auto;}
+  .jbt-layer{position:fixed;z-index:100000;inset:0;font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;}
+  .jbt-layer,.jbt-layer *{box-sizing:border-box;}
+  .jbt-layer.is-plain{background:rgba(15,28,46,.42);}
+  .jbt-spot{position:fixed;z-index:1;border:2px solid #7fb2e8;border-radius:12px;box-shadow:0 0 0 9999px rgba(15,28,46,.42),0 0 0 5px rgba(127,178,232,.22);background:transparent;pointer-events:none;transition:top .24s ease,left .24s ease,width .24s ease,height .24s ease;}
+  .jbt-card{position:fixed;z-index:2;max-height:calc(100vh - 28px);overflow-y:auto;margin:0;padding:18px;border:1px solid #dbe4ef;border-radius:16px;background:#ffffff;color:#1c1917;text-align:left;box-shadow:0 20px 60px rgba(0,32,64,.3);transition:top .24s ease,left .24s ease;}
+  @media (prefers-reduced-motion: reduce){.jbt-spot,.jbt-card{transition:none;}}
+  .jbt-layer button{all:unset;box-sizing:border-box;cursor:pointer;font-family:inherit;}
+  .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
+  .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
+  .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
+  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
+  .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
+  .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
+  .jbt-actions .jbt-prev:hover{border-color:#c3d2e3;background:#e7eef7;}
+  .jbt-actions .jbt-next{border:0;color:#fff;background:linear-gradient(135deg,#003264,#00264d);box-shadow:0 9px 20px -10px #003264;}
+  .jbt-actions .jbt-next:hover{transform:translateY(-1px);}
+  .jbt-actions .jbt-btn:disabled{cursor:default;transform:none;opacity:.42;}
+  .jbt-card svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto;display:block;}
+  .jbt-progress svg{width:17px;height:17px;}
+  @media print{.jbt-top,.jbt-layer{display:none !important;}}
+</style>
 </head>
 <body>
-<div style="position:fixed; top:10px; right:10px; z-index:9999;">
-<button id="usageGuideBtn" style="padding:6px 14px; font-size:12px; cursor:pointer; border-radius:6px; border:none; background:#0054a6; color:#ffffff; box-shadow:0 2px 4px rgba(0,0,0,0.18); font-weight:500;" type="button">
-      사용가이드
-    </button>
-</div>
+<div class="jbt-top"><button type="button" id="usageGuideBtn">사용가이드</button></div>
 <div class="app">
 <header class="app-header">
 <div class="logo">🔄 형태 변환·언피벗 도구(v1.2)</div>
@@ -712,12 +734,12 @@ html, body{
 <h2 class="section-title">1. 대상 데이터 파일 업로드</h2>
 <div class="row">
 <label class="field-label" for="upFileInput"></label>
-<label class="file-label">
+<label class="file-label" data-tour="file-pick">
 <input accept=".xlsx,.xls,.csv" id="upFileInput" type="file"/>
 <span class="file-button">엑셀 파일 선택 (.xlsx, .xls)</span>
 </label>
 </div>
-<div class="inline-fields">
+<div class="inline-fields" data-tour="sheet-header">
 <div class="field">
 <label for="upSheetSelect">시트 선택</label>
 <select disabled="" id="upSheetSelect">
@@ -733,7 +755,7 @@ html, body{
 </p>
 </div>
 </div>
-<div class="row">
+<div class="row" data-tour="fixed-cols">
 <div class="field-label">고정 열 선택 <span class="badge-mini">필수</span></div>
 <div class="chip-group" id="fixedColumns">
 <p class="helper-text">엑셀 파일을 불러오면 선택 가능한 열 목록이 여기에 표시됩니다.</p>
@@ -742,7 +764,7 @@ html, body{
             선택한 열은 행마다 그대로 유지되며, 선택하지 않은 열이 세로 방향으로 펼쳐집니다.
           </p>
 </div>
-<div class="button-row">
+<div class="button-row" data-tour="actions">
 <button class="secondary-btn" id="previewSourceBtn" type="button">원본 미리보기</button>
 <button class="primary-btn" id="runUnpivotBtn" type="button">언피벗 실행</button>
 <button class="secondary-btn" onclick="location.reload()" type="button">초기화</button>
@@ -755,7 +777,7 @@ html, body{
 <div class="section-header-row">
 <h2 class="section-title">2. 결과 미리보기</h2>
 </div>
-<div class="subsection">
+<div class="subsection" data-tour="result-preview">
 <div class="subsection-header">
 <h3 class="subsection-title">언피벗 결과 미리보기 (상위 200행)</h3>
 </div>
@@ -766,7 +788,7 @@ html, body{
 </table>
 </div>
 </div>
-<div class="subsection">
+<div class="subsection" data-tour="source-preview">
 <div class="subsection-header">
 <h3 class="subsection-title">원본 데이터 일부 미리보기</h3>
 <p class="subsection-desc">시트와 헤더 설정이 올바른지 확인할 수 있습니다.</p>
@@ -781,75 +803,6 @@ html, body{
 </section>
 </div>
 </main>
-</div>
-<div id="usageGuideModal" style="
-    display:none;
-    position:fixed;
-    z-index:10000;
-    left:50%;
-    top:50%;
-    transform:translate(-50%, -50%);
-    max-width:720px;
-    width:90%;
-    max-height:80%;
-    background:#ffffff;
-    border-radius:6px;
-    box-shadow:0 18px 45px rgba(15,23,42,0.25);
-    padding:18px 22px;
-    box-sizing:border-box;
-    overflow:auto;
-    font-size:13px;
-    line-height:1.6;
-  ">
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-<h2 style="margin:0; font-size:16px;">
-        형태 변환·언피벗 도구 사용 가이드
-      </h2>
-<button class="usage-guide-close" style="
-        padding:4px 12px;
-        font-size:12px;
-        cursor:pointer;
-        border-radius:6px;
-        border:1px solid #cbd5e1;
-        background:#f9fafb;
-        color:#334155;
-      " type="button">
-        닫기
-      </button>
-</div>
-<div class="usage-guide-body">
-<p><strong>
-        이 도구는 가로로 펼쳐진 엑셀 데이터를 세로 형태(언피벗)로 바꿔,
-        분석·집계에 쓰기 좋은 구조로 변환해 주는 도구입니다.
-      </strong></p>
-<ol>
-<li><strong>원본 엑셀 파일 불러오기</strong><br/>
-          - “엑셀 파일 선택” 버튼을 눌러 언피벗할 엑셀 파일을 업로드합니다.<br/>
-          - 시트를 선택한 뒤, <strong>헤더 행</strong>이 맞는지 확인합니다. (열 이름 행)<br/>
-          - 헤더가 없으면 “헤더 없음”을 선택하고, 모든 행을 데이터로 사용할 수 있습니다.
-        </li>
-<li><strong>고정 열 / 언피벗 대상 열 선택</strong><br/>
-          - 언피벗 후에도 그대로 남길 열(예: 학번, 이름, 학교명 등)을 <strong>고정 열</strong>로 선택합니다.<br/>
-          - 점수, 인원수처럼 가로로 여러 열로 있는 값들은 <strong>언피벗 대상 열</strong>로 둡니다.<br/>
-          - 언피벗 실행 시, 고정 열은 그대로 보존되고, 선택된 열들이
-            <code>항목명 열</code>과 <code>값 열</code> 두 열로 길게 펼쳐집니다.
-        </li>
-<li><strong>언피벗 실행 및 결과 확인</strong><br/>
-          - “언피벗 실행” 버튼을 누르면, 선택한 설정에 따라 데이터가 변환됩니다.<br/>
-          - 결과 미리보기 표에서 <strong>고정 열</strong>, <strong>항목명</strong>, <strong>값</strong> 구조로 잘 변환되었는지 확인합니다.<br/>
-          - 값이 없는 셀(빈 칸)은 기본적으로 결과에서 제외됩니다.
-        </li>
-<li><strong>결과 엑셀로 저장</strong><br/>
-          - “언피벗 결과 엑셀 다운로드” 버튼을 눌러 결과를 저장합니다.<br/>
-          - <em>파일명 예시:</em> <code>원본파일명_unpivot.xlsx</code> 와 같이 저장되도록 설정할 수 있습니다.<br/>
-          - 저장된 파일은 이후 통계 요약 리포트, 피벗 테이블, 그래프 작성 등에 바로 활용할 수 있습니다.
-        </li>
-</ol>
-<p><strong>Tip.</strong> 언피벗 전에, 같은 의미의 열이 여러 개 섞여 있거나
-        열 이름이 모호하다면 먼저 열 이름을 정리해 두는 것이 좋습니다.
-        (예: “1학년 점수”, “2학년 점수”처럼 규칙적인 이름일수록 언피벗 후 해석이 쉬워집니다.)
-      </p>
-</div>
 </div>
 <script>
     let workbook = null;
@@ -1239,32 +1192,117 @@ html, body{
       }
     }
   
-  // 사용 가이드 모달 제어
-  (function () {
-    const btn = document.getElementById("usageGuideBtn");
-    const modal = document.getElementById("usageGuideModal");
-    const closeBtn = modal ? modal.querySelector(".usage-guide-close") : null;
-
-    if (btn && modal) {
-      btn.addEventListener("click", () => {
-        modal.style.display = "block";
-      });
+</script>
+<script id="jb-tour">
+// 사용가이드: JB업무ON 처음 사용 안내(TutorialOverlay)와 같은 방식.
+// 단계마다 그 영역만 밝게 두고 나머지는 어둡게 한 뒤 옆에 설명 카드를 띄운다. 영역은 data-tour 표시로 찾는다.
+(function () {
+  'use strict';
+  var STEPS = [
+    ["file-pick", "파일 올리기", "‘엑셀 파일 선택 (.xlsx, .xls)’을 눌러 가로로 펼쳐진 표가 든 파일을 고릅니다. csv 파일도 열 수 있고, 불러오면 첫 번째 시트의 원본 미리보기가 오른쪽에 나옵니다."],
+    ["sheet-header", "시트와 헤더 행", "바꿀 시트와 열 이름이 있는 행을 고릅니다. 헤더 행은 자동으로 골라 두며, 목록에서 앞쪽 50행 중 하나를 고르거나 ‘헤더 없음 (모든 행 데이터)’을 고르면 열 이름이 ‘열1’, ‘열2’로 붙습니다."],
+    ["fixed-cols", "고정 열 선택", "학번·이름·학교명처럼 행마다 그대로 남길 열에 체크합니다. 처음에는 앞의 두 열이 체크되어 있습니다. 체크하지 않은 열은 ‘항목’과 ‘값’ 두 열로 세로로 펼쳐집니다."],
+    ["actions", "실행과 저장", "‘원본 미리보기’는 지금 설정으로 원본 표를 다시 보여 주고, ‘언피벗 실행’을 누르면 변환합니다(값이 빈 칸은 빠집니다). ‘초기화’는 페이지를 새로 불러 처음 상태로 돌리고, ‘결과 엑셀 다운로드’는 실행 뒤에 눌러 ‘unpivot_result.xlsx’로 저장합니다."],
+    ["result-preview", "언피벗 결과 미리보기", "‘언피벗 실행’을 누르면 고정 열, ‘항목’, ‘값’으로 바뀐 결과가 여기에 위에서부터 200행까지 나옵니다. 다운로드 파일에는 결과 전체가 들어갑니다."],
+    ["source-preview", "원본 데이터 미리보기", "고른 시트와 헤더 행으로 읽은 원본이 위에서부터 50행까지 나옵니다. 열 이름이 제대로 잡혔는지 여기서 확인합니다."]
+  ];
+  var ICON = {
+    left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>', x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'
+  };
+  function icon(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>'; }
+  var tour = null;
+  function target() { return document.querySelector('[data-tour="' + STEPS[tour.i][0] + '"]'); }
+  function visible(node) { if (!node) return false; var b = node.getBoundingClientRect(); return b.width > 0 && b.height > 0; }
+  function open() {
+    if (tour || !STEPS.length) return;
+    var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
+    layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
+    layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+      + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+    tour = { layer: layer, spot: spot, card: card, i: 0 };
+    card.querySelector('.jbt-progress button').addEventListener('click', close);
+    card.querySelector('.jbt-prev').addEventListener('click', function () { if (tour.i > 0) show(tour.i - 1); });
+    card.querySelector('.jbt-next').addEventListener('click', function () { if (tour.i < STEPS.length - 1) show(tour.i + 1); else close(); });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey, true);
+    show(0);
+    card.querySelector('.jbt-next').focus();
+  }
+  function close() {
+    if (!tour) return;
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    document.removeEventListener('keydown', onKey, true);
+    tour.layer.parentNode.removeChild(tour.layer); tour = null;
+    var b = document.getElementById('usageGuideBtn'); if (b) b.focus();
+  }
+  function onKey(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(); } }
+  function show(i) {
+    tour.i = i;
+    var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
+    card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
+    card.querySelector('.jbt-title').textContent = step[1];
+    card.querySelector('.jbt-body').textContent = step[2];
+    card.querySelector('.jbt-prev').disabled = i === 0;
+    card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
+    var t = target();
+    if (visible(t)) scrollTo(t);
+    place();
+  }
+  // 영역이 화면에 다 들어오면 가운데로, 화면보다 크면 위쪽부터 보이게 옮긴다.
+  // scrollIntoView 는 JB업무ON 화면(도구를 담은 바깥 창)까지 움직일 수 있어, 이 문서 안의 스크롤만 직접 옮긴다.
+  function scrollTo(t) {
+    var r = t.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    var dy = r.height + 260 < vh ? r.top + r.height / 2 - vh / 2 : r.top - 16;
+    for (var p = t.parentElement; p && p !== document.body && p !== document.documentElement && Math.abs(dy) >= 1; p = p.parentElement) {
+      var st = window.getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) { var before = p.scrollTop; p.scrollTop += dy; dy -= p.scrollTop - before; }
     }
-
-    function close() {
-      if (modal) modal.style.display = "none";
+    var dx = r.left < 8 ? r.left - 16 : (r.right > vw - 8 && r.width < vw - 32 ? r.right - vw + 16 : 0);
+    if (Math.abs(dy) >= 1 || dx) window.scrollBy(dx, Math.abs(dy) >= 1 ? dy : 0);
+  }
+  function place() {
+    if (!tour) return;
+    var t = target(), rect = null;
+    if (visible(t)) {
+      var b = t.getBoundingClientRect();
+      var left = Math.max(8, b.left), top = Math.max(8, b.top), right = Math.min(window.innerWidth - 8, b.right), bottom = Math.min(window.innerHeight - 8, b.bottom);
+      if (right - left >= 4 && bottom - top >= 4) rect = { left: left, top: top, width: right - left, height: bottom - top, bottom: bottom };
     }
-
-    if (closeBtn) {
-      closeBtn.addEventListener("click", close);
-    }
-
-    if (modal) {
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) close();
-      });
-    }
-  })();
+    tour.layer.classList.toggle('is-plain', !rect);
+    tour.spot.style.display = rect ? '' : 'none';
+    if (rect) { tour.spot.style.top = (rect.top - 6) + 'px'; tour.spot.style.left = (rect.left - 6) + 'px'; tour.spot.style.width = (rect.width + 12) + 'px'; tour.spot.style.height = (rect.height + 12) + 'px'; }
+    // 카드 자리: 영역 아래 → 위 → 오른쪽 → 왼쪽 중 영역을 가리지 않는 첫 자리.
+    // 영역이 커서 그런 자리가 없으면 화면 안에서 영역을 가장 덜 가리는 자리(네 귀퉁이 포함)에 둔다.
+    var card = tour.card, vw = window.innerWidth, vh = window.innerHeight, M = 14, G = 14;
+    var cw = Math.min(380, vw - 2 * M);
+    card.style.width = cw + 'px';
+    var ch = card.offsetHeight;
+    var clampL = function (l) { return Math.max(M, Math.min(vw - cw - M, l)); };
+    var clampT = function (t) { return Math.max(M, Math.min(vh - ch - M, t)); };
+    var pos;
+    if (rect) {
+      var R = { l: rect.left - 6, t: rect.top - 6, r: rect.left + rect.width + 6, b: rect.top + rect.height + 6 };
+      var overlap = function (p) { var w = Math.min(p.l + cw, R.r) - Math.max(p.l, R.l), h = Math.min(p.t + ch, R.b) - Math.max(p.t, R.t); return w > 0 && h > 0 ? w * h : 0; };
+      var fits = function (p) { return p.t >= M && p.t + ch <= vh - M && p.l >= M && p.l + cw <= vw - M; };
+      var sides = [{ t: R.b + G - 6, l: clampL(rect.left) }, { t: R.t - G + 6 - ch, l: clampL(rect.left) }, { t: clampT(rect.top), l: R.r + G - 6 }, { t: clampT(rect.top), l: R.l - G + 6 - cw }];
+      for (var k = 0; k < sides.length && !pos; k++) if (fits(sides[k]) && !overlap(sides[k])) pos = sides[k];
+      if (!pos) {
+        var all = sides.map(function (p) { return { t: clampT(p.t), l: clampL(p.l) }; })
+          .concat([{ t: vh - ch - M, l: M }, { t: vh - ch - M, l: vw - cw - M }, { t: M, l: M }, { t: M, l: vw - cw - M }]);
+        all.forEach(function (p) { p.o = overlap(p); if (!pos || p.o < pos.o) pos = p; });
+      }
+    } else pos = { t: (vh - ch) / 2, l: (vw - cw) / 2 };
+    card.style.top = Math.max(M, pos.t) + 'px'; card.style.left = Math.max(M, pos.l) + 'px';
+  }
+  var btn = document.getElementById('usageGuideBtn');
+  if (btn) btn.addEventListener('click', open);
+})();
 </script>
 </body>
 </html>
