@@ -72,7 +72,9 @@ td.num,th.num{text-align:right;white-space:nowrap;}
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -1779,10 +1781,10 @@ window.shrinkFile = shrinkFile;   // (테스트용)
 (function () {
   'use strict';
   var STEPS = [
-    ["intro", "하는 일", "한글·엑셀·워드·파워포인트·PDF 안의 사진만 줄여 첨부 용량에 맞춥니다. 글·표·서식은 그대로입니다."],
-    ["pick", "파일 고르기", "이 칸을 눌러 파일을 고르면 바로 줄이기 시작합니다. 옛 형식(.hwp .xls .doc .ppt)은 처리하지 못합니다."],
-    ["target", "목표 용량", "첨부 제한 용량(MB)을 파일을 고르기 전에 적어 둡니다."],
-    ["results", "결과", "파일마다 줄이기 전·후 용량이 나오고, 줄인 파일을 내려받는 버튼이 생깁니다."]
+    ["intro", "하는 일", "한글·엑셀·워드·파워포인트·PDF 안의 사진만 줄여 첨부 용량에 맞춤\n글·표·서식은 그대로"],
+    ["pick", "파일 고르기", "누르고 파일을 고르면 바로 줄이기 시작\n옛 형식(.hwp .xls .doc .ppt)은 처리 불가"],
+    ["target", "목표 용량", "첨부 제한 용량(MB) 입력\n파일을 고르기 전에 정해 두기"],
+    ["results", "결과", "파일마다 줄이기 전·후 용량 표시\n줄인 파일 내려받기 버튼 생성"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -1797,7 +1799,7 @@ window.shrinkFile = shrinkFile;   // (테스트용)
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -1825,7 +1827,10 @@ window.shrinkFile = shrinkFile;   // (테스트용)
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

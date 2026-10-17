@@ -336,7 +336,9 @@
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -1003,10 +1005,10 @@
 (function () {
   'use strict';
   var STEPS = [
-    ["upload", "파일 올리기와 설정", "O/X를 표시할 ‘기준 파일’과 견줄 ‘비교 파일’을 올립니다. 시트와 열 제목 줄이 맞는지 확인합니다."],
-    ["run-actions", "실행", "매칭 키를 고르고 ‘실행’을 누르면 기준 파일에 ‘중복값’(O/X) 열을 붙여 내려받습니다."],
-    ["match-keys", "매칭 키 선택", "양쪽에서 같은 뜻의 열을 하나 이상 고릅니다. 띄어쓰기와 영문 대소문자는 가리지 않습니다."],
-    ["summary", "요약", "올린 파일과 고른 키가 정리되어 나옵니다. 실행 전에 확인합니다."]
+    ["upload", "파일 올리기와 설정", "O/X를 표시할 ‘기준 파일’과 견줄 ‘비교 파일’ 올리기\n시트와 열 제목 줄 확인"],
+    ["run-actions", "실행", "매칭 키 선택 후 ‘실행’\n기준 파일에 ‘중복값’(O/X) 열을 붙여 내려받기"],
+    ["match-keys", "매칭 키 선택", "양쪽에서 같은 뜻의 열을 하나 이상 선택\n띄어쓰기·영문 대소문자는 구분하지 않음"],
+    ["summary", "요약", "올린 파일과 고른 키 정리\n실행 전 확인용"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -1021,7 +1023,7 @@
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -1049,7 +1051,10 @@
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

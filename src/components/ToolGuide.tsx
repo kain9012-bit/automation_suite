@@ -185,7 +185,9 @@ export function ToolGuide({ steps }: { steps: GuideStep[] }) {
               <button type="button" onClick={close} aria-label="안내 닫기"><X size={17} /></button>
             </div>
             <strong>{step.title}</strong>
-            <p>{step.body}</p>
+            <ul className="tool-guide-body">
+              {step.body.split("\n").map((line, i) => <li key={i}>{line}</li>)}
+            </ul>
             <div className="tutorial-actions">
               <button className="secondary-button" onClick={() => setIndex((value) => value - 1)} disabled={index === 0}>
                 <ArrowLeft size={15} />이전

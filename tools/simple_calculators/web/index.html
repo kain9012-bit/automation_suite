@@ -360,7 +360,9 @@
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -775,10 +777,10 @@
 (function () {
   'use strict';
   var STEPS = [
-    ["calc-tabs", "계산기 고르기", "쓸 계산기를 고르면 아래 입력 칸이 바뀝니다."],
-    ["money-form", "금액 입력", "‘숫자 금액’에 금액을 넣습니다. 앞뒤에 붙일 문구(금·원)도 고를 수 있습니다."],
-    ["money-actions", "실행", "‘변환하기’(다른 계산기는 ‘계산하기’)를 누르면 오른쪽에 결과가 나옵니다."],
-    ["calc-result", "계산 결과", "결과가 나오면 ‘결과 복사’로 복사합니다."]
+    ["calc-tabs", "계산기 고르기", "쓸 계산기 선택 → 아래 입력 칸이 바뀜"],
+    ["money-form", "금액 입력", "‘숫자 금액’에 금액 입력\n앞뒤에 붙일 문구(금·원) 선택 가능"],
+    ["money-actions", "실행", "‘변환하기’(다른 계산기는 ‘계산하기’) → 오른쪽에 결과 표시"],
+    ["calc-result", "계산 결과", "‘결과 복사’로 결과 복사"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -793,7 +795,7 @@
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -821,7 +823,10 @@
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

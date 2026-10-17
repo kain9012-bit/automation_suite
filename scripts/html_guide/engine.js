@@ -16,7 +16,7 @@
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -44,7 +44,10 @@
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

@@ -854,7 +854,9 @@ html, body{
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -2306,13 +2308,13 @@ buildStandardAliasMapFromConstant();
 (function () {
   'use strict';
   var STEPS = [
-    ["file-upload", "파일 올리기", "학교명이 든 엑셀 파일을 고릅니다. 표준학교명 목록은 도구에 들어 있습니다."],
-    ["sheet-header", "시트와 헤더 행", "시트와 헤더 행을 자동으로 찾아 둡니다. 틀리면 여기서 고칩니다."],
-    ["columns", "학교명 열과 지역 열", "학교명 열을 확인합니다. 지역 열을 고르면 이름이 같은 학교를 더 정확히 고릅니다."],
-    ["run-match", "매칭 실행", "‘학교명 자동 매칭 실행’을 누르면 아래에 결과가 나옵니다."],
-    ["result-table", "매칭 결과 표", "행마다 표준학교명과 상태가 나옵니다. 후보가 여럿인 행은 ‘후보 선택’으로 직접 고릅니다."],
-    ["result-actions", "결과 버튼", "‘검토 필요 행만 보기’로 확인할 행만 보고, ‘엑셀로 결과 다운로드’로 저장합니다."],
-    ["extra-export", "추가 정보와 다운로드", "설립구분·학교급 등을 체크하면 결과 파일에 열로 함께 붙습니다."]
+    ["file-upload", "파일 올리기", "학교명이 든 엑셀 파일 선택\n표준학교명 목록은 도구에 들어 있음"],
+    ["sheet-header", "시트와 헤더 행", "시트와 헤더 행은 자동으로 찾음\n틀리면 여기서 고치기"],
+    ["columns", "학교명 열과 지역 열", "학교명 열 확인\n지역 열을 고르면 이름이 같은 학교를 더 정확히 구분"],
+    ["run-match", "매칭 실행", "‘학교명 자동 매칭 실행’ → 아래에 결과 표시"],
+    ["result-table", "매칭 결과 표", "행마다 표준학교명과 상태 표시\n후보가 여럿인 행은 ‘후보 선택’으로 직접 고르기"],
+    ["result-actions", "결과 버튼", "‘검토 필요 행만 보기’: 확인할 행만 보기\n‘엑셀로 결과 다운로드’: 결과 저장"],
+    ["extra-export", "추가 정보와 다운로드", "설립구분·학교급 등을 체크하면 결과 파일에 열로 추가"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -2327,7 +2329,7 @@ buildStandardAliasMapFromConstant();
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -2355,7 +2357,10 @@ buildStandardAliasMapFromConstant();
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

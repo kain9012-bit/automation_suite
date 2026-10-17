@@ -170,7 +170,9 @@
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -487,11 +489,11 @@
 (function () {
   'use strict';
   var STEPS = [
-    ["mode-tabs", "검증 종류", "‘주민등록번호 검증’과 ‘사업자등록번호 검증’ 중 하나를 고릅니다."],
-    ["input", "번호 입력", "한 줄에 번호 하나씩 넣습니다. 하이픈은 있어도 없어도 됩니다."],
-    ["run-actions", "검사 실행", "‘유효성 검사 실행’을 누르면 아래에 번호마다 결과가 나옵니다."],
-    ["notice", "알아둘 점", "번호 규칙만 확인하며, 실제 발급된 번호인지는 알 수 없습니다. 입력한 번호는 PC 밖으로 보내지 않습니다."],
-    ["result", "검증 결과", "번호마다 정상·오류와 이유가 나옵니다. ‘결과 복사’로 엑셀에 붙여 넣을 수 있습니다."]
+    ["mode-tabs", "검증 종류", "‘주민등록번호 검증’·‘사업자등록번호 검증’ 중 선택"],
+    ["input", "번호 입력", "한 줄에 번호 하나\n하이픈은 있어도 없어도 됨"],
+    ["run-actions", "검사 실행", "‘유효성 검사 실행’ → 아래에 번호마다 결과 표시"],
+    ["notice", "알아둘 점", "번호 규칙만 확인(실제 발급 여부는 알 수 없음)\n입력한 번호는 PC 밖으로 보내지 않음"],
+    ["result", "검증 결과", "번호마다 정상·오류와 이유 표시\n‘결과 복사’로 엑셀에 붙여 넣기"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -506,7 +508,7 @@
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -534,7 +536,10 @@
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

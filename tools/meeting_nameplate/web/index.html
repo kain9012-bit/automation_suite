@@ -241,7 +241,9 @@
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -1495,16 +1497,16 @@
 (function () {
   'use strict';
   var STEPS = [
-    ["rows-actions", "명단 버튼", "행 추가, 샘플, 엑셀 명단 양식 다운로드·업로드, 전체 지우기가 있습니다. 잘못 지웠으면 Ctrl+Z로 되돌립니다."],
-    ["bars", "회의명과 한꺼번에 넣기", "회의명은 모든 명패에 들어갑니다. 직급·소속기관이 같으면 ‘적용’으로 모든 행에 넣습니다."],
-    ["rows", "명단 입력", "한 줄에 한 사람씩 입력합니다. 엑셀·한셀 표를 그대로 붙여 넣을 수 있습니다."],
-    ["jobs", "저장한 작업", "눌러서 펼친 뒤 ‘현재 작업 저장’(Ctrl+S)으로 저장해 두고 다음 회의 때 불러옵니다."],
-    ["tpl-import", "한글 양식 불러오기", "평소 쓰던 명패 한글 파일(hwpx)을 불러옵니다. 불러온 양식은 다음에도 목록에 남습니다."],
-    ["tpl-side", "양식과 출력 방식", "쓸 양식과 출력 방식(접는 양면·단면·양면 2장)을 고릅니다."],
-    ["tpl-editor", "양식 화면", "칸을 누르면 그 칸에 넣을 항목을 고를 수 있습니다."],
-    ["tpl-fields", "칸마다 넣을 항목", "칸마다 넣을 항목과 글꼴·크기·글자 사이를 정합니다. 긴 글자는 자동으로 줄어듭니다."],
-    ["pv-actions", "인쇄 / PDF 저장", "인쇄하거나 PDF로 저장합니다. 인쇄 창의 배율은 기본값(100%)으로 둡니다."],
-    ["pv-stage", "미리보기", "실제로 인쇄될 모양입니다."]
+    ["rows-actions", "명단 버튼", "행 추가, 샘플, 엑셀 명단 양식 다운로드·업로드, 전체 지우기\n잘못 지웠으면 Ctrl+Z로 되돌리기"],
+    ["bars", "회의명과 한꺼번에 넣기", "회의명: 모든 명패에 들어감\n직급·소속기관이 같으면 ‘적용’으로 모든 행에 넣기"],
+    ["rows", "명단 입력", "한 줄에 한 사람씩 입력\n엑셀·한셀 표를 그대로 붙여 넣기 가능"],
+    ["jobs", "저장한 작업", "펼쳐서 ‘현재 작업 저장’(Ctrl+S)\n다음 회의 때 불러오기"],
+    ["tpl-import", "한글 양식 불러오기", "평소 쓰던 명패 한글 파일(hwpx) 불러오기\n불러온 양식은 다음에도 목록에 남음"],
+    ["tpl-side", "양식과 출력 방식", "쓸 양식과 출력 방식(접는 양면·단면·양면 2장) 선택"],
+    ["tpl-editor", "양식 화면", "칸을 누르면 그 칸에 넣을 항목 선택"],
+    ["tpl-fields", "칸마다 넣을 항목", "칸마다 넣을 항목, 글꼴·크기·글자 사이 지정\n긴 글자는 자동으로 줄어듦"],
+    ["pv-actions", "인쇄 / PDF 저장", "인쇄 또는 PDF로 저장\n인쇄 창 배율은 기본값(100%) 유지"],
+    ["pv-stage", "미리보기", "실제 인쇄 모양"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -1519,7 +1521,7 @@
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -1547,7 +1549,10 @@
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

@@ -100,7 +100,9 @@ th:nth-child(1),td:nth-child(1){width:44px;text-align:center;}
   .jbt-progress{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#6b7280;font-size:11px;font-weight:800;line-height:1.4;}
   .jbt-progress button{display:grid;place-items:center;color:#6b7280;}
   .jbt-title{display:block;margin:0 0 7px;font-size:18px;font-weight:700;line-height:1.35;color:#1c1917;}
-  .jbt-body{margin:0;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body{margin:0;padding:0;list-style:none;color:#4b5563;font-size:13px;line-height:1.6;}
+  .jbt-body li{position:relative;margin:0;padding:0 0 0 12px;list-style:none;word-break:keep-all;}
+  .jbt-body li::before{content:"·";position:absolute;left:2px;top:0;font-weight:700;}
   .jbt-actions{display:flex;justify-content:space-between;gap:8px;margin-top:17px;}
   .jbt-actions .jbt-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px;min-height:34px;padding:0 12px;border-radius:8px;font-size:11px;font-weight:650;line-height:1;}
   .jbt-actions .jbt-prev{border:1px solid #dbe4ef;color:#35485c;background:transparent;}
@@ -606,11 +608,11 @@ loadEmbeddedOrgData();
 (function () {
   'use strict';
   var STEPS = [
-    ["paste", "기관명 붙여넣기", "엑셀이나 한글 표에서 기관명 열을 복사해 붙여 넣습니다. 한 줄에 한 기관입니다."],
-    ["run", "조직코드 생성", "‘조직코드 생성’을 누르면 기관명으로 조직코드를 찾습니다."],
-    ["counts", "매칭 결과 수", "자동으로 찾은 수와 검토가 필요한 수가 나옵니다."],
-    ["table", "미리보기 표", "결과가 한 줄씩 나옵니다. 후보가 여럿인 행은 ‘후보 선택’으로 골라 확정합니다."],
-    ["actions", "보기 전환과 내려받기", "‘검토 필요만 보기’로 손볼 행만 보고, ‘엑셀 다운로드’로 일괄등록 파일을 저장합니다."]
+    ["paste", "기관명 붙여넣기", "엑셀·한글 표에서 기관명 열을 복사해 붙여 넣기\n한 줄에 한 기관"],
+    ["run", "조직코드 생성", "‘조직코드 생성’ → 기관명으로 조직코드 찾기"],
+    ["counts", "매칭 결과 수", "자동으로 찾은 수와 검토가 필요한 수 표시"],
+    ["table", "미리보기 표", "결과를 한 줄씩 표시\n후보가 여럿인 행은 ‘후보 선택’으로 확정"],
+    ["actions", "보기 전환과 내려받기", "‘검토 필요만 보기’: 손볼 행만 보기\n‘엑셀 다운로드’: 일괄등록 파일 저장"]
   ];
   var ICON = {
     left: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', right: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
@@ -625,7 +627,7 @@ loadEmbeddedOrgData();
     var layer = document.createElement('div'), spot = document.createElement('div'), card = document.createElement('section');
     layer.className = 'jbt-layer'; spot.className = 'jbt-spot'; card.className = 'jbt-card';
     layer.setAttribute('role', 'dialog'); layer.setAttribute('aria-modal', 'true'); layer.setAttribute('aria-label', '사용가이드');
-    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><p class="jbt-body"></p>'
+    card.innerHTML = '<div class="jbt-progress"><span></span><button type="button" aria-label="안내 닫기">' + icon('x') + '</button></div><strong class="jbt-title"></strong><ul class="jbt-body"></ul>'
       + '<div class="jbt-actions"><button type="button" class="jbt-btn jbt-prev">' + icon('left') + '이전</button><button type="button" class="jbt-btn jbt-next"></button></div>';
     layer.appendChild(spot); layer.appendChild(card);
     document.body.appendChild(layer);
@@ -653,7 +655,10 @@ loadEmbeddedOrgData();
     var step = STEPS[i], last = i === STEPS.length - 1, card = tour.card;
     card.querySelector('.jbt-progress span').textContent = (i + 1) + ' / ' + STEPS.length;
     card.querySelector('.jbt-title').textContent = step[1];
-    card.querySelector('.jbt-body').textContent = step[2];
+    // 설명은 개조식: 줄(\n)마다 한 항목
+    var body = card.querySelector('.jbt-body');
+    body.textContent = '';
+    step[2].split('\n').forEach(function (line) { var li = document.createElement('li'); li.textContent = line; body.appendChild(li); });
     card.querySelector('.jbt-prev').disabled = i === 0;
     card.querySelector('.jbt-next').innerHTML = last ? icon('check') + '마치기' : '다음' + icon('right');
     var t = target();

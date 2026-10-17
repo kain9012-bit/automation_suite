@@ -1332,6 +1332,9 @@ kbd {
 .tutorial-progress button { display: grid; place-items: center; border: 0; background: transparent; color: #6b7280; cursor: pointer; }
 .tutorial-card > strong { display: block; margin-bottom: 7px; font-size: 18px; }
 .tutorial-card > p { margin: 0; color: #4b5563; font-size: 13px; line-height: 1.6; }
+.tutorial-card > .tool-guide-body { margin: 0; padding: 0; list-style: none; color: #4b5563; font-size: 13px; line-height: 1.6; }
+.tool-guide-body li { position: relative; margin: 0; padding: 0 0 0 12px; word-break: keep-all; }
+.tool-guide-body li::before { content: "·"; position: absolute; left: 2px; top: 0; font-weight: 700; }
 .tutorial-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 17px; }
 .tutorial-actions button { min-width: 88px; }
 
