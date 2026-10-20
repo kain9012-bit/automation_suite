@@ -6,6 +6,10 @@
 엑셀·데이터, PDF·문서, 수집·추출, 업무 자동화, 간단 도구로 나뉘어 있고, 도구를 고르면
 별도 창 없이 앱 안에서 바로 실행됩니다.
 
+## 소개 영상
+
+[![JB업무ON 소개 영상](docs/media/intro-poster.jpg)](docs/media/jbworkon-intro.mp4)
+
 ## 기술 구조
 
 - **Tauri 2 + React 19 + TypeScript** — 화면과 앱 셸
