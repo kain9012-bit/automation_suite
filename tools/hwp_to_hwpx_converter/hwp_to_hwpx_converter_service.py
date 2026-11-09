@@ -15,6 +15,16 @@ CancelCheck = Callable[[], bool]
 
 ALLOW_HINT = "한글이 파일 접근을 물으면 [허용]을 눌러 주세요."
 
+# 한글(Hwp.exe)이 꺼졌거나 연결이 끊겼을 때 COM 이 내는 오류 번호. 이 오류가 나면 그 한글로는
+# 더 할 수 있는 것이 없어 새로 띄워야 한다. 1.4.8까지는 한 번 띄운 한글로 끝까지 해서, 첫 파일을
+# 저장하다 한글이 꺼지자 나머지 275개가 모두 'RPC 서버를 사용할 수 없습니다'로 열기 실패했다.
+HWP_GONE_HRESULTS = (
+    -2147023174,  # 0x800706BA RPC 서버를 사용할 수 없습니다.
+    -2147023170,  # 0x800706BE 원격 프로시저 호출에 실패했습니다.
+    -2147023169,  # 0x800706BF 원격 프로시저 호출에 실패했으며 실행되지 않았습니다.
+    -2147417848,  # 0x80010108 개체가 해당 클라이언트에서 연결이 끊어졌습니다.
+)
+
 
 @dataclass
 class HwpToHwpxResult:
@@ -119,6 +129,23 @@ def try_register_file_path_security_module(hwp):
             last_error = f"{module_name}: {exc}"
 
     return False, "", last_error
+
+
+def is_hwp_gone_error(exc: BaseException | None) -> bool:
+    """한글이 꺼졌거나 연결이 끊겨 난 오류인지. open_hwp·save_as_hwpx 는 COM 오류를 글로 묶어
+    다시 내므로 번호가 글 안에 있는지도 본다."""
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        args = getattr(exc, "args", ())
+        if args and isinstance(args[0], int) and args[0] in HWP_GONE_HRESULTS:
+            return True
+        text = str(exc).upper()
+        for code in HWP_GONE_HRESULTS:
+            if str(code) in text or f"0X{code & 0xFFFFFFFF:08X}" in text:
+                return True
+        exc = exc.__cause__ or exc.__context__
+    return False
 
 
 def create_hwp_object(visible: bool = False):
@@ -341,6 +368,22 @@ def convert_hwp_files_to_hwpx(
     batch = HwpToHwpxBatchResult()
     pythoncom.CoInitialize()
     hwp = None
+    restart_error = ""  # 한글을 다시 띄우지 못했으면 그 까닭. 남은 파일은 열지 않고 이 까닭으로 실패.
+
+    def start_new_hwp() -> None:
+        """꺼진 한글을 놓고 새로 띄운다. 못 띄우면 restart_error 를 남기고 RuntimeError."""
+        nonlocal hwp, restart_error
+        quit_hwp(hwp)  # 꺼진 한글이면 아무 일 없이 넘어간다.
+        hwp = None
+        try:
+            new_hwp, new_security_ok, _name, _error = create_hwp_object(visible=visible)
+        except Exception as exc:
+            first_line = (str(exc).strip().splitlines() or [""])[0]
+            restart_error = f"한글을 다시 띄우지 못했습니다: {first_line}"
+            raise RuntimeError(restart_error) from exc
+        hwp = new_hwp
+        if not new_security_ok:
+            emit(f"  - {ALLOW_HINT}")
 
     emit("===== HWP → HWPX 변환 시작 =====")
     emit(f"처리 대상 파일: {len(ordered)}개")
@@ -384,7 +427,30 @@ def convert_hwp_files_to_hwpx(
                 emit(f"  - 안내: 같은 이름의 HWPX가 있어 {dst_path.name} 로 저장합니다.")
 
             try:
-                convert_hwp_to_hwpx_via_temp(hwp, src_path, dst_path)
+                if restart_error:
+                    raise RuntimeError(restart_error)
+                if hwp is None:
+                    # 앞 파일을 변환하다 한글이 꺼졌다.
+                    start_new_hwp()
+                    emit("  - 앞 파일에서 한글이 꺼져 다시 띄웠습니다.")
+                try:
+                    convert_hwp_to_hwpx_via_temp(hwp, src_path, dst_path)
+                except Exception as exc:
+                    if not is_hwp_gone_error(exc):
+                        raise
+                    start_new_hwp()
+                    emit("  - 한글이 응답하지 않아 다시 띄웠습니다. 이 파일을 한 번 더 변환합니다.")
+                    try:
+                        convert_hwp_to_hwpx_via_temp(hwp, src_path, dst_path)
+                    except Exception as retry_exc:
+                        if not is_hwp_gone_error(retry_exc):
+                            raise
+                        # 다시 해도 꺼졌다. 이 파일만 실패로 두고 다음 파일은 새 한글로 한다.
+                        quit_hwp(hwp)
+                        hwp = None
+                        raise RuntimeError(
+                            f"이 파일을 변환하는 중 한글이 두 번 꺼졌습니다: {retry_exc}"
+                        ) from retry_exc
                 if not dst_path.exists() or dst_path.stat().st_size == 0:
                     raise RuntimeError("변환된 HWPX 파일을 확인할 수 없습니다.")
                 if renamed:

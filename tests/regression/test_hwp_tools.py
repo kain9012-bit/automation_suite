@@ -47,6 +47,9 @@ class State:
         self.couninit = 0
         # hwp 를 hwpx 로 저장할 때 한글이 적어 넣을 인쇄 방식(None 이면 예전처럼 가짜 바이트만 쓴다).
         self.print_method = None
+        # 원본 이름 → 그 파일을 저장할 때 한글이 꺼지는 횟수(-1 이면 늘). 꺼진 한글은 무엇을 시켜도 RPC 오류.
+        self.die_on_save: dict[str, int] = {}
+        self.on_die = None
 
 
 S = State()
@@ -141,6 +144,14 @@ def write_by_format(path: str, fmt: str) -> None:
     Path(path).write_bytes(data)
 
 
+class FakeComError(Exception):
+    """pywintypes.com_error 와 같은 모양. str() 이 '(-2147023174, 'RPC 서버를…', None, None)' 이 된다."""
+
+
+def rpc_gone() -> FakeComError:
+    return FakeComError(-2147023174, "RPC 서버를 사용할 수 없습니다.", None, None)
+
+
 class FakeAction:
     def __init__(self, hwp):
         self._hwp = hwp
@@ -150,9 +161,11 @@ class FakeAction:
         return True
 
     def GetDefault(self, _name, _hset):
+        self._hwp.alive()
         return True
 
     def Execute(self, name, hset):
+        self._hwp.alive()
         self._hwp.actions.append(name)
         if name == "InsertFile":
             fname = Path(hset.filename).name
@@ -185,6 +198,8 @@ class FakeHwp:
         self.quit_called = False
         self._path = ""
         self.held = None   # 한글이 열어 둔(쥐고 있는) 파일. 이 파일은 덮어쓸 수 없다.
+        self.dead = False  # 한글(Hwp.exe)이 꺼짐
+        self.source = ""   # 지금 열어 둔 문서의 원본 이름
         self.XHwpWindows = FakeWindows(self)
         self.HAction = FakeAction(self)
         self.HParameterSet = FakeParamSets()
@@ -193,7 +208,12 @@ class FakeHwp:
         self.registered.append(name)
         return name in S.accepted_modules
 
+    def alive(self):
+        if self.dead:
+            raise rpc_gone()
+
     def Open(self, path, fmt="", opt=""):
+        self.alive()
         if S.on_open:
             S.on_open(Path(path).name)
         if S.open_raises:
@@ -205,6 +225,7 @@ class FakeHwp:
             return False
         self._path = "" if S.path_empty else path
         self.held = path
+        self.source = source
         self.opened.append(source)
         self.opened_paths.append(path)
         self.opened_print.append(print_method_of(path))
@@ -215,6 +236,14 @@ class FakeHwp:
         return self._path
 
     def SaveAs(self, path, fmt=None, arg=None):
+        self.alive()
+        left = S.die_on_save.get(self.source, 0)
+        if left:
+            S.die_on_save[self.source] = left - 1 if left > 0 else left
+            self.dead = True
+            if S.on_die:
+                S.on_die()
+            raise rpc_gone()
         self.saved.append((path, fmt))
         if S.save_raises:
             raise RuntimeError("save boom")
@@ -226,10 +255,12 @@ class FakeHwp:
         return True
 
     def Clear(self, _n):
+        self.alive()
         self._path = ""
         self.held = None
 
     def Quit(self):
+        self.alive()
         self.quit_called = True
         self.held = None
 
@@ -366,7 +397,8 @@ def run_runner(tool: str, payload: dict, cancel_file: Path | None = None):
 
 
 def all_quit() -> bool:
-    return bool(S.hwps) and all(h.quit_called for h in S.hwps)
+    # 꺼진 한글(dead)은 끌 것이 없다.
+    return bool(S.hwps) and all(h.quit_called or h.dead for h in S.hwps)
 
 
 def balanced() -> bool:
@@ -799,6 +831,60 @@ def _(tmp):
         broken = tmp / "broken.hwpx"
         broken.write_bytes(b"PK not a zip")
         assert module.reset_hwpx_print_method(broken) is False
+
+
+# ------------------------------------------------------------------ 11. HWPX: 도중에 한글이 꺼지면 다시 띄워 이어서
+# 1.4.8까지: 한 번 띄운 한글로 끝까지 했다. 첫 파일 저장 중 한글이 꺼지자(RPC 서버를 사용할 수 없습니다)
+# 나머지 275개가 모두 꺼진 한글에 '열기'를 시키다 실패했다(폴더로 고르면 실패, 하나씩 하면 성공).
+def _hwpx_batch(tmp, names):
+    srcs = make_files(tmp, names)
+    lines: list[str] = []
+    batch = hwpx.convert_hwp_files_to_hwpx(srcs, log=lines.append)
+    failed = {r.source_path.name: r.error for r in batch.results if not r.success}
+    return batch, failed, lines
+
+
+@check("11 HWPX: 저장 중 한글이 꺼지면 다시 띄워 그 파일을 한 번 더 하고, 나머지도 이어서 변환")
+def _(tmp):
+    S.die_on_save = {"b.hwp": 1}
+    batch, failed, lines = _hwpx_batch(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    assert batch.success_count == 3 and not failed, failed
+    assert len(S.hwps) == 2, f"한글을 {len(S.hwps)}번 띄움"
+    assert all((tmp / f"{n}.hwpx").exists() and not (tmp / f"{n}.hwp").exists() for n in "abc")
+    assert any("다시 띄웠습니다" in line for line in lines), lines
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("11 HWPX: 다시 해도 한글이 꺼지는 파일만 실패(원본 그대로), 다음 파일은 새 한글로 변환")
+def _(tmp):
+    S.die_on_save = {"b.hwp": -1}
+    batch, failed, _lines = _hwpx_batch(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    assert batch.success_count == 2 and list(failed) == ["b.hwp"], failed
+    assert (tmp / "b.hwp").exists() and not (tmp / "b.hwpx").exists()
+    assert (tmp / "a.hwpx").exists() and (tmp / "c.hwpx").exists()
+    assert len(S.hwps) == 3, f"한글을 {len(S.hwps)}번 띄움"
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("11 HWPX: 한글을 다시 띄우지 못하면 남은 파일은 열지 않고 그 까닭으로 실패, 원본은 그대로")
+def _(tmp):
+    S.die_on_save = {"b.hwp": 1}
+    S.on_die = S.progids_ok.clear
+    batch, failed, _lines = _hwpx_batch(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    assert batch.success_count == 1 and sorted(failed) == ["b.hwp", "c.hwp"], failed
+    assert all("한글을 다시 띄우지 못했습니다" in e for e in failed.values()), failed
+    assert len(S.hwps) == 1 and S.hwps[0].opened == ["a.hwp", "b.hwp"], S.hwps[0].opened
+    assert (tmp / "b.hwp").exists() and (tmp / "c.hwp").exists()
+    assert all_quit() and balanced(), (S.coinit, S.couninit)
+
+
+@check("11 HWPX: 한글이 꺼진 것이 아닌 실패(파일 열기 실패)는 한글을 다시 띄우지 않음")
+def _(tmp):
+    S.open_fail = {"b.hwp"}
+    batch, failed, lines = _hwpx_batch(tmp, ["a.hwp", "b.hwp", "c.hwp"])
+    assert batch.success_count == 2 and list(failed) == ["b.hwp"], failed
+    assert len(S.hwps) == 1, f"한글을 {len(S.hwps)}번 띄움"
+    assert not any("다시 띄웠습니다" in line for line in lines), lines
 
 
 # ------------------------------------------------------------------ 결과

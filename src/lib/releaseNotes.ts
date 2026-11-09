@@ -22,6 +22,19 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.4.9",
+    added: [],
+    changed: [
+      {
+        tool: "HWP→HWPX 변환",
+        items: [
+          "여러 파일을 한꺼번에 바꿀 때 도중에 한글이 꺼지면 나머지 파일이 모두 ‘RPC 서버를 사용할 수 없습니다’로 실패하던 문제 해결",
+          "한글이 꺼지면 다시 띄워 그 파일을 한 번 더 변환하고, 다음 파일도 이어서 변환(작업 기록에 표시)",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.4.8",
     added: [
       {
