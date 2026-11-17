@@ -849,6 +849,69 @@ def test_english_errors(tmp: Path) -> None:
     check("암호" in reason and not any(e in reason for e in ENGLISH), f"이수증 분리 · 암호 PDF ({reason!r})")
 
 
+def test_combiner_image_page_size(tmp: Path) -> None:
+    print("[13] PDF 통합: 이미지 쪽 크기(1.5.0, 300dpi 스캔이 87×124cm 로 나오던 문제)")
+    work = tmp / "img_size"
+    work.mkdir()
+
+    def save(name, size, dpi=None, mode="RGB", color=(200, 200, 200), exif=None):
+        path = work / name
+        kwargs = {}
+        if dpi:
+            kwargs["dpi"] = (dpi, dpi)
+        if exif is not None:
+            kwargs["exif"] = exif.tobytes()
+        Image.new(mode, size, color).save(path, **kwargs)
+        return path
+
+    exif72 = Image.Exif()
+    exif72[0x011A] = 72  # 휴대폰 사진처럼 EXIF 에 72dpi
+    exif72[0x011B] = 72
+    exif72[0x0128] = 2
+    turned = Image.Exif()
+    turned[0x0112] = 6  # 세로로 찍은 휴대폰 사진(저장은 가로, 돌려 보라는 표시)
+    cases = [
+        # (파일, 기대 쪽 크기(pt), 허용 오차)
+        (save("A4스캔_300dpi.jpg", (2480, 3508), 300), (595.3, 841.9)),
+        (save("A3스캔_300dpi.jpg", (3508, 4961), 300), (841.9, 1190.6)),
+        (save("휴대폰_dpi없음.jpg", (3024, 4032)), (595.3, 793.7)),
+        (save("휴대폰_가로_EXIF72.jpg", (4032, 3024), exif=exif72), (841.9, 631.4)),
+        (save("휴대폰_세로_회전표시.jpg", (4032, 3024), exif=turned), (595.3, 793.7)),
+        (save("화면캡처_96dpi.png", (1920, 1080), 96), (841.9, 473.6)),
+        # 지금도 정상인 것: 그대로
+        (save("작은캡처_72dpi.png", (800, 600), 72, "RGBA", (0, 0, 0, 0)), (800.0, 600.0)),
+        (save("작은캡처_96dpi.png", (300, 200), 96), (300.0, 200.0)),
+        (save("작은이미지_dpi없음.png", (640, 480)), (640.0, 480.0)),
+        (save("좁고긴캡처_dpi없음.png", (500, 3000)), (500.0, 3000.0)),  # A4 폭보다 좁으면 키우지 않음
+    ]
+    # 여러 쪽 TIFF: 쪽마다 따로(1쪽 300dpi A4 스캔 → A4, 2쪽 작은 쪽 → 그대로)
+    tiff = work / "여러쪽_스캔.tif"
+    Image.new("RGB", (2480, 3508), (255, 255, 255)).save(
+        tiff, save_all=True, append_images=[Image.new("RGB", (800, 600), (0, 0, 255))], dpi=(300, 300))
+    inputs = [str(path) for path, _ in cases] + [str(tiff)]
+    expected = [size for _, size in cases] + [(595.3, 841.9), (800.0, 600.0)]
+    out = tmp / "image_sizes.pdf"
+    run = run_tool("multi_format_pdf_combiner", {"inputs": inputs, "output": str(out)})
+    pages = []
+    pixels = []
+    blank = None
+    if run.clean_stdout and out.exists():
+        with pymupdf.open(str(out)) as doc:
+            for page in doc:
+                pages.append((round(page.rect.width, 1), round(page.rect.height, 1)))
+                info = page.get_images(full=True)
+                pixels.append((info[0][2], info[0][3]) if info else None)
+            blank = doc[6].get_pixmap(clip=pymupdf.Rect(10, 10, 11, 11)).pixel(0, 0)
+    failed = (run.result or {}).get("failed") if run.result else run.stderr.strip()[:200]
+    check(len(pages) == len(expected) and not failed, f"이미지 {len(expected)}쪽 모두 통합 (실제 {len(pages)}쪽, 실패: {failed})")
+    names = [Path(path).name for path, _ in cases] + ["여러쪽 TIFF 1쪽", "여러쪽 TIFF 2쪽"]
+    for name, got, want in zip(names, pages, expected):
+        ok = abs(got[0] - want[0]) <= 1.0 and abs(got[1] - want[1]) <= 1.0
+        check(ok, f"{name}: 쪽 크기 {want[0]}×{want[1]}pt (실제 {got[0]}×{got[1]}pt)")
+    check(pixels[:1] == [(2480, 3508)], f"화질 그대로: 300dpi 스캔의 픽셀 수를 줄이지 않음 ({pixels[:1]})")
+    check(blank == (255, 255, 255), f"투명 PNG 는 흰 바탕 (실제 {blank})")
+
+
 TESTS = [
     test_page_number_ui_values,
     test_page_number_rotation,
@@ -862,6 +925,7 @@ TESTS = [
     test_collector_multi,
     test_compress_cancel,
     test_english_errors,
+    test_combiner_image_page_size,
 ]
 
 

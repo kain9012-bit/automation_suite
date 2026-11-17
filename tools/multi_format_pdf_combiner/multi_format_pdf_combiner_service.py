@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
@@ -552,8 +553,47 @@ def _upright(frame: Image.Image, orientation) -> Image.Image:
     return frame.transpose(method) if method is not None else frame
 
 
+# 이미지 한 쪽의 크기. Pillow 는 해상도를 주지 않으면 72dpi(1픽셀 = 1pt)로 쪽을 만든다.
+# 1.4.9까지는 늘 그렇게 만들어, 300dpi 로 스캔한 A4(2480×3508)가 87×124cm 쪽이 됐다.
+A4_SHORT_PT, A4_LONG_PT = 595.28, 841.89
+A3_SHORT_PT, A3_LONG_PT = 841.89, 1190.55
+_PAGE_SLACK = 1.01  # 3508 / 300 × 72 = 841.92 처럼 반올림으로 조금 넘는 것을 받는다.
+
+
+def _fits_a3(width_pt: float, height_pt: float) -> bool:
+    short, long = sorted((width_pt, height_pt))
+    return short <= A3_SHORT_PT * _PAGE_SLACK and long <= A3_LONG_PT * _PAGE_SLACK
+
+
+def _image_dpi(info: dict) -> Optional[Tuple[float, float]]:
+    """이미지에 적힌 dpi(가로, 세로). 없거나 0·1 처럼 비정상(50 미만)이면 None."""
+    try:
+        x, y = float(info["dpi"][0]), float(info["dpi"][1])
+    except Exception:
+        return None
+    return (x, y) if x >= 50 and y >= 50 else None
+
+
+def image_page_dpi(width_px: int, height_px: int, dpi: Optional[Tuple[float, float]]) -> Tuple[float, float]:
+    """이미지 한 쪽을 PDF 에 넣을 해상도(가로, 세로 dpi). 쪽 크기만 정하고 픽셀은 줄이지 않는다.
+
+    1) 지금처럼 72dpi 로 넣어도 A3 안이면 그대로 둔다(작은 캡처처럼 이미 정상인 것은 바꾸지 않음).
+    2) A3보다 크면, 이미지에 적힌 dpi 로 잰 크기가 A3 안일 때 그 크기(300dpi A4 스캔 → A4, A3 스캔 → A3).
+    3) 그래도 크면(dpi 가 없거나 72·96 처럼 종이 크기를 알려 주지 못함) 폭을 A4 폭에 맞춘다.
+       가로가 더 길면 A4 가로 폭. A4 폭보다 좁은 이미지는 키우지 않는다.
+    """
+    if _fits_a3(width_px, height_px):
+        return 72.0, 72.0
+    if dpi and _fits_a3(width_px * 72.0 / dpi[0], height_px * 72.0 / dpi[1]):
+        return dpi
+    target = A4_LONG_PT if width_px > height_px else A4_SHORT_PT
+    resolution = max(72.0, width_px * 72.0 / target)
+    return resolution, resolution
+
+
 def image_to_pdf(src: Path, out: Path) -> None:
-    """이미지를 PDF 로. 사진의 회전 정보(EXIF)를 반영하고, 여러 쪽 TIFF 는 모든 쪽을 넣는다."""
+    """이미지를 PDF 로. 사진의 회전 정보(EXIF)를 반영하고, 여러 쪽 TIFF 는 모든 쪽을 넣는다.
+    쪽 크기는 쪽마다 image_page_dpi 로 정한다."""
     with Image.open(src) as im:
         pages = []
         # 여러 쪽은 TIFF 만 쪽으로 본다(움직이는 WEBP 의 장면을 쪽으로 늘어놓지 않게).
@@ -564,9 +604,25 @@ def image_to_pdf(src: Path, out: Path) -> None:
                 orientation = im.getexif().get(0x0112)
             except Exception:
                 orientation = None
-            pages.append(_image_frame_to_pdf_ready(_upright(im.copy(), orientation)))
-        first, rest = pages[0], pages[1:]
-        first.save(out, "PDF", save_all=bool(rest), append_images=rest)
+            dpi = _image_dpi(im.info)
+            if dpi and orientation in (5, 6, 7, 8):
+                dpi = (dpi[1], dpi[0])  # 90도 돌려 세우면 가로·세로 dpi 도 바뀐다.
+            frame = _image_frame_to_pdf_ready(_upright(im.copy(), orientation))
+            pages.append((frame, image_page_dpi(frame.width, frame.height, dpi)))
+    if len(pages) == 1:
+        frame, dpi = pages[0]
+        frame.save(out, "PDF", dpi=dpi)
+        return
+    # Pillow 는 여러 쪽을 한 번에 저장하면 모든 쪽에 같은 해상도를 쓴다. 쪽마다 따로 저장해 잇는다.
+    writer = PdfWriter()
+    for frame, dpi in pages:
+        buffer = io.BytesIO()
+        frame.save(buffer, "PDF", dpi=dpi)
+        buffer.seek(0)
+        for page in PdfReader(buffer).pages:
+            writer.add_page(page)
+    with open(out, "wb") as handle:
+        writer.write(handle)
 
 
 def ensure_pdf(src: Path, tmp_dir: Path, progress: ProgressFn = None) -> Tuple[Optional[Path], Optional[str]]:

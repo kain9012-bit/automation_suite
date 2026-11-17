@@ -22,6 +22,20 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.0",
+    added: [],
+    changed: [
+      {
+        tool: "다형식 PDF 통합",
+        items: [
+          "이미지를 넣으면 그 쪽만 아주 크게 나오던 문제 해결(300dpi로 스캔한 A4 JPG가 87×124cm 쪽으로 나옴)",
+          "스캔 이미지는 이미지에 적힌 해상도(dpi)대로 실제 종이 크기로(A4 스캔 → A4), 해상도를 알 수 없는 휴대폰 사진·큰 화면 캡처는 A4 폭에 맞춤",
+          "화질(픽셀)은 그대로, 작은 캡처처럼 지금도 크기가 알맞은 이미지는 그대로",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.4.9",
     added: [],
     changed: [
