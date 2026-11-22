@@ -37,6 +37,12 @@ export async function saveToolDownload(name: string, bytes: ArrayBuffer): Promis
   });
 }
 
+/** HTML 도구가 만든 그림(PNG)을 클립보드에 넣는다. 투명한 곳은 투명을 모르는 프로그램에서 흰 바탕이 된다. */
+export async function copyToolImage(bytes: ArrayBuffer): Promise<void> {
+  if (!isTauri()) throw new Error("그림 복사는 설치된 앱에서 사용할 수 있습니다.");
+  return invoke<void>("copy_tool_image", new Uint8Array(bytes));
+}
+
 /** 파일을 그 파일의 기본 프로그램으로 연다(엑셀이면 엑셀). */
 export async function openFilePath(path: string): Promise<void> {
   if (!isTauri()) throw new Error("파일 열기는 설치된 앱에서 사용할 수 있습니다.");

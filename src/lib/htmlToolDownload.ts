@@ -11,9 +11,15 @@
  * - 도구 코드는 고치지 않는다. iframe 에 넣는 HTML 맨 앞(<head> 바로 뒤)에 짧은 스크립트만 끼운다.
  * - blob 은 `URL.createObjectURL` 을 지켜보다가 주소로 찾는다. fetch(blob:) 는 앱 CSP(connect-src)에 막힌다.
  * - 가로채지 못한 경우(blob·data 가 아닌 주소)는 원래대로 둔다.
+ *
+ * 그림 복사(1.5.1): 도구가 `window.__jbeduCopyImage(pngBlob)` 를 부르면 앱이 클립보드에 직접 넣는다
+ * (Rust `copy_tool_image`). 브라우저 복사로는 투명한 곳이 한글에서 검게 붙기 때문이다.
+ * 이 함수는 앱 안에서만 있으므로, 도구는 함수가 없으면(새 창·브라우저) 원래 방식으로 복사한다.
  */
 
 export const DOWNLOAD_MESSAGE = "jbedu-tool-download";
+export const COPY_IMAGE_MESSAGE = "jbedu-tool-copy-image";
+export const COPY_IMAGE_RESULT = "jbedu-tool-copy-image-result";
 
 const BRIDGE = `(function () {
   if (window.__jbeduDownloadBridge) return;
@@ -65,6 +71,30 @@ const BRIDGE = `(function () {
     var a = target && target.closest ? target.closest("a[download]") : null;
     if (a && take(a)) event.preventDefault();
   }, true);
+  var copies = {};
+  var copySeq = 0;
+  window.__jbeduCopyImage = function (blob) {
+    return blob.arrayBuffer().then(function (buffer) {
+      return new Promise(function (resolve, reject) {
+        var id = ++copySeq;
+        copies[id] = { resolve: resolve, reject: reject };
+        window.parent.postMessage({ type: "${COPY_IMAGE_MESSAGE}", id: id, bytes: buffer }, "*", [buffer]);
+        setTimeout(function () {
+          if (!copies[id]) return;
+          delete copies[id];
+          reject(new Error("앱이 응답하지 않습니다."));
+        }, 10000);
+      });
+    });
+  };
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (event.source !== window.parent || !data || data.type !== "${COPY_IMAGE_RESULT}" || !copies[data.id]) return;
+    var waiting = copies[data.id];
+    delete copies[data.id];
+    if (data.ok) waiting.resolve();
+    else waiting.reject(new Error(data.error || "그림을 복사하지 못했습니다."));
+  });
 })();`;
 
 /** 도구 HTML 의 <head> 바로 뒤(없으면 <html> 뒤, 그것도 없으면 맨 앞)에 내려받기 가로채기를 끼운다.
@@ -87,4 +117,12 @@ export function readDownloadMessage(data: unknown): { name: string; bytes: Array
   const message = data as { type?: unknown; name?: unknown; bytes?: unknown };
   if (message.type !== DOWNLOAD_MESSAGE || !(message.bytes instanceof ArrayBuffer)) return null;
   return { name: typeof message.name === "string" ? message.name : "", bytes: message.bytes };
+}
+
+/** 그림 복사 요청인지와 그 내용(PNG 바이트). */
+export function readCopyImageMessage(data: unknown): { id: number; bytes: ArrayBuffer } | null {
+  if (!data || typeof data !== "object") return null;
+  const message = data as { type?: unknown; id?: unknown; bytes?: unknown };
+  if (message.type !== COPY_IMAGE_MESSAGE || typeof message.id !== "number" || !(message.bytes instanceof ArrayBuffer)) return null;
+  return { id: message.id, bytes: message.bytes };
 }

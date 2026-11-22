@@ -1,4 +1,5 @@
 mod board_update;
+mod clipboard_image;
 mod desktop;
 mod docsearch;
 mod html_vendor;
@@ -396,6 +397,28 @@ fn save_tool_download(app: AppHandle, request: tauri::ipc::Request<'_>) -> Resul
     let path = unique_download_path(&dir, &clean_download_name(&name));
     fs::write(&path, &*bytes).map_err(|error| format!("파일을 저장하지 못했습니다: {error}"))?;
     Ok(path.to_string_lossy().into_owned())
+}
+
+/// HTML 도구가 만든 그림(PNG)을 클립보드에 넣는다(지역별 수치·학교 위치 지도 시각화의 [지도 복사], 1.5.1).
+/// 브라우저 복사로는 투명한 곳이 한글에서 검게 붙어서, 앱이 "PNG"·CF_DIBV5 로 직접 넣는다(clipboard_image.rs).
+#[tauri::command]
+fn copy_tool_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    // save_tool_download 와 같이: 보통은 바이트 그대로, IPC 예비 경로(postMessage)면 숫자 배열(JSON)로 온다.
+    let bytes: std::borrow::Cow<[u8]> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => std::borrow::Cow::Borrowed(bytes.as_slice()),
+        tauri::ipc::InvokeBody::Json(Value::Array(items)) => std::borrow::Cow::Owned(
+            items
+                .iter()
+                .map(|v| v.as_u64().filter(|n| *n <= 255).map(|n| n as u8))
+                .collect::<Option<Vec<u8>>>()
+                .ok_or_else(|| "복사할 그림 내용이 올바르지 않습니다.".to_string())?,
+        ),
+        _ => return Err("복사할 그림이 없습니다.".to_string()),
+    };
+    if bytes.len() > TOOL_DOWNLOAD_MAX_BYTES {
+        return Err("그림이 너무 커서 복사하지 않았습니다.".to_string());
+    }
+    clipboard_image::write_png_to_clipboard(&bytes)
 }
 
 // ── 예전 탐색기 우클릭 메뉴 정리 ─────────────────────────────────────
@@ -885,6 +908,7 @@ pub fn run() {
             read_tool_html,
             open_tool_in_browser,
             save_tool_download,
+            copy_tool_image,
             open_file_path,
             open_work_tools_board,
             reveal_path,

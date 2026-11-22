@@ -26,6 +26,8 @@ import {
   Library,
   Link2,
   ListChecks,
+  Map as MapIcon,
+  MapPin,
   Merge,
   Minimize2,
   Newspaper,
@@ -97,6 +99,8 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   reshape_unpivot: Table2,
   school_name_standardizer: School,
   school_year_compare: TrendingUp,
+  map_visualizer: MapIcon,
+  school_visualizer: MapPin,
   // 수집·추출
   academic_schedule_extractor: CalendarDays,
   homepage_post_collector: Newspaper,

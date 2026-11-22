@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, FolderOpen, LoaderCircle, RotateCw, X } from "lucide-react";
-import { openFilePath, openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
-import { injectDownloadBridge, readDownloadMessage } from "../lib/htmlToolDownload";
+import { copyToolImage, openFilePath, openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
+import { COPY_IMAGE_RESULT, injectDownloadBridge, readCopyImageMessage, readDownloadMessage } from "../lib/htmlToolDownload";
 import type { ToolManifest } from "../types";
 
 export function HtmlToolView({ tool }: { tool: ToolManifest }) {
@@ -28,6 +28,16 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (!frameRef.current || event.source !== frameRef.current.contentWindow) return;
+      // 도구가 그림 복사를 맡기면 클립보드에 넣고 결과를 도구에 돌려준다(지역별 수치·학교 위치 지도 시각화).
+      const copy = readCopyImageMessage(event.data);
+      if (copy) {
+        const reply = (ok: boolean, error = "") =>
+          (event.source as Window | null)?.postMessage({ type: COPY_IMAGE_RESULT, id: copy.id, ok, error }, "*");
+        void copyToolImage(copy.bytes)
+          .then(() => reply(true))
+          .catch((reason) => reply(false, reason instanceof Error ? reason.message : String(reason)));
+        return;
+      }
       const download = readDownloadMessage(event.data);
       if (!download) return;
       setNotice("");
