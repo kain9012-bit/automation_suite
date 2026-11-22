@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "",
   "icon": "",
-  "description": "한글(hwp·hwpx) 문서 안의 큰 그림을 줄여 용량을 줄인 hwpx 사본을 만듭니다.",
+  "description": "한글 문서 안의 큰 그림을 줄여 용량을 줄인 사본을 만듭니다.",
   "order": 51,
   "enabled": true,
   "version": "1.0.0",

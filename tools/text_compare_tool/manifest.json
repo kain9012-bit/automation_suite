@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "원본 텍스트와 수정된 텍스트를 비교합니다.",
+  "description": "원본 텍스트와 수정된 텍스트의 바뀐 내용을 비교합니다.",
   "order": 30,
   "enabled": true,
   "version": "1.0.0",

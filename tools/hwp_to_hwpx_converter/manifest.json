@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "hwp_to_hwpx_converter_entry.py",
   "icon": "",
-  "description": "HWP 파일을 HWPX로 일괄 변환하고 성공한 원본 HWP를 정리합니다.",
+  "description": "HWP를 HWPX로 일괄 변환하고 변환된 원본 HWP를 정리합니다.",
   "order": 45,
   "enabled": true,
   "version": "2.2.1",

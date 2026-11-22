@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "K-에듀파인 개인수신그룹을 일괄 등록하는 도구",
+  "description": "K-에듀파인 개인수신그룹을 일괄 등록합니다.",
   "order": 30,
   "enabled": true,
   "version": "1.2.0",

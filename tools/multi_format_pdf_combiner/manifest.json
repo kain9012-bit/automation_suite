@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "multi_format_pdf_combiner_entry.py",
   "icon": "",
-  "description": "PDF, 이미지, DOCX, PPT, HWP 파일을 하나의 PDF로 통합합니다.",
+  "description": "PDF·이미지·DOCX·PPT·HWP를 하나의 PDF로 합칩니다.",
   "order": 20,
   "enabled": true,
   "version": "2.2.3",

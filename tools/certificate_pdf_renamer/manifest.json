@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "services/renamer_service.py",
   "icon": "",
-  "description": "이수증 내용을 읽어 근무기관·성명·과정명 등으로 파일명을 자동 변경합니다.",
+  "description": "이수증 내용을 읽어 근무기관·성명·과정명으로 파일명을 바꿉니다.",
   "order": 82,
   "enabled": true,
   "version": "1.6.1",

@@ -5,7 +5,7 @@
   "type": "internal_python",
   "entry": "excel_split_entry.py",
   "icon": "assets/icon.png",
-  "description": "하나의 엑셀 파일을 여러 파일로 분할하는 도구",
+  "description": "기준 열을 정해 엑셀 파일을 여러 파일로 나눕니다.",
   "order": 20,
   "enabled": true,
   "version": "1.0.1",

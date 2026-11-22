@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "가로형 데이터를 세로형으로 변환하는 도구",
+  "description": "가로형 데이터를 세로형으로 바꿉니다.",
   "order": 70,
   "enabled": true,
   "version": "1.2.0",

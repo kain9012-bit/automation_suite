@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "기준 데이터와 비교 데이터를 매칭 표시하는 도구",
+  "description": "기준 데이터와 비교 데이터를 대조해 일치 여부를 표시합니다.",
   "order": 60,
   "enabled": true,
   "version": "1.0.0",

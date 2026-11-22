@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "텍스트에서 키워드를 추출하고 편집한 뒤 워드클라우드를 생성합니다.",
+  "description": "텍스트에서 키워드를 뽑아 편집한 뒤 워드클라우드를 만듭니다.",
   "order": 40,
   "enabled": true,
   "version": "1.0.0",

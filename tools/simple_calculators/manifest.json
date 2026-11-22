@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "한글 금액 변환, 날짜 차이, 글자수, 분/시간 변환, 만나이 계산 기능을 제공합니다.",
+  "description": "한글 금액, 날짜 차이, 글자수, 시간 변환, 만나이를 계산합니다.",
   "order": 10,
   "enabled": true,
   "version": "1.0.0",

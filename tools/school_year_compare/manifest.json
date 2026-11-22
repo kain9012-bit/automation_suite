@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "연도별 학교 데이터를 비교·취합하는 도구",
+  "description": "연도별 학교 데이터를 비교하고 취합합니다.",
   "order": 50,
   "enabled": true,
   "version": "1.0.0",

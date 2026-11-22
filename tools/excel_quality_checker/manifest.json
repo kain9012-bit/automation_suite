@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "엑셀 데이터 품질을 점검하는 도구",
+  "description": "엑셀 데이터의 빈칸·중복·형식 오류를 찾습니다.",
   "order": 40,
   "enabled": true,
   "version": "1.2.0",

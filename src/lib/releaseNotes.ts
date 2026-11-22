@@ -43,7 +43,12 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         ],
       },
     ],
-    changed: [],
+    changed: [
+      {
+        tool: "공통",
+        items: ["도구 목록의 한 줄 설명을 같은 문체(…합니다.)로 맞추고 두 줄 안에 들어가게 정리"],
+      },
+    ],
   },
   {
     version: "1.5.0",

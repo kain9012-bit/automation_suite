@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "assets/icon.png",
-  "description": "엑셀 데이터의 통계 요약 리포트를 생성하는 도구",
+  "description": "엑셀 데이터의 통계 요약 리포트를 만듭니다.",
   "order": 80,
   "enabled": true,
   "version": "1.2.0",
