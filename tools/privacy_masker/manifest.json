@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "이름·연락처·주민번호 등을 설정한 방식으로 가립니다.",
+  "description": "이름·연락처·주민번호 등을 설정한 방식으로 가려 줍니다.",
   "order": 44,
   "enabled": true,
   "version": "1.0.0",

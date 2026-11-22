@@ -46,7 +46,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     changed: [
       {
         tool: "공통",
-        items: ["도구 목록의 한 줄 설명을 같은 문체(…합니다.)로 맞추고 두 줄 안에 들어가게 정리"],
+        items: ["도구 목록의 한 줄 설명을 ‘…하는 도구’ 대신 문장(…니다.)으로 맞추고 두 줄 안에 들어가게 정리"],
       },
     ],
   },

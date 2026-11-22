@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "이름·번호 추첨, 팀 나누기, 순서 정하기를 합니다.",
+  "description": "이름·번호 추첨, 팀 나누기, 순서 정하기 기능을 제공합니다.",
   "order": 20,
   "enabled": true,
   "version": "1.0.0",
