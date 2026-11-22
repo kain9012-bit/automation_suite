@@ -96,6 +96,9 @@
     .multi-menu label:hover{background:var(--head-bg);}
     .multi-menu label.all{font-weight:600;border-bottom:1px solid var(--line);border-radius:0;margin-bottom:2px;}
     .lv{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--label);white-space:nowrap;}
+    .lv-grid{display:grid;grid-template-columns:repeat(3,auto);gap:6px 12px;}
+    .lv-grid .lv > span{width:36px;}
+    .lv-grid select{height:var(--cell-h);width:68px;padding:0 2px;font-size:12px;}
     /* 엑셀처럼 쓰는 표 */
     .sheet{margin-top:10px;border:1px solid var(--border);border-radius:var(--radius);background:#fff;}
     .sheet-head{min-height:36px;padding:4px 8px 4px 12px;display:flex;align-items:center;justify-content:space-between;gap:6px 8px;flex-wrap:wrap;background:var(--head-bg);border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;font-size:13px;font-weight:600;color:var(--ink);}
@@ -181,7 +184,7 @@
   <div class="app">
     <header>
       <h1><span class="logo-badge">S</span>학교 위치 지도 시각화 도구(v1.0)</h1>
-      <p>전북 학교 위치를 학교급별 색·모양으로 지도에 찍고, 붙여 넣은 학교별 수치를 학교 이름과 함께 표시해 보고서에 붙일 그림으로 복사·저장합니다.</p>
+      <p>전북 학교 위치를 학교급별 색으로 지도에 찍고, 붙여 넣은 학교별 수치를 학교 이름과 함께 표시해 보고서에 붙일 그림으로 복사·저장합니다.</p>
     </header>
 
     <div class="work">
@@ -227,12 +230,11 @@
         </div>
 
         <details class="box" id="detailBox" data-tour="detail">
-          <summary>상세 설정 <small>점 · 이름표 · 학교급 색 · 경계</small></summary>
+          <summary>상세 설정 <small>점 · 이름표 · 학교급 색·모양 · 경계</small></summary>
           <div class="bars in-box">
             <div class="bar">
               <span class="bar-title">점</span>
               <div class="unit"><em>크기</em><input type="number" id="dotSize" min="2" max="30" aria-label="점 크기" /><small>px</small></div>
-              <label class="opt"><input type="checkbox" id="shapes" />학교급별 모양</label>
             </div>
             <div class="bar">
               <span class="bar-title">이름표</span>
@@ -246,8 +248,8 @@
               <label class="opt"><input type="checkbox" id="leader" />멀리 둘 때 지시선</label>
             </div>
             <div class="bar">
-              <span class="bar-title">학교급 색</span>
-              <div class="unit" id="levelColors"></div>
+              <span class="bar-title">학교급</span>
+              <div class="lv-grid" id="levelColors"></div>
             </div>
             <div class="bar">
               <span class="bar-title">경계</span>
@@ -296,7 +298,7 @@
         </div>
         <div class="hint">
           · 학교명: 줄인 이름·띄어쓰기·옛 이름도 학교 이름으로 맞춰 인식(가천초, 전주교대전주부설초 등)<br />
-          · 같은 이름이 여러 시군에 있으면 [인식한 학교]에서 고르거나 학교명 앞에 시군을 붙이기(예: 전주 ○○초)<br />
+          · 사립유치원은 빼고 넣음(지도·아래 표 모두)<br />
           · 수치 열은 여러 개 가능, 머리글 줄까지 붙여 넣으면 열 이름으로 씀 / 아래 표: 지금 지도에 찍힌 학교만 셈
         </div>
       </section>
@@ -376,7 +378,9 @@
     var PICK_LEVELS = ['단설유치원', '병설유치원', '초등학교', '중학교', '고등학교', '특수학교', '각종학교'];
     function pickLevel(s) { return s.level === '유치원' ? (s.kind || '단설') + '유치원' : s.level; }
     var FOUNDS = ['국립', '공립', '사립'];
-    var LEVEL_SHAPE = { '유치원': 'circle', '초등학교': 'square', '중학교': 'diamond', '고등학교': 'triangle', '특수학교': 'star', '각종학교': 'hexagon' };
+    // 점 모양: 처음에는 모두 동그라미, 학교급마다 바꿀 수 있다
+    var SHAPES = [['circle', '● 원'], ['square', '■ 네모'], ['diamond', '◆ 마름모'], ['triangle', '▲ 세모'], ['star', '★ 별'], ['hexagon', '⬢ 육각']];
+    function defaultMarks() { var m = {}; LEVELS.forEach(function (l) { m[l] = 'circle'; }); return m; }
     var LEVEL_COLOR = { '유치원': '#ff7a00', '초등학교': '#0052cc', '중학교': '#d4a100', '고등학교': '#00875a', '특수학교': '#7e57c2', '각종학교': '#555555' };
 
     // ---------------------------------------------------------------- 학교명 표준화(학교명 표준화 도구와 같은 규칙)
@@ -485,7 +489,7 @@
       return {
         regions: [], levels: [], founds: [], showPaused: true,
         labelName: 'short', valuePos: 'right', valueParen: false, colName: false, hideOverlap: true, showLegend: true,
-        dotSize: 7, shapes: true, labelSize: 11, labelStyle: 'box', leader: true,
+        dotSize: 7, marks: defaultMarks(), labelSize: 11, labelStyle: 'box', leader: true,
         colors: Object.assign({}, LEVEL_COLOR),
         sggColor: '#8a94a6', sggWidth: 1.5, fillColor: '#ffffff', showDong: false, others: 'dim',
         pastedOnly: false, detailOpen: false, sheet: defaultSheet()
@@ -825,7 +829,7 @@
       }
       return 'M' + (x - r) + ' ' + y + 'a' + r + ' ' + r + ' 0 1 0 ' + 2 * r + ' 0a' + r + ' ' + r + ' 0 1 0 ' + -2 * r + ' 0Z';
     }
-    function kindOf(s) { return opts.shapes ? (LEVEL_SHAPE[s.level] || 'circle') : 'circle'; }
+    function kindOf(s) { return opts.marks[s.level] || 'circle'; }
     function colorOf(s) { return opts.colors[s.level] || '#555555'; }
     function lum(h) { var n = parseInt(String(h).slice(1), 16); return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; }
     var measureCtx = document.createElement('canvas').getContext('2d');
@@ -971,7 +975,7 @@
       el('rect', { x: L.x, y: L.y, width: L.w, height: L.h, rx: 6, fill: '#ffffff', 'fill-opacity': 0.92, stroke: '#d4dbe8' }, g);
       var cy = L.y + 10 + LG.row / 2;
       L.items.forEach(function (it) {
-        el('path', { d: shapePath(opts.shapes ? LEVEL_SHAPE[it.level] : 'circle', L.x + LG.pad + 7, cy, 5), fill: opts.colors[it.level], stroke: '#ffffff', 'stroke-width': 1 }, g);
+        el('path', { d: shapePath(opts.marks[it.level] || 'circle', L.x + LG.pad + 7, cy, 5), fill: opts.colors[it.level], stroke: '#ffffff', 'stroke-width': 1 }, g);
         el('text', { x: L.x + LG.pad + 20, y: cy + LG.fs * 0.36, 'font-size': LG.fs, 'font-weight': 600, 'font-family': FONT, fill: '#374151' }, g).textContent = it.text;
         cy += LG.row;
       });
@@ -1022,32 +1026,33 @@
         return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td><span class="rname">' + chip + esc(name) + '</span></td><td>' + fmt(o.n) + '</td><td>' + fmt(o.a) + '</td><td>' + fmt(o.b) + '</td><td>' + fmt(o.c) + '</td></tr>';
       }
       document.getElementById('sumBody').innerHTML = LEVELS.filter(function (l) { return by[l]; }).map(function (l) {
-        return row(l, by[l], '', '<svg width="12" height="12" viewBox="0 0 12 12"><path d="' + shapePath(opts.shapes ? LEVEL_SHAPE[l] : 'circle', 6, 6, 4.2) + '" fill="' + opts.colors[l] + '" /></svg>');
+        return row(l, by[l], '', '<svg width="12" height="12" viewBox="0 0 12 12"><path d="' + shapePath(opts.marks[l] || 'circle', 6, 6, 4.2) + '" fill="' + opts.colors[l] + '" /></svg>');
       }).join('') + row('합계', tot, 'total', '');
     }
 
     // ---------------------------------------------------------------- 설정
     function syncControls() {
       ['labelName', 'valuePos', 'dotSize', 'labelSize', 'labelStyle', 'sggColor', 'sggWidth', 'fillColor', 'others'].forEach(function (k) { document.getElementById(k).value = opts[k]; });
-      ['showPaused', 'valueParen', 'colName', 'hideOverlap', 'showLegend', 'shapes', 'leader', 'showDong', 'pastedOnly'].forEach(function (k) { document.getElementById(k).checked = opts[k]; });
+      ['showPaused', 'valueParen', 'colName', 'hideOverlap', 'showLegend', 'leader', 'showDong', 'pastedOnly'].forEach(function (k) { document.getElementById(k).checked = opts[k]; });
       document.getElementById('detailBox').open = opts.detailOpen;
       ['fRegion', 'fLevel', 'fFound'].forEach(function (id) { var h = document.getElementById(id); if (h.paint) h.paint(); });
       document.getElementById('levelColors').innerHTML = LEVELS.map(function (l) {
-        return '<label class="lv">' + esc(l.replace('학교', '')) + '<input type="color" data-level="' + esc(l) + '" value="' + opts.colors[l] + '" aria-label="' + esc(l) + ' 색" /></label>';
+        return '<div class="lv"><span>' + esc(l.replace('학교', '')) + '</span><input type="color" data-level="' + esc(l) + '" value="' + opts.colors[l] + '" aria-label="' + esc(l) + ' 색" />' +
+          '<select data-mark="' + esc(l) + '" aria-label="' + esc(l) + ' 점 모양">' + SHAPES.map(function (sp) { return '<option value="' + sp[0] + '"' + (opts.marks[l] === sp[0] ? ' selected' : '') + '>' + sp[1] + '</option>'; }).join('') + '</select></div>';
       }).join('');
     }
     function bindOpt(id, kind) {
       var node = document.getElementById(id);
       node.addEventListener(kind === 'num' || kind === 'color' ? 'input' : 'change', function () {
         opts[id] = kind === 'check' ? node.checked : kind === 'num' ? (Number(node.value) || 0) : node.value;
-        if (id === 'shapes' || id === 'pastedOnly' || id === 'showPaused') renderSummary();
+        if (id === 'pastedOnly' || id === 'showPaused') renderSummary();
         draw();
         saveDraft();
       });
     }
     bindOpt('showPaused', 'check'); bindOpt('labelName', 'sel'); bindOpt('valuePos', 'sel'); bindOpt('valueParen', 'check'); bindOpt('colName', 'check');
     bindOpt('hideOverlap', 'check'); bindOpt('showLegend', 'check');
-    bindOpt('dotSize', 'num'); bindOpt('shapes', 'check');
+    bindOpt('dotSize', 'num');
     bindOpt('labelSize', 'num'); bindOpt('labelStyle', 'sel'); bindOpt('leader', 'check');
     bindOpt('sggColor', 'color'); bindOpt('sggWidth', 'num'); bindOpt('fillColor', 'color'); bindOpt('showDong', 'check'); bindOpt('others', 'sel');
     bindOpt('pastedOnly', 'check');
@@ -1055,6 +1060,12 @@
       var l = e.target.getAttribute('data-level');
       if (!l) return;
       opts.colors[l] = e.target.value;
+      renderSummary(); draw(); saveDraft();
+    });
+    document.getElementById('levelColors').addEventListener('change', function (e) {
+      var l = e.target.getAttribute('data-mark');
+      if (!l) return;
+      opts.marks[l] = e.target.value;
       renderSummary(); draw(); saveDraft();
     });
     document.getElementById('detailBox').addEventListener('toggle', function () { opts.detailOpen = this.open; saveDraft(); });
@@ -1193,6 +1204,7 @@
           }
         } else if (Array.isArray(base[k])) { if (Array.isArray(o[k])) base[k] = o[k].filter(function (v) { return typeof v === 'string'; }); }
         else if (k === 'colors') { if (o.colors) LEVELS.forEach(function (l) { if (/^#[0-9a-f]{6}$/i.test(o.colors[l])) base.colors[l] = o.colors[l]; }); }
+        else if (k === 'marks') { if (o.marks) LEVELS.forEach(function (l) { if (SHAPES.some(function (sp) { return sp[0] === o.marks[l]; })) base.marks[l] = o.marks[l]; }); }
         else if (typeof o[k] === typeof base[k]) base[k] = o[k];
       });
       if (o.valuePos === 'paren') { base.valuePos = 'right'; base.valueParen = true; }
@@ -1251,8 +1263,8 @@
     ["label", "이름표", "이름: 줄인 이름·학교 이름·표시 안 함\n수치 위치: 이름 오른쪽 또는 아래 줄\n( ) 안에·열 이름 함께: 수치 표시 꼴"],
     ["view", "보기", "겹치는 이름표 숨기기: 자리가 없는 이름표는 빼기\n범례: 지도 오른쪽 아래 학교급별 모양·색·학교 수"],
     ["detail", "상세 설정", "펼치면 점 크기, 이름표 글자 크기·모양·지시선, 학교급별 색·점 모양(처음엔 모두 원), 시군·행정동 경계"],
-    ["sheet", "학교별 수치", "엑셀 범위 복사 → 학교명 첫 칸에 Ctrl+V: 줄·열 자동 추가\n머리글 줄은 열 이름으로, 시군 열은 학교명과 합쳐 인식\n줄인 이름·옛 이름도 인식, 같은 이름이 여럿이면 [인식한 학교]에서 고르기\n‘표의 학교만’: 표에 넣은 학교만 지도에 표시"],
-    ["summary", "학교 수", "지금 지도에 찍힌 학교의 학교급별 학교·학생·학급·교원 수"],
+    ["sheet", "학교별 수치", "엑셀 범위 복사 → 학교명 첫 칸에 Ctrl+V: 줄·열 자동 추가\n머리글 줄은 열 이름으로, 시군 열은 학교명과 합쳐 인식\n줄인 이름·옛 이름도 학교명으로 인식\n‘표의 학교만’: 표에 넣은 학교만 지도에 표시"],
+    ["summary", "학교 수", "지금 지도에 찍힌 학교의 학교급별 학교·학생·학급·교원 수\n사립유치원은 빼고 넣음"],
     ["export", "복사·저장", "‘지도 복사’: 한글·파워포인트에 바로 붙여넣기\n‘PNG·SVG 저장’: 바탕 투명 고화질 그림으로 다운로드 폴더에 저장\n‘지도 위치 초기화’: 확대·이동 되돌리기"],
     ["map", "지도", "휠: 확대·축소, 끌기: 이동\n점에 마우스: 주소·행정동·학생 수 등 학교 정보\n복사·저장은 지금 보이는 지도 그대로"]
   ];
