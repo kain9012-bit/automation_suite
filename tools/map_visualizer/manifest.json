@@ -5,7 +5,7 @@
   "type": "html",
   "entry": "web/index.html",
   "icon": "",
-  "description": "지역별 수치를 붙여 넣으면 전북 시·군 또는 전국 시·도 지도에 수치 크기에 따라 색을 칠하고, 보고서에 붙일 그림으로 복사·저장합니다.",
+  "description": "지역별 수치를 붙여 넣으면 지도에 색을 칠해 그림으로 저장합니다.",
   "order": 90,
   "enabled": true,
   "version": "1.0.0",
