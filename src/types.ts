@@ -28,4 +28,5 @@ export type View =
   | { kind: "category"; category: string }
   | { kind: "settings" }
   | { kind: "docsearch" }
+  | { kind: "pcinfo" }
   | { kind: "tool"; tool: ToolManifest };

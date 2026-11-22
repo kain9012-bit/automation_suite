@@ -1,6 +1,6 @@
 [package]
 name = "jbedu-automation-suite"
-version = "1.5.1"
+version = "1.5.2"
 description = "반복 업무를 간단하게 만드는 전북교육 업무도구 모음"
 authors = ["전북특별자치도교육청"]
 edition = "2021"
@@ -45,5 +45,6 @@ png = "0.18"
 [target.'cfg(windows)'.dependencies]
 # 문서 검색 결과의 파일 아이콘을 탐색기에서 받아 온다(SHGetFileInfo·SHGetImageList).
 # HTML 도구 그림을 클립보드에 넣는다(DataExchange·Memory, 1.5.1 지역별 수치·학교 위치 지도 시각화).
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Storage_FileSystem", "Win32_System_DataExchange", "Win32_System_Memory"] }
+# PC 정보(1.5.2): 레지스트리·시스템 정보·디스크·네트워크·장치 목록·화면 배율을 읽는다(Registry 부터 HiDpi 까지).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Storage_FileSystem", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_System_Diagnostics_Debug", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_NetworkManagement_WNet", "Win32_Networking_WinSock", "Win32_Devices_DeviceAndDriverInstallation", "Win32_UI_HiDpi"] }
 

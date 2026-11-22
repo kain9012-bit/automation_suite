@@ -3,6 +3,7 @@ import {
   Clock3,
   FileSearch,
   Home,
+  Monitor,
   Settings,
   Star,
   Wrench,
@@ -114,6 +115,13 @@ export function Sidebar({
             collapsed={collapsed}
             active={isActive(activeView, { kind: "docsearch" })}
             onClick={() => onNavigate({ kind: "docsearch" })}
+          />
+          <NavigationButton
+            icon={Monitor}
+            label="PC 정보"
+            collapsed={collapsed}
+            active={isActive(activeView, { kind: "pcinfo" })}
+            onClick={() => onNavigate({ kind: "pcinfo" })}
           />
         </div>
 

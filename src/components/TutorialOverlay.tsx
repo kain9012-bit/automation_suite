@@ -23,7 +23,7 @@ const STEPS: TutorialStep[] = [
     view: "home",
     selector: '[data-tour="nav-main"]',
     title: "탐색 메뉴",
-    body: "홈, 별표로 모아 둔 즐겨찾기, 최근에 쓴 도구, 내 PC 문서를 찾는 문서 검색으로 바로 이동합니다.",
+    body: "홈, 별표로 모아 둔 즐겨찾기, 최근에 쓴 도구, 내 PC 문서를 찾는 문서 검색, 이 컴퓨터의 사양을 보는 PC 정보로 바로 이동합니다.",
   },
   {
     view: "home",

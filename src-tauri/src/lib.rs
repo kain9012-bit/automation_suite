@@ -4,6 +4,7 @@ mod desktop;
 mod docsearch;
 mod html_vendor;
 mod macro_deck;
+mod pcinfo;
 mod updates;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -419,6 +420,21 @@ fn copy_tool_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
         return Err("그림이 너무 커서 복사하지 않았습니다.".to_string());
     }
     clipboard_image::write_png_to_clipboard(&bytes)
+}
+
+/// PC 정보(1.5.2): 사이드바 'PC 정보' 화면을 열 때와 [다시 읽기] 때만 부른다(pcinfo.rs).
+/// 동기 명령은 메인 스레드에서 돌아 창이 잠깐 멈출 수 있어 다른 스레드에서 읽는다.
+#[tauri::command]
+async fn read_pc_info() -> Result<pcinfo::PcInfo, String> {
+    tauri::async_runtime::spawn_blocking(pcinfo::read)
+        .await
+        .map_err(|error| format!("PC 정보를 읽지 못했습니다: {error}"))
+}
+
+/// PC 정보의 [전체 복사]: 글을 클립보드에 넣는다.
+#[tauri::command]
+fn copy_pc_info(text: String) -> Result<(), String> {
+    pcinfo::copy_text(&text)
 }
 
 // ── 예전 탐색기 우클릭 메뉴 정리 ─────────────────────────────────────
@@ -909,6 +925,8 @@ pub fn run() {
             open_tool_in_browser,
             save_tool_download,
             copy_tool_image,
+            read_pc_info,
+            copy_pc_info,
             open_file_path,
             open_work_tools_board,
             reveal_path,

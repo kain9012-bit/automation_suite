@@ -1,0 +1,191 @@
+/* PC 정보(1.5.2): 사이드바 'PC 정보' 화면. 카드·버튼은 설정 화면과 같은 틀(index.css)을 쓴다. */
+
+.pcinfo-view {
+  padding: 38px 0 60px;
+}
+
+.pcinfo-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pcinfo-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.pcinfo-actions .secondary-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.pcinfo-error {
+  margin: -12px 0 12px;
+  color: var(--error);
+  font-size: 12px;
+}
+
+.pcinfo-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pcinfo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 11px;
+}
+
+.pcinfo-card {
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.pcinfo-card.wide {
+  grid-column: 1 / -1;
+}
+
+.pcinfo-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pcinfo-card h2 .setting-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.pcinfo-kv {
+  margin: 0;
+}
+
+.pcinfo-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  column-gap: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.pcinfo-row:first-child {
+  border-top: 0;
+}
+
+.pcinfo-row dt,
+.pcinfo-row dd {
+  margin: 0;
+  padding: 7px 0;
+  font-size: 12px;
+}
+
+.pcinfo-row dt {
+  color: var(--text-muted);
+}
+
+.pcinfo-row dd {
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pcinfo-row dd small {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pcinfo-row dd.mono {
+  font-family: Consolas, monospace;
+  font-weight: 500;
+}
+
+.pcinfo-bar {
+  height: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+}
+
+.pcinfo-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.pcinfo-bar i.is-warn {
+  background: var(--warning);
+}
+
+.pcinfo-drives {
+  display: grid;
+  gap: 10px;
+}
+
+.pcinfo-drive {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  font-size: 12px;
+}
+
+.pcinfo-drive + .pcinfo-drive {
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.pcinfo-drive b {
+  font-weight: 650;
+}
+
+.pcinfo-drive .line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pcinfo-drive .line b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pcinfo-drive .line span {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.pcinfo-drive .line em {
+  color: var(--text-primary);
+  font-style: normal;
+  font-weight: 650;
+}
+
+.pcinfo-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pcinfo-foot {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}

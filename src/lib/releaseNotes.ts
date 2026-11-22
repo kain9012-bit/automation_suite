@@ -22,6 +22,21 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.5.2",
+    added: [
+      {
+        tool: "PC 정보 (사이드바)",
+        items: [
+          "이 컴퓨터의 제조사·모델명, Windows 판·버전, CPU, 메모리, 디스크별 남은 공간, 그래픽 장치·화면 해상도·배율, IP·MAC 주소를 한 화면에 표시",
+          "화면을 열 때와 [다시 읽기]를 누를 때만 읽음(계속 감시하지 않음). 관리자 권한·인터넷 없이 PC 안에서만 읽음",
+          "[전체 복사]로 화면 내용을 글로 복사해 메신저·문의 글에 붙여넣기",
+          "남은 공간이 10% 아래인 디스크는 주황색 막대로 표시",
+        ],
+      },
+    ],
+    changed: [],
+  },
+  {
     version: "1.5.1",
     added: [
       {
