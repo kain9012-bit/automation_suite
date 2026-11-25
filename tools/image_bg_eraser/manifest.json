@@ -1,6 +1,6 @@
 {
   "id": "image_bg_eraser",
-  "name": "이미지 투명 배경 편집기",
+  "name": "투명 배경",
   "top_tab": "간단 도구",
   "type": "html",
   "entry": "web/index.html",

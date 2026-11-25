@@ -50,7 +50,7 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
           .catch((reason) => reply(false, reason instanceof Error ? reason.message : String(reason)));
         return;
       }
-      // 화면 캡처 편집기만: 화면 찍기·화면에 고정(1.5.3)
+      // 화면 캡처 도구만: 화면 찍기·화면에 고정(1.5.3)
       const capture = allowCapture ? readCaptureMessage(event.data) : null;
       if (capture) {
         const source = event.source as Window | null;

@@ -423,7 +423,7 @@ fn copy_tool_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
     clipboard_image::write_png_to_clipboard(&bytes)
 }
 
-/// 화면 캡처 편집기(1.5.3): 화면을 찍는다(capture/). 찍는 동안 JB업무ON 창을 숨겼다가 다시 띄운다.
+/// 화면 캡처 도구(1.5.3): 화면을 찍는다(capture/). 찍는 동안 JB업무ON 창을 숨겼다가 다시 띄운다.
 /// mode: "region" | "screen" | "scroll", delay: 기다릴 초(0~10). 사용자가 그만두면 빈 내용을 돌려준다.
 #[tauri::command]
 async fn capture_screen(app: AppHandle, mode: String, delay: u32) -> Result<tauri::ipc::Response, String> {
@@ -450,7 +450,7 @@ async fn capture_screen(app: AppHandle, mode: String, delay: u32) -> Result<taur
     result?.map(|png| tauri::ipc::Response::new(png.unwrap_or_default()))
 }
 
-/// 화면 캡처 편집기의 [화면에 고정]: 그림(PNG)을 항상 맨 위에 떠 있는 작은 창으로 띄운다(capture/).
+/// 화면 캡처 도구의 [화면에 고정]: 그림(PNG)을 항상 맨 위에 떠 있는 작은 창으로 띄운다(capture/).
 #[tauri::command]
 fn pin_capture_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
     let bytes: Vec<u8> = match request.body() {

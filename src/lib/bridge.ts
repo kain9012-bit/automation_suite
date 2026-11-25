@@ -43,13 +43,13 @@ export async function copyToolImage(bytes: ArrayBuffer): Promise<void> {
   return invoke<void>("copy_tool_image", new Uint8Array(bytes));
 }
 
-/** 화면 캡처 편집기(1.5.3): 화면을 찍어 PNG 를 받는다. 사용자가 그만두면 빈 내용(길이 0). */
+/** 화면 캡처 도구(1.5.3): 화면을 찍어 PNG 를 받는다. 사용자가 그만두면 빈 내용(길이 0). */
 export async function captureScreen(mode: string, delay: number): Promise<ArrayBuffer> {
   if (!isTauri()) throw new Error("화면 캡처는 설치된 앱에서 사용할 수 있습니다.");
   return invoke<ArrayBuffer>("capture_screen", { mode, delay });
 }
 
-/** 화면 캡처 편집기의 [화면에 고정]: 그림을 항상 맨 위에 떠 있는 작은 창으로 띄운다. */
+/** 화면 캡처 도구의 [화면에 고정]: 그림을 항상 맨 위에 떠 있는 작은 창으로 띄운다. */
 export async function pinCaptureImage(bytes: ArrayBuffer): Promise<void> {
   if (!isTauri()) throw new Error("화면에 고정은 설치된 앱에서 사용할 수 있습니다.");
   return invoke<void>("pin_capture_image", new Uint8Array(bytes));

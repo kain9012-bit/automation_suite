@@ -1,6 +1,6 @@
 {
   "id": "screen_capture",
-  "name": "화면 캡처 편집기",
+  "name": "화면 캡처",
   "top_tab": "간단 도구",
   "type": "html",
   "entry": "web/index.html",
