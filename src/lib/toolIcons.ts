@@ -10,6 +10,7 @@ import {
   Combine,
   Copy,
   Dices,
+  Eraser,
   Diff,
   EyeOff,
   FileOutput,
@@ -120,6 +121,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   text_compare_tool: Diff,
   word_cloud_generator: Cloud,
   qr_code_generator: QrCode,
+  image_bg_eraser: Eraser,
 };
 
 export function toolIcon(tool: { id: string; top_tab: string }): LucideIcon {

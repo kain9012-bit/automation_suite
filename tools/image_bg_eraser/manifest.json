@@ -1,0 +1,24 @@
+{
+  "id": "image_bg_eraser",
+  "name": "이미지 투명 배경 편집기",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "그림의 바탕을 투명하게 지워 PNG로 저장하거나 복사합니다.",
+  "order": 60,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "투명",
+    "배경",
+    "바탕",
+    "지우기",
+    "직인",
+    "도장",
+    "로고",
+    "누끼",
+    "PNG",
+    "그림"
+  ]
+}
