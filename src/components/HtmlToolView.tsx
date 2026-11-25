@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ExternalLink, FolderOpen, LoaderCircle, RotateCw, X } from "lucide-react";
-import { copyToolImage, openFilePath, openToolInBrowser, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
-import { COPY_IMAGE_RESULT, injectDownloadBridge, readCopyImageMessage, readDownloadMessage } from "../lib/htmlToolDownload";
+import { captureScreen, copyToolImage, openFilePath, openToolInBrowser, pinCaptureImage, readToolHtml, revealPath, saveToolDownload } from "../lib/bridge";
+import {
+  CAPTURE_RESULT,
+  CAPTURE_TOOL_ID,
+  COPY_IMAGE_RESULT,
+  PIN_RESULT,
+  injectDownloadBridge,
+  readCaptureMessage,
+  readCopyImageMessage,
+  readDownloadMessage,
+  readPinMessage,
+} from "../lib/htmlToolDownload";
 import type { ToolManifest } from "../types";
 
 export function HtmlToolView({ tool }: { tool: ToolManifest }) {
@@ -24,6 +34,8 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
   };
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
+  const allowCapture = tool.id === CAPTURE_TOOL_ID;
+
   // 도구 안의 내려받기 링크를 가로챈 내용이 오면 '다운로드' 폴더에 저장한다(src/lib/htmlToolDownload.ts).
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -36,6 +48,27 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
         void copyToolImage(copy.bytes)
           .then(() => reply(true))
           .catch((reason) => reply(false, reason instanceof Error ? reason.message : String(reason)));
+        return;
+      }
+      // 화면 캡처 편집기만: 화면 찍기·화면에 고정(1.5.3)
+      const capture = allowCapture ? readCaptureMessage(event.data) : null;
+      if (capture) {
+        const source = event.source as Window | null;
+        void captureScreen(capture.mode, capture.delay)
+          .then((bytes) => source?.postMessage({ type: CAPTURE_RESULT, id: capture.id, ok: true, bytes }, "*", [bytes]))
+          .catch((reason) =>
+            source?.postMessage({ type: CAPTURE_RESULT, id: capture.id, ok: false, error: reason instanceof Error ? reason.message : String(reason) }, "*"),
+          );
+        return;
+      }
+      const pin = allowCapture ? readPinMessage(event.data) : null;
+      if (pin) {
+        const source = event.source as Window | null;
+        void pinCaptureImage(pin.bytes)
+          .then(() => source?.postMessage({ type: PIN_RESULT, id: pin.id, ok: true }, "*"))
+          .catch((reason) =>
+            source?.postMessage({ type: PIN_RESULT, id: pin.id, ok: false, error: reason instanceof Error ? reason.message : String(reason) }, "*"),
+          );
         return;
       }
       const download = readDownloadMessage(event.data);
@@ -55,7 +88,7 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [allowCapture]);
 
   useEffect(() => {
     setSaved("");
@@ -86,7 +119,7 @@ export function HtmlToolView({ tool }: { tool: ToolManifest }) {
     };
   }, [tool.id, reloadKey]);
 
-  const frameHtml = useMemo(() => injectDownloadBridge(html), [html]);
+  const frameHtml = useMemo(() => injectDownloadBridge(html, allowCapture), [html, allowCapture]);
 
   const sandbox = useMemo(
     () =>

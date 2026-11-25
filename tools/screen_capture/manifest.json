@@ -1,0 +1,25 @@
+{
+  "id": "screen_capture",
+  "name": "화면 캡처 편집기",
+  "top_tab": "간단 도구",
+  "type": "html",
+  "entry": "web/index.html",
+  "icon": "",
+  "description": "화면을 찍고 번호·화살표·글상자·가리기를 넣어 복사하거나 저장합니다.",
+  "order": 70,
+  "enabled": true,
+  "version": "1.0.0",
+  "keywords": [
+    "캡처",
+    "화면",
+    "스크린샷",
+    "캡쳐",
+    "스크롤",
+    "번호",
+    "화살표",
+    "모자이크",
+    "가리기",
+    "말풍선",
+    "고정"
+  ]
+}

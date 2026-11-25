@@ -1,4 +1,5 @@
 mod board_update;
+mod capture;
 mod clipboard_image;
 mod desktop;
 mod docsearch;
@@ -420,6 +421,51 @@ fn copy_tool_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
         return Err("그림이 너무 커서 복사하지 않았습니다.".to_string());
     }
     clipboard_image::write_png_to_clipboard(&bytes)
+}
+
+/// 화면 캡처 편집기(1.5.3): 화면을 찍는다(capture/). 찍는 동안 JB업무ON 창을 숨겼다가 다시 띄운다.
+/// mode: "region" | "screen" | "scroll", delay: 기다릴 초(0~10). 사용자가 그만두면 빈 내용을 돌려준다.
+#[tauri::command]
+async fn capture_screen(app: AppHandle, mode: String, delay: u32) -> Result<tauri::ipc::Response, String> {
+    let mode = capture::Mode::parse(&mode)?;
+    let window = app.get_webview_window("main");
+    if let Some(window) = &window {
+        let _ = window.hide();
+    }
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        // 창이 사라지는 효과가 끝난 화면을 찍는다
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        capture::capture(mode, delay)
+    })
+    .await
+    .map_err(|error| format!("화면을 찍지 못했습니다: {error}"));
+    if let Some(window) = &window {
+        let _ = window.show();
+        let _ = window.unminimize();
+        // Windows 는 뒤에 있던 앱이 포커스를 가져가는 것을 막는다. 맨 앞으로 올린 뒤 포커스를 준다.
+        let _ = window.set_always_on_top(true);
+        let _ = window.set_always_on_top(false);
+        let _ = window.set_focus();
+    }
+    result?.map(|png| tauri::ipc::Response::new(png.unwrap_or_default()))
+}
+
+/// 화면 캡처 편집기의 [화면에 고정]: 그림(PNG)을 항상 맨 위에 떠 있는 작은 창으로 띄운다(capture/).
+#[tauri::command]
+fn pin_capture_image(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let bytes: Vec<u8> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
+        tauri::ipc::InvokeBody::Json(Value::Array(items)) => items
+            .iter()
+            .map(|v| v.as_u64().filter(|n| *n <= 255).map(|n| n as u8))
+            .collect::<Option<Vec<u8>>>()
+            .ok_or_else(|| "고정할 그림 내용이 올바르지 않습니다.".to_string())?,
+        _ => return Err("고정할 그림이 없습니다.".to_string()),
+    };
+    if bytes.len() > TOOL_DOWNLOAD_MAX_BYTES {
+        return Err("그림이 너무 커서 고정하지 않았습니다.".to_string());
+    }
+    capture::pin(bytes)
 }
 
 /// PC 정보(1.5.2): 사이드바 'PC 정보' 화면을 열 때와 [다시 읽기] 때만 부른다(pcinfo.rs).
@@ -925,6 +971,8 @@ pub fn run() {
             open_tool_in_browser,
             save_tool_download,
             copy_tool_image,
+            capture_screen,
+            pin_capture_image,
             read_pc_info,
             copy_pc_info,
             open_file_path,

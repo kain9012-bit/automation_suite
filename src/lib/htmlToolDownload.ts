@@ -15,11 +15,21 @@
  * 그림 복사(1.5.1): 도구가 `window.__jbeduCopyImage(pngBlob)` 를 부르면 앱이 클립보드에 직접 넣는다
  * (Rust `copy_tool_image`). 브라우저 복사로는 투명한 곳이 한글에서 검게 붙기 때문이다.
  * 이 함수는 앱 안에서만 있으므로, 도구는 함수가 없으면(새 창·브라우저) 원래 방식으로 복사한다.
+ *
+ * 화면 캡처(1.5.3): 화면 캡처 편집기에만 `window.__jbeduCaptureScreen({ mode, delay })`(찍은 PNG Blob, 그만두면 null)와
+ * `window.__jbeduPinImage(pngBlob)`(화면에 고정)을 더한다(Rust `capture_screen`·`pin_capture_image`).
+ * 다른 도구에는 넣지 않는다(화면을 찍을 수 없다).
  */
 
 export const DOWNLOAD_MESSAGE = "jbedu-tool-download";
 export const COPY_IMAGE_MESSAGE = "jbedu-tool-copy-image";
 export const COPY_IMAGE_RESULT = "jbedu-tool-copy-image-result";
+export const CAPTURE_MESSAGE = "jbedu-tool-capture";
+export const CAPTURE_RESULT = "jbedu-tool-capture-result";
+export const PIN_MESSAGE = "jbedu-tool-pin";
+export const PIN_RESULT = "jbedu-tool-pin-result";
+/** 화면 캡처를 쓸 수 있는 도구 */
+export const CAPTURE_TOOL_ID = "screen_capture";
 
 const BRIDGE = `(function () {
   if (window.__jbeduDownloadBridge) return;
@@ -97,10 +107,44 @@ const BRIDGE = `(function () {
   });
 })();`;
 
+const CAPTURE_BRIDGE = `(function () {
+  if (window.__jbeduCaptureScreen) return;
+  var waiting = {};
+  var seq = 0;
+  function ask(message, transfer) {
+    return new Promise(function (resolve, reject) {
+      var id = ++seq;
+      waiting[id] = { resolve: resolve, reject: reject };
+      message.id = id;
+      window.parent.postMessage(message, "*", transfer || []);
+    });
+  }
+  window.__jbeduCaptureScreen = function (options) {
+    options = options || {};
+    return ask({ type: "${CAPTURE_MESSAGE}", mode: String(options.mode || "region"), delay: Number(options.delay) || 0 });
+  };
+  window.__jbeduPinImage = function (blob) {
+    return blob.arrayBuffer().then(function (buffer) {
+      return ask({ type: "${PIN_MESSAGE}", bytes: buffer }, [buffer]);
+    });
+  };
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (event.source !== window.parent || !data || !waiting[data.id]) return;
+    if (data.type !== "${CAPTURE_RESULT}" && data.type !== "${PIN_RESULT}") return;
+    var w = waiting[data.id];
+    delete waiting[data.id];
+    if (!data.ok) { w.reject(new Error(data.error || "화면을 찍지 못했습니다.")); return; }
+    if (data.type === "${PIN_RESULT}") { w.resolve(); return; }
+    w.resolve(data.bytes && data.bytes.byteLength ? new Blob([data.bytes], { type: "image/png" }) : null);
+  });
+})();`;
+
 /** 도구 HTML 의 <head> 바로 뒤(없으면 <html> 뒤, 그것도 없으면 맨 앞)에 내려받기 가로채기를 끼운다.
- *  <!doctype> 앞에 넣으면 문서가 호환 모드로 바뀌므로 그 뒤에 넣는다. */
-export function injectDownloadBridge(html: string): string {
-  const script = `<script>${BRIDGE}</script>`;
+ *  <!doctype> 앞에 넣으면 문서가 호환 모드로 바뀌므로 그 뒤에 넣는다.
+ *  allowCapture: 화면 캡처 편집기에만 화면 찍기·화면에 고정 연결을 더한다. */
+export function injectDownloadBridge(html: string, allowCapture = false): string {
+  const script = `<script>${BRIDGE}${allowCapture ? CAPTURE_BRIDGE : ""}</script>`;
   for (const pattern of [/<head(\s[^>]*)?>/i, /<html(\s[^>]*)?>/i, /<!doctype[^>]*>/i]) {
     const match = pattern.exec(html);
     if (match) {
@@ -124,5 +168,21 @@ export function readCopyImageMessage(data: unknown): { id: number; bytes: ArrayB
   if (!data || typeof data !== "object") return null;
   const message = data as { type?: unknown; id?: unknown; bytes?: unknown };
   if (message.type !== COPY_IMAGE_MESSAGE || typeof message.id !== "number" || !(message.bytes instanceof ArrayBuffer)) return null;
+  return { id: message.id, bytes: message.bytes };
+}
+
+/** 화면 찍기 요청인지와 그 내용. */
+export function readCaptureMessage(data: unknown): { id: number; mode: string; delay: number } | null {
+  if (!data || typeof data !== "object") return null;
+  const message = data as { type?: unknown; id?: unknown; mode?: unknown; delay?: unknown };
+  if (message.type !== CAPTURE_MESSAGE || typeof message.id !== "number") return null;
+  return { id: message.id, mode: typeof message.mode === "string" ? message.mode : "region", delay: typeof message.delay === "number" ? message.delay : 0 };
+}
+
+/** 화면에 고정 요청인지와 그 내용(PNG 바이트). */
+export function readPinMessage(data: unknown): { id: number; bytes: ArrayBuffer } | null {
+  if (!data || typeof data !== "object") return null;
+  const message = data as { type?: unknown; id?: unknown; bytes?: unknown };
+  if (message.type !== PIN_MESSAGE || typeof message.id !== "number" || !(message.bytes instanceof ArrayBuffer)) return null;
   return { id: message.id, bytes: message.bytes };
 }

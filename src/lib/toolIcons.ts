@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   Calculator,
   CalendarDays,
+  Camera,
   ChartColumn,
   ClipboardList,
   Cloud,
@@ -122,6 +123,7 @@ export const TOOL_ICONS: Record<string, LucideIcon> = {
   word_cloud_generator: Cloud,
   qr_code_generator: QrCode,
   image_bg_eraser: Eraser,
+  screen_capture: Camera,
 };
 
 export function toolIcon(tool: { id: string; top_tab: string }): LucideIcon {
