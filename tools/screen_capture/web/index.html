@@ -58,14 +58,14 @@
     .tb-field select{height:var(--h);}
     .body{position:relative;display:flex;flex:1 1 auto;min-height:0;}
     .side{position:relative;z-index:20;flex:0 0 auto;display:flex;flex-direction:column;gap:8px;padding:8px;border-right:1px solid var(--border);background:var(--head-bg);overflow-y:auto;}
-    .tools{display:grid;grid-template-columns:repeat(2,48px);gap:3px;}
+    .tools{display:grid;grid-template-columns:88px;gap:2px;}
     .tsep{grid-column:1/-1;height:1px;background:var(--border);margin:3px 2px;}
-    .tool{position:relative;width:48px;height:44px;border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;}
-    .tool b{font-size:15px;line-height:1;}
+    .tool{position:relative;width:88px;height:28px;border:1px solid transparent;border-radius:var(--radius);background:transparent;color:var(--ink);cursor:pointer;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:7px;padding:0 8px;font-size:12px;}
+    .tool b{font-size:15px;line-height:1;width:16px;text-align:center;}
     .tool:hover{background:#fff;border-color:var(--border);}
     .tool.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600;}
     .tool.has-sel::after{content:"";position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--brand);}
-    .side-actions{display:grid;grid-template-columns:repeat(2,48px);gap:3px;margin-top:auto;}
+    .side-actions{display:grid;grid-template-columns:repeat(2,43px);gap:2px;margin-top:auto;}
     .side-actions .btn{padding:0;}
     .side-actions .wide{grid-column:1/-1;}
     .pop{position:absolute;top:8px;left:120px;z-index:30;width:max-content;max-width:min(560px,calc(100% - 140px));display:flex;flex-direction:column;background:#fff;border:1px solid var(--brand-line);border-radius:var(--radius);box-shadow:0 14px 34px rgba(15,23,42,.18);padding:4px 12px 8px;}
@@ -177,7 +177,7 @@
         </div>
       </div>
 
-      <!-- 왼쪽: 표시 도구(두 줄 아이콘) · 오른쪽: 그림 -->
+      <!-- 왼쪽: 표시 도구(한 줄, 아이콘 옆 글자) · 오른쪽: 그림 -->
       <div class="body" id="body">
       <div class="side">
         <div class="tools" id="tools" data-tour="tools">
