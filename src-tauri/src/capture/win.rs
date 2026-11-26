@@ -28,7 +28,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
-    EnumWindows, GetAncestor, GetClientRect, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongPtrW,
+    EnumChildWindows, EnumWindows, GetAncestor, GetClassNameW, GetClientRect, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongPtrW,
     GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, KillTimer, LoadCursorW, PeekMessageW,
     PostQuitMessage, RegisterClassW, SetCursor, SetCursorPos, SetForegroundWindow, SetTimer, SetWindowDisplayAffinity,
     SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage, WindowFromPoint, CS_DBLCLKS,
@@ -275,7 +275,7 @@ unsafe fn free_dc((dc, bmp, old): (HDC, HBITMAP, HGDIOBJ)) {
 // ── 보이는 창 목록(누르기만 하면 그 창을 고른다) ─────────────────────
 
 unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> windows_sys::core::BOOL {
-    let list = &mut *(lparam as *mut Vec<RECT>);
+    let list = &mut *(lparam as *mut Vec<(HWND, RECT)>);
     if IsWindowVisible(hwnd) == 0 || IsIconic(hwnd) != 0 {
         return 1;
     }
@@ -294,16 +294,104 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> windows_
         GetWindowRect(hwnd, &mut r);
     }
     if width(&r) >= 40 && height(&r) >= 30 {
+        list.push((hwnd, r));
+    }
+    1
+}
+
+unsafe extern "system" fn collect_child(hwnd: HWND, lparam: LPARAM) -> windows_sys::core::BOOL {
+    let list = &mut *(lparam as *mut Vec<RECT>);
+    if IsWindowVisible(hwnd) != 0 {
+        let mut r: RECT = zeroed();
+        GetWindowRect(hwnd, &mut r);
         list.push(r);
     }
     1
 }
 
-/// 화면에 보이는 창의 테두리(위에 있는 창부터)
-fn visible_windows() -> Vec<RECT> {
-    let mut list: Vec<RECT> = Vec::new();
+fn class_name(hwnd: HWND) -> String {
+    let mut buf = [0u16; 128];
+    let n = unsafe { GetClassNameW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
+    String::from_utf16_lossy(&buf[..n.max(0) as usize])
+}
+
+/// 창 안의 칸들: 자식 창(한글의 문서 칸 등)과, 자식 창으로 나뉘지 않는 브라우저·엑셀은 UI 자동화로 찾은 칸
+/// (엣지·크롬의 웹 페이지 칸 MultiContentsView, 엑셀의 시트 표 XLSpreadsheetGrid — 사용자 PC에서 확인).
+fn window_parts(hwnd: HWND, frame: &RECT) -> Vec<RECT> {
+    let mut parts: Vec<RECT> = Vec::new();
+    unsafe { EnumChildWindows(hwnd, Some(collect_child), &mut parts as *mut _ as LPARAM) };
+    let class = class_name(hwnd);
+    if class == "Chrome_WidgetWin_1" || class == "XLMAIN" {
+        parts.extend(uia_parts(hwnd, &class));
+    }
+    let frame_area = width(frame) as i64 * height(frame) as i64;
+    let mut parts: Vec<RECT> = parts
+        .into_iter()
+        .filter_map(|r| intersect(&r, frame))
+        .filter(|r| width(r) >= 40 && height(r) >= 30 && (width(r) as i64 * height(r) as i64) * 100 < frame_area * 97)
+        .collect();
+    parts.sort_by_key(|r| width(r) as i64 * height(r) as i64);
+    parts.dedup_by(|a, b| a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom);
+    parts
+}
+
+/// UI 자동화로 브라우저의 웹 페이지 칸·엑셀의 시트 표 칸을 찾는다. 응답이 늦은 프로그램에 붙잡히지 않게 0.8초만 기다린다.
+fn uia_parts(hwnd: HWND, class: &str) -> Vec<RECT> {
+    use windows::core::{Interface, BSTR};
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+    use windows::Win32::System::Variant::{VariantClear, VARIANT, VT_BSTR};
+    use windows::Win32::UI::Accessibility::{
+        CUIAutomation, IUIAutomation, IUIAutomation2, TreeScope_Descendants, UIA_ClassNamePropertyId,
+    };
+    let mut out = Vec::new();
+    let Ok(uia) = (unsafe { CoCreateInstance::<_, IUIAutomation>(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }) else {
+        return out;
+    };
+    if let Ok(u2) = uia.cast::<IUIAutomation2>() {
+        unsafe {
+            let _ = u2.SetConnectionTimeout(800);
+            let _ = u2.SetTransactionTimeout(800);
+        }
+    }
+    let Ok(root) = (unsafe { uia.ElementFromHandle(windows::Win32::Foundation::HWND(hwnd)) }) else {
+        return out;
+    };
+    let names: &[&str] = if class == "XLMAIN" { &["XLSpreadsheetGrid"] } else { &["MultiContentsView"] };
+    for name in names {
+        let mut value = VARIANT::default();
+        unsafe {
+            (*value.Anonymous.Anonymous).vt = VT_BSTR;
+            (*value.Anonymous.Anonymous).Anonymous.bstrVal = std::mem::ManuallyDrop::new(BSTR::from(*name));
+        }
+        let cond = unsafe { uia.CreatePropertyCondition(UIA_ClassNamePropertyId, &value) };
+        unsafe {
+            let _ = VariantClear(&mut value);
+        }
+        let Ok(cond) = cond else {
+            continue;
+        };
+        if let Ok(el) = unsafe { root.FindFirst(TreeScope_Descendants, &cond) } {
+            if let Ok(r) = unsafe { el.CurrentBoundingRectangle() } {
+                out.push(RECT { left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+            }
+        }
+    }
+    out
+}
+
+/// 화면에 보이는 창(위에 있는 창부터). 창마다 고를 수 있는 곳을 작은 것부터 담고, 맨 끝은 창 전체.
+fn visible_windows() -> Vec<Vec<RECT>> {
+    let mut list: Vec<(HWND, RECT)> = Vec::new();
     unsafe { EnumWindows(Some(collect_window), &mut list as *mut _ as LPARAM) };
-    list
+    list.into_iter()
+        .enumerate()
+        .map(|(i, (hwnd, frame))| {
+            // 맨 위쪽 창 몇 개만 안쪽 칸까지 찾는다(나머지는 거의 가려져 있다)
+            let mut parts = if i < 12 { window_parts(hwnd, &frame) } else { Vec::new() };
+            parts.push(frame);
+            parts
+        })
+        .collect()
 }
 
 // ── 영역 고르기 덮개 창 ───────────────────────────────────────────
@@ -314,8 +402,12 @@ struct Overlay {
     bright: (HDC, HBITMAP, HGDIOBJ),
     dim: (HDC, HBITMAP, HGDIOBJ),
     back: Option<(HDC, HBITMAP, HGDIOBJ)>,
-    /// 덮개 창 좌표(왼쪽 위 = 가상 화면 왼쪽 위)
-    windows: Vec<RECT>,
+    /// 덮개 창 좌표(왼쪽 위 = 가상 화면 왼쪽 위). 창마다 고를 수 있는 곳(작은 것부터, 끝은 창 전체)
+    windows: Vec<Vec<RECT>>,
+    /// 휠로 고른 넓이(0 = 가장 안쪽 칸)
+    level: usize,
+    /// 마우스 아래 후보가 바뀌면 level 을 0 으로 되돌린다
+    level_key: (usize, usize),
     monitors_hint: Vec<u16>,
     /// 끌어서 고르지 않고 누르기만 한다(전체 화면: 모니터 고르기)
     pick_only: bool,
@@ -337,11 +429,20 @@ impl Overlay {
     fn dragged(&self) -> bool {
         !self.pick_only && self.start.is_some_and(|s| (s.x - self.cur.x).abs() >= 4 || (s.y - self.cur.y).abs() >= 4)
     }
-    /// 끌지 않았을 때 고를 곳: 마우스 아래의 창, 없으면 그 모니터
+    /// 마우스 아래 창의 후보들(작은 것부터)과 그 창의 번호
+    fn candidates(&self) -> Option<(usize, Vec<RECT>)> {
+        let (i, parts) = self
+            .windows
+            .iter()
+            .enumerate()
+            .find(|(_, parts)| parts.last().is_some_and(|f| contains(f, self.cur.x, self.cur.y)))?;
+        Some((i, parts.iter().filter(|r| contains(r, self.cur.x, self.cur.y)).copied().collect()))
+    }
+    /// 끌지 않았을 때 고를 곳: 마우스 아래의 가장 안쪽 칸(휠로 넓히기), 창이 없으면 그 모니터
     fn hover_rect(&self, origin: POINT) -> RECT {
         let all = RECT { left: 0, top: 0, right: self.w, bottom: self.h };
-        if let Some(r) = self.windows.iter().find(|r| contains(r, self.cur.x, self.cur.y)) {
-            if let Some(r) = intersect(r, &all) {
+        if let Some((_, list)) = self.candidates() {
+            if let Some(r) = list.get(self.level.min(list.len().saturating_sub(1))).and_then(|r| intersect(r, &all)) {
                 return r;
             }
         }
@@ -460,6 +561,23 @@ unsafe extern "system" fn overlay_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
         }
         WM_MOUSEMOVE => {
             st.cur = POINT { x: lo(lparam), y: hi(lparam) };
+            let key = st.candidates().map(|(i, list)| (i, list.len())).unwrap_or((usize::MAX, 0));
+            if key != st.level_key {
+                st.level_key = key;
+                st.level = 0;
+            }
+            InvalidateRect(hwnd, null(), 0);
+            0
+        }
+        WM_MOUSEWHEEL => {
+            // 휠 위로: 넓게(안쪽 칸 → 창 전체), 아래로: 좁게
+            let delta = ((wparam >> 16) & 0xFFFF) as u16 as i16;
+            let count = st.candidates().map(|(_, list)| list.len()).unwrap_or(1);
+            if delta > 0 {
+                st.level = (st.level + 1).min(count.saturating_sub(1));
+            } else if delta < 0 {
+                st.level = st.level.saturating_sub(1);
+            }
             InvalidateRect(hwnd, null(), 0);
             0
         }
@@ -500,7 +618,7 @@ unsafe extern "system" fn overlay_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
 }
 
 /// 멈춘 화면(frozen, 가상 화면 전체)을 덮어 영역을 고르게 한다. 고른 곳(실제 화면 좌표) 또는 취소면 None.
-fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<RECT>, hint: &str, pick_only: bool) -> Result<Option<RECT>, String> {
+fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<Vec<RECT>>, hint: &str, pick_only: bool) -> Result<Option<RECT>, String> {
     let (w, h) = (width(vs), height(vs));
     let dimmed: Vec<u8> = frozen
         .chunks_exact(4)
@@ -548,8 +666,15 @@ fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<RECT>, hint: &str, pick_
             back: None,
             windows: windows
                 .into_iter()
-                .map(|r| RECT { left: r.left - origin.x, top: r.top - origin.y, right: r.right - origin.x, bottom: r.bottom - origin.y })
+                .map(|parts| {
+                    parts
+                        .into_iter()
+                        .map(|r| RECT { left: r.left - origin.x, top: r.top - origin.y, right: r.right - origin.x, bottom: r.bottom - origin.y })
+                        .collect()
+                })
                 .collect(),
+            level: 0,
+            level_key: (usize::MAX, 0),
             monitors_hint: wide(hint),
             pick_only,
             start: None,
@@ -860,6 +985,16 @@ fn scroll_capture(r: RECT) -> Result<Option<Vec<u8>>, String> {
 
 pub fn capture(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
     unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
+    // UI 자동화(브라우저·엑셀 칸 찾기)를 쓰려면 이 스레드에서 COM 을 켠다
+    let com = unsafe { windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED) }.is_ok();
+    let result = capture_inner(mode, delay);
+    if com {
+        unsafe { windows::Win32::System::Com::CoUninitialize() };
+    }
+    result
+}
+
+fn capture_inner(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
     if delay > 0 && !countdown(delay) {
         return Ok(None);
     }
@@ -874,7 +1009,7 @@ pub fn capture(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
             // 모니터가 둘 이상이면 찍을 모니터를 누르게 한다(마우스가 JB업무ON 단추 위에 있어 그 모니터만 찍히지 않게)
             let vs = virtual_screen();
             let frozen = grab(&vs)?;
-            let Some(mon) = select_region(&frozen, &vs, list, "찍을 모니터를 누르세요 · Esc 취소", true)? else {
+            let Some(mon) = select_region(&frozen, &vs, list.into_iter().map(|m| vec![m]).collect(), "찍을 모니터를 누르세요 · Esc 취소", true)? else {
                 return Ok(None);
             };
             let local = RECT { left: mon.left - vs.left, top: mon.top - vs.top, right: mon.right - vs.left, bottom: mon.bottom - vs.top };
@@ -886,9 +1021,9 @@ pub fn capture(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
             let windows = visible_windows();
             let frozen = grab(&vs)?;
             let hint = if mode == Mode::Scroll {
-                "스크롤할 영역을 끌어서 고르세요 · 창을 누르면 그 창 · Esc 취소"
+                "스크롤할 곳을 끌어서 고르거나 누르세요 · 휠: 넓게·좁게 · Esc 취소"
             } else {
-                "끌어서 영역을 고르세요 · 창을 누르면 그 창 · Esc 취소"
+                "끌어서 영역을 고르거나 누르세요(누른 곳의 칸·창) · 휠: 넓게·좁게 · Esc 취소"
             };
             let Some(sel) = select_region(&frozen, &vs, windows, hint, false)? else {
                 return Ok(None);

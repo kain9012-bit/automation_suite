@@ -43,6 +43,8 @@ encoding_rs = "0.8"
 png = "0.18"
 
 [target.'cfg(windows)'.dependencies]
+# 화면 캡처 도구(1.5.3): 브라우저의 웹 페이지 칸·엑셀의 시트 표 칸을 UI 자동화로 찾는다(자식 창으로 나뉘지 않아서).
+windows = { version = "0.62", features = ["Win32_UI_Accessibility", "Win32_System_Com", "Win32_System_Variant", "Win32_System_Ole", "Win32_Foundation"] }
 # 문서 검색 결과의 파일 아이콘을 탐색기에서 받아 온다(SHGetFileInfo·SHGetImageList).
 # HTML 도구 그림을 클립보드에 넣는다(DataExchange·Memory, 1.5.1 지역별 수치·학교 위치 지도 시각화).
 # PC 정보(1.5.2): 레지스트리·시스템 정보·디스크·네트워크·장치 목록·화면 배율을 읽는다(Registry 부터 HiDpi 까지).
