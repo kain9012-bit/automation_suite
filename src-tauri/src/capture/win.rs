@@ -12,10 +12,10 @@ use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM}
 use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS};
 use windows_sys::Win32::Graphics::Gdi::{
     BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateSolidBrush,
-    DeleteDC, DeleteObject, DrawTextW, EndPaint, FillRect, GetDC, GetDIBits, GetMonitorInfoW, InvalidateRect,
+    DeleteDC, DeleteObject, DrawTextW, EndPaint, EnumDisplayMonitors, FillRect, GetDC, GetDIBits, GetMonitorInfoW, InvalidateRect,
     MonitorFromPoint, ReleaseDC, SelectObject, SetBkMode, SetBrushOrgEx, SetStretchBltMode, SetTextColor, StretchBlt,
     BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, DT_CALCRECT, DT_CENTER, DT_NOPREFIX,
-    DT_SINGLELINE, DT_VCENTER, HALFTONE, HBITMAP, HDC, HFONT, HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    DT_SINGLELINE, DT_VCENTER, HALFTONE, HBITMAP, HDC, HFONT, HGDIOBJ, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST,
     PAINTSTRUCT, SRCCOPY, TRANSPARENT,
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -146,6 +146,21 @@ fn monitor_at(pt: POINT) -> (RECT, RECT) {
         GetMonitorInfoW(mon, &mut info);
         (info.rcMonitor, info.rcWork)
     }
+}
+
+unsafe extern "system" fn collect_monitor(_mon: HMONITOR, _dc: HDC, rect: *mut RECT, lparam: LPARAM) -> windows_sys::core::BOOL {
+    let list = &mut *(lparam as *mut Vec<RECT>);
+    if !rect.is_null() {
+        list.push(*rect);
+    }
+    1
+}
+
+/// 연결된 모니터들(실제 화면 점 좌표)
+fn monitors() -> Vec<RECT> {
+    let mut list: Vec<RECT> = Vec::new();
+    unsafe { EnumDisplayMonitors(null_mut(), null(), Some(collect_monitor), &mut list as *mut _ as LPARAM) };
+    list
 }
 
 fn virtual_screen() -> RECT {
@@ -302,6 +317,8 @@ struct Overlay {
     /// 덮개 창 좌표(왼쪽 위 = 가상 화면 왼쪽 위)
     windows: Vec<RECT>,
     monitors_hint: Vec<u16>,
+    /// 끌어서 고르지 않고 누르기만 한다(전체 화면: 모니터 고르기)
+    pick_only: bool,
     start: Option<POINT>,
     cur: POINT,
     result: Option<RECT>,
@@ -318,7 +335,7 @@ impl Overlay {
         intersect(&RECT { left: l, top: t, right: r, bottom: b }, &all)
     }
     fn dragged(&self) -> bool {
-        self.start.is_some_and(|s| (s.x - self.cur.x).abs() >= 4 || (s.y - self.cur.y).abs() >= 4)
+        !self.pick_only && self.start.is_some_and(|s| (s.x - self.cur.x).abs() >= 4 || (s.y - self.cur.y).abs() >= 4)
     }
     /// 끌지 않았을 때 고를 곳: 마우스 아래의 창, 없으면 그 모니터
     fn hover_rect(&self, origin: POINT) -> RECT {
@@ -483,7 +500,7 @@ unsafe extern "system" fn overlay_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpa
 }
 
 /// 멈춘 화면(frozen, 가상 화면 전체)을 덮어 영역을 고르게 한다. 고른 곳(실제 화면 좌표) 또는 취소면 None.
-fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<RECT>, hint: &str) -> Result<Option<RECT>, String> {
+fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<RECT>, hint: &str, pick_only: bool) -> Result<Option<RECT>, String> {
     let (w, h) = (width(vs), height(vs));
     let dimmed: Vec<u8> = frozen
         .chunks_exact(4)
@@ -534,6 +551,7 @@ fn select_region(frozen: &[u8], vs: &RECT, windows: Vec<RECT>, hint: &str) -> Re
                 .map(|r| RECT { left: r.left - origin.x, top: r.top - origin.y, right: r.right - origin.x, bottom: r.bottom - origin.y })
                 .collect(),
             monitors_hint: wide(hint),
+            pick_only,
             start: None,
             cur: POINT { x: pt.x - origin.x, y: pt.y - origin.y },
             result: None,
@@ -847,9 +865,21 @@ pub fn capture(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
     }
     match mode {
         Mode::Screen => {
-            let (mon, _) = monitor_at_cursor();
-            let shot = grab(&mon)?;
-            super::encode_png(width(&mon) as usize, height(&mon) as usize, &shot).map(Some)
+            let list = monitors();
+            if list.len() <= 1 {
+                let (mon, _) = monitor_at_cursor();
+                let shot = grab(&mon)?;
+                return super::encode_png(width(&mon) as usize, height(&mon) as usize, &shot).map(Some);
+            }
+            // 모니터가 둘 이상이면 찍을 모니터를 누르게 한다(마우스가 JB업무ON 단추 위에 있어 그 모니터만 찍히지 않게)
+            let vs = virtual_screen();
+            let frozen = grab(&vs)?;
+            let Some(mon) = select_region(&frozen, &vs, list, "찍을 모니터를 누르세요 · Esc 취소", true)? else {
+                return Ok(None);
+            };
+            let local = RECT { left: mon.left - vs.left, top: mon.top - vs.top, right: mon.right - vs.left, bottom: mon.bottom - vs.top };
+            let part = crop(&frozen, width(&vs), &local);
+            super::encode_png(width(&local) as usize, height(&local) as usize, &part).map(Some)
         }
         Mode::Region | Mode::Scroll => {
             let vs = virtual_screen();
@@ -860,7 +890,7 @@ pub fn capture(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
             } else {
                 "끌어서 영역을 고르세요 · 창을 누르면 그 창 · Esc 취소"
             };
-            let Some(sel) = select_region(&frozen, &vs, windows, hint)? else {
+            let Some(sel) = select_region(&frozen, &vs, windows, hint, false)? else {
                 return Ok(None);
             };
             if mode == Mode::Scroll {
