@@ -23,16 +23,15 @@ use windows_sys::Win32::UI::HiDpi::{
     GetDpiForWindow, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, ReleaseCapture, SendInput, SetCapture, INPUT, INPUT_MOUSE, MOUSEEVENTF_WHEEL, MOUSEINPUT,
-    VK_ESCAPE,
+    GetAsyncKeyState, ReleaseCapture, SetCapture, VK_ESCAPE,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow, DispatchMessageW,
-    EnumChildWindows, EnumWindows, GetAncestor, GetClassNameW, GetClientRect, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongPtrW,
+    EnumChildWindows, EnumWindows, GetClassNameW, GetClientRect, GetCursorPos, GetMessageW, GetSystemMetrics, GetWindowLongPtrW,
     GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, KillTimer, LoadCursorW, PeekMessageW,
-    PostQuitMessage, RegisterClassW, SetCursor, SetCursorPos, SetForegroundWindow, SetTimer, SetWindowDisplayAffinity,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage, WindowFromPoint, CS_DBLCLKS,
-    CS_DROPSHADOW, GA_ROOT, GWLP_USERDATA, HTCAPTION, IDC_CROSS, IDC_SIZEALL, MA_NOACTIVATE, MF_SEPARATOR,
+    PostQuitMessage, RegisterClassW, SetCursor, SetForegroundWindow, SetTimer, SetWindowDisplayAffinity,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage, CS_DBLCLKS,
+    CS_DROPSHADOW, GWLP_USERDATA, HTCAPTION, IDC_CROSS, IDC_SIZEALL, MA_NOACTIVATE, MF_SEPARATOR,
     MF_STRING, MSG, PM_REMOVE, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SW_SHOW, SW_SHOWNOACTIVATE, TPM_RETURNCMD, TPM_RIGHTBUTTON,
     WDA_EXCLUDEFROMCAPTURE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_LBUTTONDOWN, WM_LBUTTONUP,
@@ -871,42 +870,24 @@ fn countdown(secs: u32) -> bool {
 
 /// 이어 붙인 그림의 높이 한도(점). 넘으면 거기서 멈춘다.
 const SCROLL_MAX_HEIGHT: usize = 20_000;
-const SCROLL_MAX_STEPS: usize = 400;
+/// 화면을 보는 간격
+const SCROLL_POLL_MS: u64 = 100;
+/// 화면이 계속 바뀌면(움직이는 그림 등) 멈추기를 기다리지 않고 이만큼마다 이어 본다
+const SCROLL_MOVING_MS: u128 = 500;
 
-fn wheel_down() {
-    unsafe {
-        let mut input: INPUT = zeroed();
-        input.r#type = INPUT_MOUSE;
-        input.Anonymous.mi = MOUSEINPUT { dx: 0, dy: 0, mouseData: (-120i32) as u32, dwFlags: MOUSEEVENTF_WHEEL, time: 0, dwExtraInfo: 0 };
-        SendInput(1, &input, size_of::<INPUT>() as i32);
-    }
-}
-
-/// 굴린 뒤 화면이 멈출 때까지(부드러운 스크롤) 기다렸다가 찍는다.
-fn grab_settled(r: &RECT) -> Result<Vec<u8>, String> {
-    wait(120);
-    let mut last = grab(r)?;
-    let start = Instant::now();
-    while start.elapsed() < Duration::from_millis(1500) {
-        wait(80);
-        let now = grab(r)?;
-        if now == last {
-            return Ok(now);
-        }
-        last = now;
-    }
-    Ok(last)
-}
-
+/// 사용자가 휠로 내리는 동안, 화면이 멈출 때마다 찍어 앞 장과 겹치는 곳을 찾아 잇는다.
+/// Esc 나 진행 창을 누르면 거기까지 이은 그림을 돌려준다(끝까지 내리지 않아도 된다).
 fn scroll_capture(r: RECT) -> Result<Option<Vec<u8>>, String> {
     let (w, h) = (width(&r) as usize, height(&r) as usize);
     if h < 60 {
         return Err("스크롤 캡처는 높이 60점 이상인 영역을 골라 주세요.".to_string());
     }
     let (mon, _) = monitor_at(POINT { x: r.left + width(&r) / 2, y: r.top + height(&r) / 2 });
-    let text = |n: usize| format!("스크롤 캡처 중 · {n}장 · 마우스를 움직이지 마세요 · Esc 또는 이 창을 누르면 멈춥니다");
-    // 진행 창은 고른 곳 밖(아래, 안 되면 위, 그것도 안 되면 모니터 아래쪽)에 둔다
-    let mut badge = BadgeWindow::show("", &text(1), |bw, bh| {
+    const GUIDE: &str = "휠로 천천히 내리세요";
+    const TOO_FAST: &str = "너무 빨리 내렸습니다 · 조금 올려 주세요";
+    let text = |n: usize, note: &str| format!("스크롤 캡처 · {n}장 · {note} · 끝내기: Esc 또는 이 창 누르기");
+    // 진행 창은 고른 곳 밖(아래, 안 되면 위, 그것도 안 되면 모니터 아래쪽)에 둔다. 폭은 가장 긴 글로 잰다.
+    let mut badge = BadgeWindow::show("", &text(9999, TOO_FAST), |bw, bh| {
         let x = (r.left + (width(&r) - bw) / 2).clamp(mon.left, mon.right - bw);
         if r.bottom + 8 + bh <= mon.bottom {
             (x, r.bottom + 8)
@@ -916,66 +897,57 @@ fn scroll_capture(r: RECT) -> Result<Option<Vec<u8>>, String> {
             (x, mon.bottom - bh - 8)
         }
     });
-    let mut saved: POINT = unsafe { zeroed() };
-    unsafe { GetCursorPos(&mut saved) };
-    let (cx, cy) = (r.left + width(&r) / 2, r.top + height(&r) / 2);
-    // 마우스가 고른 곳 위에 있으면 그 자리의 단추·카드가 '마우스 올림' 모양으로 바뀌어 장마다 달라진다.
-    // 휠을 굴릴 때만 가운데로 옮기고, 찍을 때는 고른 곳 바로 바깥에 둔다.
-    let vs = virtual_screen();
-    let park = [
-        POINT { x: r.right + 6, y: cy },
-        POINT { x: r.left - 7, y: cy },
-        POINT { x: cx, y: r.bottom + 6 },
-        POINT { x: cx, y: r.top - 7 },
-    ]
-    .into_iter()
-    .find(|p| contains(&vs, p.x, p.y))
-    .unwrap_or(POINT { x: cx, y: cy });
-    // 휠은 마우스 아래 창이 받는다. 그 창을 앞으로 가져와 휠이 확실히 먹게 한다.
-    unsafe {
-        let target = WindowFromPoint(POINT { x: cx, y: cy });
-        if !target.is_null() {
-            SetForegroundWindow(GetAncestor(target, GA_ROOT));
-        }
-        SetCursorPos(park.x, park.y);
+    if let Some(b) = badge.as_mut() {
+        b.set("", &text(1, GUIDE));
     }
-    wait(250);
     let first = grab(&r)?;
-    let mut stitcher = Stitcher::new(first, w, h);
+    let mut stitcher = Stitcher::new(first.clone(), w, h);
     let mut shots = 1usize;
-    let mut same = 0;
-    for _ in 0..SCROLL_MAX_STEPS {
+    let mut last = first;
+    // 지금 화면을 이미 이어 봤는지(멈춘 화면은 한 번만 잇는다)
+    let mut handled = true;
+    let mut moving_since = Instant::now();
+    loop {
         if esc_down() || badge.as_ref().is_some_and(|b| b.clicked()) {
             break;
         }
-        unsafe { SetCursorPos(cx, cy) };
-        wait(20);
-        wheel_down();
-        wait(40);
-        unsafe { SetCursorPos(park.x, park.y) };
-        let frame = grab_settled(&r)?;
-        let result = stitcher.push(frame);
-        match result {
+        wait(SCROLL_POLL_MS);
+        let now = grab(&r)?;
+        let moving = now != last;
+        last = now;
+        if moving {
+            if handled {
+                handled = false;
+                moving_since = Instant::now();
+            }
+            if moving_since.elapsed().as_millis() < SCROLL_MOVING_MS {
+                continue;
+            }
+            moving_since = Instant::now();
+        } else if handled {
+            continue;
+        } else {
+            handled = true;
+        }
+        match stitcher.push(last.clone()) {
             Push::Added(_) => {
-                same = 0;
                 shots += 1;
                 if let Some(b) = badge.as_mut() {
-                    b.set("", &text(shots));
+                    b.set("", &text(shots, GUIDE));
                 }
             }
-            Push::Same => {
-                same += 1;
-                if same >= 2 {
-                    break;
+            Push::Same => {}
+            // 겹치는 곳이 없으면 붙이지 않고 기다린다(조금 올리면 다시 겹친다)
+            Push::NoMatch => {
+                if let Some(b) = badge.as_mut() {
+                    b.set("", &text(shots, TOO_FAST));
                 }
             }
-            Push::NoMatch => break,
         }
         if stitcher.height() >= SCROLL_MAX_HEIGHT {
             break;
         }
     }
-    unsafe { SetCursorPos(saved.x, saved.y) };
     drop(badge);
     let (ow, oh, out) = stitcher.finish();
     super::encode_png(ow, oh, &out).map(Some)
@@ -1029,7 +1001,7 @@ fn capture_inner(mode: Mode, delay: u32) -> Result<Option<Vec<u8>>, String> {
                 return Ok(None);
             };
             if mode == Mode::Scroll {
-                // 덮개 창이 사라진 진짜 화면에서 굴린다
+                // 덮개 창이 사라진 진짜 화면에서 첫 장을 찍는다
                 wait(150);
                 return scroll_capture(sel);
             }
